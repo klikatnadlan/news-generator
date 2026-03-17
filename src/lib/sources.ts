@@ -26,4 +26,24 @@ export const RSS_FEEDS: RSSFeedConfig[] = [
     url: "https://www.maariv.co.il/rss/nadlan",
     category: "general",
   },
+  {
+    name: "קליקת חדשות (מאוחד)",
+    url: "https://rss.app/feeds/_EXSHhiSZsny9QX8x.xml",
+    category: "נדל\"ן",
+  },
+  {
+    name: "Ynet כסף",
+    url: "https://www.ynet.co.il/Integration/StoryRss6740.xml",
+    category: "כלכלה",
+  },
+  {
+    name: "Bizportal נדל\"ן",
+    url: "https://www.bizportal.co.il/rss/realestate",
+    category: "נדל\"ן",
+  },
+  {
+    name: "Walla כלכלה",
+    url: "https://rss.walla.co.il/feed/6",
+    category: "כלכלה",
+  },
 ];

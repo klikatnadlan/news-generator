@@ -35,16 +35,18 @@ export function UsernameDialog() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent onClose={() => setOpen(false)}>
         <DialogHeader>
-          <DialogTitle className="text-xl">ברוכים הבאים למחולל הכותרות!</DialogTitle>
-          <DialogDescription className="text-sm leading-relaxed">
-            הכלי סורק חדשות נדל״ן, מדרג אותן, ומייצר נוסחים מוכנים לשיתוף בוואטסאפ.
+          <DialogTitle className="text-2xl">
+            ברוכים הבאים! 👋
+          </DialogTitle>
+          <DialogDescription className="text-sm leading-relaxed mt-2">
+            המערכת מייצרת כותרות ופרשנות יומית לוואטסאפ.
             <br />
-            הכנס את שמך כדי שנדע מי שלח כל הודעה.
+            מה השם שלך?
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
-            <Label htmlFor="name">שם</Label>
+            <Label htmlFor="name" className="font-medium">שם</Label>
             <Input
               id="name"
               value={name}
@@ -52,12 +54,18 @@ export function UsernameDialog() {
               placeholder="השם שלך..."
               onKeyDown={(e) => e.key === "Enter" && handleSave()}
               autoFocus
+              className="text-base py-3"
             />
           </div>
         </div>
         <DialogFooter>
-          <Button onClick={handleSave} disabled={!name.trim()}>
-            כניסה
+          <Button
+            onClick={handleSave}
+            disabled={!name.trim()}
+            className="w-full sm:w-auto text-white font-bold"
+            style={{ backgroundColor: "#1d3557" }}
+          >
+            כניסה למערכת
           </Button>
         </DialogFooter>
       </DialogContent>

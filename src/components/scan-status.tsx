@@ -9,7 +9,11 @@ interface ScanStatusProps {
   hasNews?: boolean;
 }
 
-export function ScanStatus({ lastScan, onScanComplete, hasNews = true }: ScanStatusProps) {
+export function ScanStatus({
+  lastScan,
+  onScanComplete,
+  hasNews = true,
+}: ScanStatusProps) {
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState<string | null>(null);
 
@@ -24,7 +28,9 @@ export function ScanStatus({ lastScan, onScanComplete, hasNews = true }: ScanSta
       if (data.error) {
         setScanResult(`שגיאה: ${data.error}`);
       } else {
-        setScanResult(`נסרקו ${data.scanned ?? 0} ידיעות, דורגו ${data.scored ?? 0}`);
+        setScanResult(
+          `נסרקו ${data.scanned ?? 0} ידיעות, דורגו ${data.scored ?? 0}`
+        );
       }
       onScanComplete();
     } catch {
@@ -42,29 +48,56 @@ export function ScanStatus({ lastScan, onScanComplete, hasNews = true }: ScanSta
       minute: "2-digit",
     });
 
-  return (
-    <div className="flex flex-col gap-2 p-3 rounded-lg border bg-muted/30">
-      <div className="flex items-center gap-3 flex-wrap">
+  // Large prominent button when no news
+  if (!hasNews) {
+    return (
+      <div className="text-center py-8 space-y-4">
+        <div className="text-5xl">📡</div>
+        <p className="text-lg font-medium" style={{ color: "#1d3557" }}>
+          אין חדשות עדיין. בואו נסרוק!
+        </p>
         <Button
-          size={!hasNews ? "default" : "sm"}
-          variant={!hasNews ? "default" : "outline"}
+          size="lg"
           onClick={handleScan}
           disabled={scanning}
+          className="text-white font-bold px-8 py-3 text-base"
+          style={{ backgroundColor: "#1d3557" }}
         >
-          {scanning ? "סורק..." : "סרוק עכשיו"}
+          {scanning ? "סורק חדשות..." : "🔍 סרוק חדשות עכשיו"}
         </Button>
-        {lastScan && (
-          <span className="text-muted-foreground text-sm">
-            סריקה אחרונה: {formatDate(lastScan)}
-          </span>
-        )}
         {scanResult && (
-          <span className="text-green-600 text-sm font-medium">{scanResult}</span>
+          <p className="text-green-600 text-sm font-medium">{scanResult}</p>
         )}
+        <p className="text-xs text-muted-foreground">
+          הסריקה האוטומטית רצה כל יום ב-06:00
+        </p>
       </div>
-      <p className="text-xs text-muted-foreground">
-        הסריקה האוטומטית רצה כל יום ב-06:00. אפשר גם לסרוק ידנית.
-      </p>
+    );
+  }
+
+  // Compact bar when news exists
+  return (
+    <div className="flex items-center gap-3 flex-wrap p-2.5 rounded-lg border bg-muted/30">
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={handleScan}
+        disabled={scanning}
+        className="text-xs"
+      >
+        {scanning ? "סורק..." : "🔍 סרוק שוב"}
+      </Button>
+      {lastScan && (
+        <span className="text-muted-foreground text-xs">
+          סריקה אחרונה: {formatDate(lastScan)}
+        </span>
+      )}
+      {scanResult && (
+        <span className="text-green-600 text-xs font-medium">{scanResult}</span>
+      )}
+      <span className="text-xs text-muted-foreground mr-auto">
+        סריקה אוטומטית כל יום ב-06:00
+      </span>
     </div>
   );
 }
