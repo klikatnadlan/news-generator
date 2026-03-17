@@ -26,7 +26,7 @@ export default function HomePage() {
   const [phase, setPhase] = useState<Phase>("select");
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [results, setResults] = useState<
-    { title: string; text: string; newsItemId: string; textId: string }[]
+    { title: string; source: string; sourceUrl: string; text: string; newsItemId: string; textId: string }[]
   >([]);
   const [digestText, setDigestText] = useState<string>("");
   const [digestTextId, setDigestTextId] = useState<string>("");
@@ -119,6 +119,8 @@ export default function HomePage() {
           const newsItem = news.find((n) => n.id === r.newsItemId);
           return {
             title: newsItem?.title || "",
+            source: newsItem?.source || "",
+            sourceUrl: newsItem?.source_url || "",
             text: r.text,
             newsItemId: r.newsItemId,
             textId: r.id || "",
@@ -193,6 +195,33 @@ export default function HomePage() {
   };
 
   const allSelected = news.length > 0 && selected.size === news.length;
+
+  // One-Tap Daily: auto-select top 3 and generate digest
+  const handleQuickDigest = async () => {
+    const top3 = news.slice(0, 3).map((n) => n.id);
+    setSelected(new Set(top3));
+    setPhase("generating-digest");
+    setGenerateError(null);
+    try {
+      const res = await fetch("/api/digest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newsItemIds: top3 }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        setGenerateError(data.error);
+        setPhase("select");
+        return;
+      }
+      setDigestText(data.digest);
+      setDigestTextId(data.textId || "");
+      setPhase("digest");
+    } catch {
+      setGenerateError("שגיאה ביצירת הדייג'סט. נסו שוב.");
+      setPhase("select");
+    }
+  };
 
   return (
     <main className="min-h-screen bg-background" dir="rtl">
@@ -301,6 +330,18 @@ export default function HomePage() {
                 null
               ) : (
                 <>
+                  {/* Quick digest button */}
+                  {news.length >= 3 && selected.size === 0 && (
+                    <Button
+                      className="w-full shadow-md font-bold text-base py-5"
+                      size="lg"
+                      onClick={handleQuickDigest}
+                      style={{ backgroundColor: "#1d3557" }}
+                    >
+                      ⚡ דייג&apos;סט יומי מהיר (Top 3)
+                    </Button>
+                  )}
+
                   {/* Instruction bar with select all */}
                   <div
                     className="rounded-lg p-3"
@@ -484,6 +525,33 @@ export default function HomePage() {
               >
                 ← חזרה לבחירת ידיעות
               </Button>
+            </div>
+          </div>
+        )}
+        {/* === Coming Soon Features === */}
+        {phase === "select" && news.length > 0 && (
+          <div className="mt-6 mb-8">
+            <div
+              className="rounded-lg p-4 border"
+              style={{ backgroundColor: "#f8f9fa", borderColor: "#e5e7eb" }}
+            >
+              <p className="text-sm font-bold mb-3" style={{ color: "#1d3557" }}>
+                🚀 בקרוב
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-md p-2.5 text-xs text-center border opacity-60" style={{ backgroundColor: "#fff" }}>
+                  🤖 שליחה ישירה לוואטסאפ
+                </div>
+                <div className="rounded-md p-2.5 text-xs text-center border opacity-60" style={{ backgroundColor: "#fff" }}>
+                  🎙️ הקלטה → טקסט מוכן
+                </div>
+                <div className="rounded-md p-2.5 text-xs text-center border opacity-60" style={{ backgroundColor: "#fff" }}>
+                  ⚙️ Pipeline אוטומטי יומי
+                </div>
+                <div className="rounded-md p-2.5 text-xs text-center border opacity-60" style={{ backgroundColor: "#fff" }}>
+                  📊 A/B Testing
+                </div>
+              </div>
             </div>
           </div>
         )}
