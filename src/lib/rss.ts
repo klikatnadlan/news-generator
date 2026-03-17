@@ -16,6 +16,24 @@ export interface FeedArticle {
   source: string;
 }
 
+// Detect real source from article URL (for aggregated feeds like rss.app)
+function detectSourceFromUrl(url: string): string | null {
+  if (!url) return null;
+  const lower = url.toLowerCase();
+  if (lower.includes("globes.co.il")) return "גלובס";
+  if (lower.includes("calcalist.co.il")) return "כלכליסט";
+  if (lower.includes("themarker.com")) return "דה מרקר";
+  if (lower.includes("ynet.co.il")) return "ynet";
+  if (lower.includes("maariv.co.il")) return "מעריב";
+  if (lower.includes("bizportal.co.il")) return "ביזפורטל";
+  if (lower.includes("walla.co.il")) return "וואלה";
+  if (lower.includes("israelhayom.co.il")) return "ישראל היום";
+  if (lower.includes("news1.co.il")) return "News1";
+  if (lower.includes("ice.co.il")) return "ICE";
+  if (lower.includes("kan.org.il")) return "כאן";
+  return null;
+}
+
 export async function fetchAllFeeds(): Promise<FeedArticle[]> {
   const articles: FeedArticle[] = [];
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -34,7 +52,7 @@ export async function fetchAllFeeds(): Promise<FeedArticle[]> {
             link: item.link || "",
             pubDate: item.pubDate,
             contentSnippet: item.contentSnippet?.slice(0, 500),
-            source: feed.name,
+            source: detectSourceFromUrl(item.link || "") || feed.name,
           }));
       } catch (err) {
         console.error(`Failed to fetch ${feed.name}:`, err);
