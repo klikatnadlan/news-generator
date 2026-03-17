@@ -35,8 +35,12 @@ export function UsernameDialog() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent onClose={() => setOpen(false)}>
         <DialogHeader>
-          <DialogTitle>מי אתה?</DialogTitle>
-          <DialogDescription>שם המשתמש ישמר לצורך מעקב שליחות</DialogDescription>
+          <DialogTitle className="text-xl">ברוכים הבאים למחולל הכותרות!</DialogTitle>
+          <DialogDescription className="text-sm leading-relaxed">
+            הכלי סורק חדשות נדל״ן, מדרג אותן, ומייצר נוסחים מוכנים לשיתוף בוואטסאפ.
+            <br />
+            הכנס את שמך כדי שנדע מי שלח כל הודעה.
+          </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
@@ -45,13 +49,16 @@ export function UsernameDialog() {
               id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="בן סולומון"
+              placeholder="השם שלך..."
               onKeyDown={(e) => e.key === "Enter" && handleSave()}
+              autoFocus
             />
           </div>
         </div>
         <DialogFooter>
-          <Button onClick={handleSave}>שמור</Button>
+          <Button onClick={handleSave} disabled={!name.trim()}>
+            כניסה
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

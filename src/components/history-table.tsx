@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   Table,
   TableBody,
@@ -9,6 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 interface HistoryEntry {
   id: string;
@@ -35,6 +37,8 @@ const styleLabels: Record<string, string> = {
 };
 
 export function HistoryTable({ history }: HistoryTableProps) {
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleString("he-IL", {
       day: "2-digit",
@@ -44,10 +48,22 @@ export function HistoryTable({ history }: HistoryTableProps) {
       minute: "2-digit",
     });
 
+  const handleCopy = async (entry: HistoryEntry) => {
+    const text = entry.generated_texts?.whatsapp_text;
+    if (!text) return;
+    await navigator.clipboard.writeText(text);
+    setCopiedId(entry.id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
   if (history.length === 0) {
     return (
-      <div className="text-center py-12 text-muted-foreground">
-        אין היסטוריה עדיין
+      <div className="text-center py-16 space-y-3">
+        <div className="text-4xl">📋</div>
+        <p className="text-muted-foreground text-lg">אין היסטוריה עדיין</p>
+        <p className="text-muted-foreground text-sm">
+          ברגע שתשלח נוסח ראשון, הוא יופיע כאן.
+        </p>
       </div>
     );
   }
@@ -61,13 +77,14 @@ export function HistoryTable({ history }: HistoryTableProps) {
           <TableHead className="text-right">סגנון</TableHead>
           <TableHead className="text-right">נשלח ע״י</TableHead>
           <TableHead className="text-right">ערוץ</TableHead>
+          <TableHead className="text-right w-[80px]">פעולות</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {history.map((entry) => (
           <TableRow key={entry.id}>
             <TableCell className="text-xs">{formatDate(entry.sent_at)}</TableCell>
-            <TableCell className="font-medium text-sm">
+            <TableCell className="font-medium text-sm max-w-[200px] truncate">
               {entry.generated_texts?.news_items?.title || "—"}
             </TableCell>
             <TableCell>
@@ -78,6 +95,16 @@ export function HistoryTable({ history }: HistoryTableProps) {
             <TableCell className="text-sm">{entry.sent_by || "—"}</TableCell>
             <TableCell className="text-xs">
               {entry.channel === "whatsapp_copy" ? "📋 העתקה" : "📱 שיתוף"}
+            </TableCell>
+            <TableCell>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => handleCopy(entry)}
+                className="text-xs h-7 px-2"
+              >
+                {copiedId === entry.id ? "✓ הועתק" : "📋 העתק"}
+              </Button>
             </TableCell>
           </TableRow>
         ))}

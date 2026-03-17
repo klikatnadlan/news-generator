@@ -21,6 +21,7 @@ export function WhatsAppPanel({
   const [textId, setTextId] = useState(initialTextId || "");
   const [generating, setGenerating] = useState(false);
   const [sent, setSent] = useState(false);
+  const [copyLabel, setCopyLabel] = useState("📋 העתק");
 
   const generate = async (selectedStyle?: "short" | "regular" | "commentary") => {
     setGenerating(true);
@@ -51,6 +52,8 @@ export function WhatsAppPanel({
 
   const copyToClipboard = async () => {
     await navigator.clipboard.writeText(text);
+    setCopyLabel("✓ הועתק!");
+    setTimeout(() => setCopyLabel("📋 העתק"), 2000);
     recordSend("whatsapp_copy");
   };
 
@@ -62,7 +65,7 @@ export function WhatsAppPanel({
 
   const recordSend = async (channel: string) => {
     if (!textId) return;
-    const username = localStorage.getItem("username") || "";
+    const username = localStorage.getItem("news-gen-username") || "";
     await fetch("/api/history", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -81,9 +84,15 @@ export function WhatsAppPanel({
 
   if (!text && !generating) {
     return (
-      <Button onClick={() => generate()} variant="default" size="sm">
-        צור נוסח
-      </Button>
+      <div className="mt-4 p-4 border rounded-lg bg-muted/30">
+        <div className="flex items-center justify-between mb-3">
+          <span className="font-medium text-sm">בחר סגנון ולחץ ״צור נוסח״</span>
+          <StyleSelector value={style} onChange={setStyle} />
+        </div>
+        <Button onClick={() => generate()} variant="default" size="sm">
+          צור נוסח
+        </Button>
+      </div>
     );
   }
 
@@ -106,7 +115,7 @@ export function WhatsAppPanel({
           />
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="outline" onClick={copyToClipboard}>
-              📋 העתק
+              {copyLabel}
             </Button>
             <Button size="sm" variant="outline" onClick={shareWhatsApp}>
               📱 שתף בוואטסאפ

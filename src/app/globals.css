@@ -21,10 +21,24 @@
   --color-input: oklch(0.922 0 0);
   --color-ring: oklch(0.708 0.165 254.62);
   --radius: 0.625rem;
+  --color-brand-primary: #1d3557;
+  --color-brand-accent: #e63946;
+  --color-score-green: #16a34a;
+  --color-score-yellow: #ca8a04;
+  --color-score-orange: #ea580c;
 }
 
 @layer base {
   body {
     @apply bg-background text-foreground;
+    font-family: "Segoe UI", "Arial", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  * {
+    transition-property: color, background-color, border-color, opacity, box-shadow;
+    transition-duration: 150ms;
+    transition-timing-function: ease-in-out;
   }
 }

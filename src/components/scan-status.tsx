@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button";
 interface ScanStatusProps {
   lastScan: string | null;
   onScanComplete: () => void;
+  hasNews?: boolean;
 }
 
-export function ScanStatus({ lastScan, onScanComplete }: ScanStatusProps) {
+export function ScanStatus({ lastScan, onScanComplete, hasNews = true }: ScanStatusProps) {
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState<string | null>(null);
 
@@ -42,14 +43,28 @@ export function ScanStatus({ lastScan, onScanComplete }: ScanStatusProps) {
     });
 
   return (
-    <div className="flex items-center gap-3 text-sm">
-      <Button size="sm" variant="outline" onClick={handleScan} disabled={scanning}>
-        {scanning ? "סורק..." : "סרוק עכשיו"}
-      </Button>
-      {lastScan && (
-        <span className="text-muted-foreground">סריקה אחרונה: {formatDate(lastScan)}</span>
-      )}
-      {scanResult && <span className="text-green-600">{scanResult}</span>}
+    <div className="flex flex-col gap-2 p-3 rounded-lg border bg-muted/30">
+      <div className="flex items-center gap-3 flex-wrap">
+        <Button
+          size={!hasNews ? "default" : "sm"}
+          variant={!hasNews ? "default" : "outline"}
+          onClick={handleScan}
+          disabled={scanning}
+        >
+          {scanning ? "סורק..." : "סרוק עכשיו"}
+        </Button>
+        {lastScan && (
+          <span className="text-muted-foreground text-sm">
+            סריקה אחרונה: {formatDate(lastScan)}
+          </span>
+        )}
+        {scanResult && (
+          <span className="text-green-600 text-sm font-medium">{scanResult}</span>
+        )}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        הסריקה האוטומטית רצה כל יום ב-06:00. אפשר גם לסרוק ידנית.
+      </p>
     </div>
   );
 }
