@@ -28,6 +28,15 @@ const SOURCE_DISPLAY: Record<string, { label: string; color: string }> = {
   "walla": { label: "וואלה", color: "#00a0e3" },
   "מעריב": { label: "מעריב", color: "#003366" },
   "ישראל היום": { label: "ישראל היום", color: "#0055a5" },
+  "מרכז הנדל": { label: "מרכז הנדל\"ן", color: "#8b5cf6" },
+  "nadlancenter": { label: "מרכז הנדל\"ן", color: "#8b5cf6" },
+  "מגדילים": { label: "מגדילים", color: "#059669" },
+  "magdilim": { label: "מגדילים", color: "#059669" },
+  "מדלן": { label: "מדלן", color: "#7c3aed" },
+  "madlan": { label: "מדלן", color: "#7c3aed" },
+  "הומלס": { label: "הומלס", color: "#dc2626" },
+  "homeless": { label: "הומלס", color: "#dc2626" },
+  "ice": { label: "ICE", color: "#0ea5e9" },
 };
 
 function getSourceInfo(source: string) {

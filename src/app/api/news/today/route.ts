@@ -16,6 +16,11 @@ function detectSourceFromUrl(url: string): string | null {
   if (lower.includes("news1.co.il")) return "News1";
   if (lower.includes("ice.co.il")) return "ICE";
   if (lower.includes("kan.org.il")) return "כאן";
+  if (lower.includes("nadlancenter.co.il")) return "מרכז הנדל\"ן";
+  if (lower.includes("magdilim.co.il")) return "מגדילים";
+  if (lower.includes("madlan.co.il")) return "מדלן";
+  if (lower.includes("homeless.co.il")) return "הומלס";
+  if (lower.includes("dira.co.il")) return "דירה";
   return null;
 }
 
