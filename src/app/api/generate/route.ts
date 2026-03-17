@@ -9,17 +9,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Missing newsItemIds or style" }, { status: 400 });
   }
 
-  const results = [];
+  // Fetch all news items in one query
+  const { data: newsItems, error } = await supabase
+    .from("news_items")
+    .select("*")
+    .in("id", newsItemIds);
 
-  for (const newsItemId of newsItemIds) {
-    const { data: newsItem } = await supabase
-      .from("news_items")
-      .select("*")
-      .eq("id", newsItemId)
-      .single();
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
-    if (!newsItem) continue;
-
+  // Generate all texts in parallel
+  const generatePromises = (newsItems || []).map(async (newsItem) => {
     const text = await generateWhatsAppText(
       { title: newsItem.title, summary: newsItem.summary || "", source: newsItem.source },
       style
@@ -27,16 +28,23 @@ export async function POST(request: NextRequest) {
 
     const { data: saved } = await supabase
       .from("generated_texts")
-      .insert({ news_item_id: newsItemId, style, whatsapp_text: text })
+      .insert({ news_item_id: newsItem.id, style, whatsapp_text: text })
       .select()
       .single();
 
-    results.push({
-      newsItemId,
+    return {
+      newsItemId: newsItem.id,
       text,
       id: saved?.id,
-    });
-  }
+    };
+  });
 
-  return NextResponse.json({ results });
+  const results = await Promise.all(generatePromises);
+
+  // Maintain original order
+  const orderedResults = newsItemIds
+    .map((id: string) => results.find((r) => r.newsItemId === id))
+    .filter(Boolean);
+
+  return NextResponse.json({ results: orderedResults });
 }

@@ -9,7 +9,7 @@ import { ResultsPanel } from "@/components/results-panel";
 import type { ScoredNews } from "@/lib/types";
 import Link from "next/link";
 
-type Phase = "select" | "generating" | "results";
+type Phase = "select" | "generating" | "generating-digest" | "results" | "digest";
 
 const WORKFLOW_STEPS = [
   { num: 1, label: "סרוק חדשות" },
@@ -28,6 +28,8 @@ export default function HomePage() {
   const [results, setResults] = useState<
     { title: string; text: string; newsItemId: string; textId: string }[]
   >([]);
+  const [digestText, setDigestText] = useState<string>("");
+  const [digestTextId, setDigestTextId] = useState<string>("");
   const [username, setUsername] = useState<string | null>(null);
 
   useEffect(() => {
@@ -54,9 +56,9 @@ export default function HomePage() {
 
   // Determine current workflow step for the stepper
   const currentStep =
-    phase === "results"
+    phase === "results" || phase === "digest"
       ? 4
-      : phase === "generating"
+      : phase === "generating" || phase === "generating-digest"
       ? 3
       : loading
       ? 1
@@ -131,6 +133,35 @@ export default function HomePage() {
     }
   };
 
+  const handleDigestGenerate = async () => {
+    if (selected.size === 0) return;
+    setPhase("generating-digest");
+    setGenerateError(null);
+    try {
+      const res = await fetch("/api/digest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          newsItemIds: Array.from(selected),
+        }),
+      });
+      const data = await res.json();
+
+      if (data.error) {
+        setGenerateError(data.error);
+        setPhase("select");
+        return;
+      }
+
+      setDigestText(data.digest);
+      setDigestTextId(data.textId || "");
+      setPhase("digest");
+    } catch {
+      setGenerateError("שגיאה ביצירת הדייג'סט. נסו שוב.");
+      setPhase("select");
+    }
+  };
+
   const handleRegenerate = async (
     newsItemId: string,
     style: "short" | "regular" | "commentary"
@@ -157,6 +188,8 @@ export default function HomePage() {
   const handleBackToSelect = () => {
     setPhase("select");
     setResults([]);
+    setDigestText("");
+    setDigestTextId("");
   };
 
   const allSelected = news.length > 0 && selected.size === news.length;
@@ -308,30 +341,43 @@ export default function HomePage() {
               )}
             </div>
 
-            {/* Floating batch button */}
+            {/* Floating action buttons */}
             {selected.size > 0 && (
               <div className="fixed bottom-0 left-0 right-0 z-50">
-                <div className="max-w-2xl mx-auto px-4 pb-4 pt-2 bg-gradient-to-t from-background via-background to-transparent">
+                <div className="max-w-2xl mx-auto px-4 pb-4 pt-2 bg-gradient-to-t from-background via-background to-transparent space-y-2">
                   <Button
                     className="w-full shadow-lg text-white font-bold text-base py-6"
                     size="lg"
                     onClick={handleBatchGenerate}
                     style={{ backgroundColor: "#e63946" }}
                   >
-                    צור נוסח ל-{selected.size} ידיעות שנבחרו
+                    צור נוסח נפרד ל-{selected.size} ידיעות
                   </Button>
+                  {selected.size >= 2 && (
+                    <Button
+                      className="w-full shadow-md font-bold text-sm py-4"
+                      size="lg"
+                      variant="outline"
+                      onClick={handleDigestGenerate}
+                      style={{ borderColor: "#1d3557", color: "#1d3557" }}
+                    >
+                      📌 צור דייג'סט יומי מאוחד ({selected.size} ידיעות)
+                    </Button>
+                  )}
                 </div>
               </div>
             )}
           </>
         )}
 
-        {/* === PHASE: GENERATING === */}
-        {phase === "generating" && (
+        {/* === PHASE: GENERATING / GENERATING-DIGEST === */}
+        {(phase === "generating" || phase === "generating-digest") && (
           <div className="text-center py-20 space-y-4">
             <div className="text-5xl animate-bounce">⚡</div>
             <p className="text-xl font-bold" style={{ color: "#1d3557" }}>
-              מייצר {selected.size} נוסחים...
+              {phase === "generating-digest"
+                ? "מייצר דייג'סט יומי מאוחד..."
+                : `מייצר ${selected.size} נוסחים במקביל...`}
             </p>
             <p className="text-muted-foreground">
               Claude כותב בקול של בן סולומון. זה לוקח 15-30 שניות.
@@ -365,6 +411,80 @@ export default function HomePage() {
               onBack={handleBackToSelect}
               onRegenerate={handleRegenerate}
             />
+          </div>
+        )}
+
+        {/* === PHASE: DIGEST === */}
+        {phase === "digest" && (
+          <div className="mt-4 pb-8 space-y-4">
+            {/* Digest header */}
+            <div
+              className="rounded-lg p-4 border-2"
+              style={{ backgroundColor: "#f0f7f0", borderColor: "#2d8a4e" }}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">📌</span>
+                <span className="font-bold text-lg" style={{ color: "#1d3557" }}>
+                  דייג'סט יומי מוכן!
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1 mr-9">
+                הודעה אחת שלמה, מוכנה להעתקה ושיתוף בוואטסאפ
+              </p>
+            </div>
+
+            {/* Digest text */}
+            <div
+              className="whitespace-pre-wrap text-sm leading-relaxed rounded-lg p-5 border"
+              style={{ backgroundColor: "#fafafa", minHeight: "200px" }}
+              dir="rtl"
+            >
+              {digestText}
+            </div>
+
+            {/* Digest actions */}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  await navigator.clipboard.writeText(digestText);
+                }}
+              >
+                📋 העתק דייג'סט
+              </Button>
+              <Button
+                size="sm"
+                className="text-white"
+                style={{ backgroundColor: "#25D366" }}
+                onClick={() => {
+                  const encoded = encodeURIComponent(digestText);
+                  window.open(`https://wa.me/?text=${encoded}`, "_blank");
+                }}
+              >
+                📱 שתף בוואטסאפ
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleDigestGenerate}
+              >
+                🔄 נסח מחדש
+              </Button>
+            </div>
+
+            {/* Back button */}
+            <div className="flex justify-center pt-4">
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={handleBackToSelect}
+                className="font-medium"
+                style={{ borderColor: "#1d3557", color: "#1d3557" }}
+              >
+                ← חזרה לבחירת ידיעות
+              </Button>
+            </div>
           </div>
         )}
       </div>

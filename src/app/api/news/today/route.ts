@@ -9,7 +9,7 @@ export async function GET() {
     .select("*, news_items(*)")
     .eq("scan_date", today)
     .order("score", { ascending: false })
-    .limit(3);
+    .limit(6);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
