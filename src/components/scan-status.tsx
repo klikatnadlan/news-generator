@@ -20,7 +20,11 @@ export function ScanStatus({ lastScan, onScanComplete }: ScanStatusProps) {
         headers: { "x-manual-scan": "true" },
       });
       const data = await res.json();
-      setScanResult(`נסרקו ${data.scanned} ידיעות, דורגו ${data.scored}`);
+      if (data.error) {
+        setScanResult(`שגיאה: ${data.error}`);
+      } else {
+        setScanResult(`נסרקו ${data.scanned ?? 0} ידיעות, דורגו ${data.scored ?? 0}`);
+      }
       onScanComplete();
     } catch {
       setScanResult("שגיאה בסריקה");
