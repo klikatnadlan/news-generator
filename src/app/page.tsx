@@ -24,6 +24,7 @@ export default function HomePage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [phase, setPhase] = useState<Phase>("select");
+  const [generateError, setGenerateError] = useState<string | null>(null);
   const [results, setResults] = useState<
     { title: string; text: string; newsItemId: string; textId: string }[]
   >([]);
@@ -72,9 +73,20 @@ export default function HomePage() {
     });
   };
 
+  const handleSelectAll = () => {
+    if (selected.size === news.length) {
+      // Deselect all
+      setSelected(new Set());
+    } else {
+      // Select all
+      setSelected(new Set(news.map((n) => n.id)));
+    }
+  };
+
   const handleBatchGenerate = async () => {
     if (selected.size === 0) return;
     setPhase("generating");
+    setGenerateError(null);
     try {
       const res = await fetch("/api/generate", {
         method: "POST",
@@ -85,7 +97,20 @@ export default function HomePage() {
         }),
       });
       const data = await res.json();
+
+      if (data.error) {
+        setGenerateError(data.error);
+        setPhase("select");
+        return;
+      }
+
       const apiResults = data.results || [];
+
+      if (apiResults.length === 0) {
+        setGenerateError("לא נוצרו נוסחים. נסו שוב.");
+        setPhase("select");
+        return;
+      }
 
       const mapped = apiResults.map(
         (r: { text: string; newsItemId: string; id: string }) => {
@@ -101,7 +126,7 @@ export default function HomePage() {
       setResults(mapped);
       setPhase("results");
     } catch {
-      // On error, go back to select
+      setGenerateError("שגיאה ביצירת הנוסחים. נסו שוב.");
       setPhase("select");
     }
   };
@@ -133,6 +158,8 @@ export default function HomePage() {
     setPhase("select");
     setResults([]);
   };
+
+  const allSelected = news.length > 0 && selected.size === news.length;
 
   return (
     <main className="min-h-screen bg-background" dir="rtl">
@@ -216,6 +243,16 @@ export default function HomePage() {
               hasNews={news.length > 0}
             />
 
+            {/* Error message from failed generation */}
+            {generateError && (
+              <div
+                className="mt-3 rounded-lg p-3 text-center text-sm font-medium"
+                style={{ backgroundColor: "#fef2f2", color: "#dc2626" }}
+              >
+                {generateError}
+              </div>
+            )}
+
             <div
               className={`mt-4 space-y-3 ${
                 selected.size > 0 ? "pb-28" : "pb-8"
@@ -231,20 +268,32 @@ export default function HomePage() {
                 null
               ) : (
                 <>
-                  {/* Instruction text */}
+                  {/* Instruction bar with select all */}
                   <div
-                    className="rounded-lg p-3 text-center"
+                    className="rounded-lg p-3"
                     style={{ backgroundColor: "#f0f4ff", color: "#1d3557" }}
                   >
-                    <p className="text-sm font-medium">
-                      סמנו את הידיעות שתרצו ליצור עבורן נוסח, ולחצו על הכפתור
-                      למטה
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {news.length} ידיעות נמצאו
-                      {selected.size > 0 &&
-                        ` · ${selected.size} נבחרו`}
-                    </p>
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium">
+                          סמנו ידיעות ולחצו על הכפתור למטה
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {news.length} ידיעות נמצאו
+                          {selected.size > 0 &&
+                            ` · ${selected.size} נבחרו`}
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSelectAll}
+                        className="text-xs shrink-0"
+                        style={{ borderColor: "#1d3557", color: "#1d3557" }}
+                      >
+                        {allSelected ? "בטל הכל" : "בחר הכל"}
+                      </Button>
+                    </div>
                   </div>
 
                   {news.map((item) => (
@@ -282,10 +331,10 @@ export default function HomePage() {
           <div className="text-center py-20 space-y-4">
             <div className="text-5xl animate-bounce">⚡</div>
             <p className="text-xl font-bold" style={{ color: "#1d3557" }}>
-              מייצר נוסחים...
+              מייצר {selected.size} נוסחים...
             </p>
             <p className="text-muted-foreground">
-              זה יכול לקחת עד 30 שניות. שבו בנוחות.
+              Claude כותב בקול של בן סולומון. זה לוקח 15-30 שניות.
             </p>
             <div className="flex justify-center mt-4">
               <div
@@ -293,15 +342,18 @@ export default function HomePage() {
                 style={{ backgroundColor: "#e5e7eb" }}
               >
                 <div
-                  className="h-full rounded-full animate-pulse"
+                  className="h-full rounded-full"
                   style={{
                     backgroundColor: "#1d3557",
-                    width: "60%",
+                    width: "70%",
                     animation: "pulse 1.5s ease-in-out infinite",
                   }}
                 />
               </div>
             </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              הנוסחים יופיעו כאן ברגע שיהיו מוכנים
+            </p>
           </div>
         )}
 

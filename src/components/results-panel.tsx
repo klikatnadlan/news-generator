@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StyleSelector } from "./style-selector";
 
@@ -24,6 +25,7 @@ export function ResultsPanel({ results, onBack, onRegenerate }: ResultsPanelProp
   const [combinedCopyLabel, setCombinedCopyLabel] = useState("העתק הכל");
   const [regeneratingIdx, setRegeneratingIdx] = useState<number | null>(null);
   const [sentItems, setSentItems] = useState<Set<number>>(new Set());
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
 
   const copyText = async (text: string, index: number) => {
     await navigator.clipboard.writeText(text);
@@ -55,6 +57,7 @@ export function ResultsPanel({ results, onBack, onRegenerate }: ResultsPanelProp
 
   const handleRegenerate = async (index: number, style: "short" | "regular" | "commentary") => {
     setRegeneratingIdx(index);
+    setEditingIdx(null);
     try {
       const result = await onRegenerate(items[index].newsItemId, style);
       if (result) {
@@ -67,6 +70,14 @@ export function ResultsPanel({ results, onBack, onRegenerate }: ResultsPanelProp
     } finally {
       setRegeneratingIdx(null);
     }
+  };
+
+  const handleEditText = (index: number, newText: string) => {
+    setItems((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], text: newText };
+      return next;
+    });
   };
 
   const markAsSent = async (index: number) => {
@@ -96,11 +107,16 @@ export function ResultsPanel({ results, onBack, onRegenerate }: ResultsPanelProp
         style={{ backgroundColor: "#f0f7f0", borderColor: "#2d8a4e" }}
       >
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">✅</span>
-            <span className="font-bold text-lg" style={{ color: "#1d3557" }}>
-              נוצרו {items.length} נוסחים מוכנים
-            </span>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">✅</span>
+              <span className="font-bold text-lg" style={{ color: "#1d3557" }}>
+                {items.length} נוסחים מוכנים!
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1 mr-9">
+              אפשר לערוך, לנסח מחדש, להעתיק, או לשתף ישירות
+            </p>
           </div>
           <div className="flex gap-2 flex-wrap">
             <Button
@@ -111,7 +127,7 @@ export function ResultsPanel({ results, onBack, onRegenerate }: ResultsPanelProp
             >
               {combinedCopyLabel === "הועתק!"
                 ? "✓ הועתק!"
-                : `📋 העתק הכל (${items.length} נוסחים)`}
+                : `📋 ${combinedCopyLabel}`}
             </Button>
             <Button
               size="sm"
@@ -119,7 +135,7 @@ export function ResultsPanel({ results, onBack, onRegenerate }: ResultsPanelProp
               className="font-medium text-white"
               style={{ backgroundColor: "#25D366" }}
             >
-              📱 שתף הכל בוואטסאפ
+              📱 שתף הכל
             </Button>
           </div>
         </div>
@@ -153,18 +169,43 @@ export function ResultsPanel({ results, onBack, onRegenerate }: ResultsPanelProp
               </div>
             ) : (
               <>
-                {/* The generated text - styled div, not textarea */}
-                <div
-                  className="whitespace-pre-wrap text-sm leading-relaxed rounded-lg p-4 border"
-                  style={{ backgroundColor: "#fafafa", minHeight: "120px" }}
-                  dir="rtl"
-                >
-                  {item.text}
-                </div>
+                {/* The generated text - toggle between view and edit */}
+                {editingIdx === i ? (
+                  <div className="space-y-2">
+                    <Textarea
+                      value={item.text}
+                      onChange={(e) => handleEditText(i, e.target.value)}
+                      className="min-h-[200px] text-sm leading-relaxed"
+                      dir="rtl"
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => setEditingIdx(null)}
+                        style={{ backgroundColor: "#1d3557" }}
+                        className="text-white text-xs"
+                      >
+                        סיום עריכה
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    className="whitespace-pre-wrap text-sm leading-relaxed rounded-lg p-4 border cursor-pointer group relative"
+                    style={{ backgroundColor: "#fafafa", minHeight: "120px" }}
+                    dir="rtl"
+                    onClick={() => setEditingIdx(i)}
+                  >
+                    {item.text}
+                    <span className="absolute top-2 left-2 text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                      לחצו לעריכה
+                    </span>
+                  </div>
+                )}
 
-                {/* Style regeneration buttons */}
+                {/* Style regeneration */}
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-muted-foreground">נסח מחדש בסגנון:</span>
+                  <span className="text-xs text-muted-foreground">נסח מחדש:</span>
                   <StyleSelector
                     value="regular"
                     onChange={(style) => handleRegenerate(i, style)}
@@ -185,7 +226,7 @@ export function ResultsPanel({ results, onBack, onRegenerate }: ResultsPanelProp
                     variant="outline"
                     onClick={() => shareWhatsApp(item.text, i)}
                   >
-                    📱 שתף בוואטסאפ
+                    📱 וואטסאפ
                   </Button>
                   <Button
                     size="sm"
@@ -193,7 +234,7 @@ export function ResultsPanel({ results, onBack, onRegenerate }: ResultsPanelProp
                     onClick={() => markAsSent(i)}
                     disabled={sentItems.has(i)}
                   >
-                    {sentItems.has(i) ? "✅ סומן כנשלח" : "✅ סמן כנשלח"}
+                    {sentItems.has(i) ? "✅ נשלח" : "✅ סמן כנשלח"}
                   </Button>
                 </div>
               </>
