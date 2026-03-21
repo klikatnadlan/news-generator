@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>מדריך עבודה עם הבוט — קליקת הנדל"ן</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Heebo', sans-serif; background: #f8f9fb; color: #0f1419; line-height: 1.7; }
+
+.header { background: linear-gradient(135deg, #0f1419, #1a2332); padding: 40px 20px; text-align: center; }
+.header h1 { color: #fff; font-size: 28px; font-weight: 800; margin-bottom: 8px; }
+.header p { color: rgba(255,255,255,0.5); font-size: 14px; }
+.header .badge { display: inline-block; background: rgba(5,150,105,0.2); color: #34d399; font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 20px; margin-top: 12px; }
+
+.container { max-width: 700px; margin: 0 auto; padding: 24px 16px; }
+
+.card { background: #fff; border: 1px solid #e8eaed; border-radius: 12px; padding: 24px; margin-bottom: 16px; }
+.card h2 { font-size: 18px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.card h3 { font-size: 15px; font-weight: 600; margin: 16px 0 8px; color: #1d3557; }
+.card p { font-size: 14px; color: #5f6368; margin-bottom: 8px; }
+.card ul { padding-right: 20px; margin-bottom: 12px; }
+.card li { font-size: 14px; color: #5f6368; margin-bottom: 6px; }
+.card li strong { color: #0f1419; }
+
+.rule-box { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px; margin: 12px 0; }
+.rule-box.green { background: #f0fdf4; border-color: #bbf7d0; }
+.rule-box.blue { background: #eff6ff; border-color: #bfdbfe; }
+.rule-box h4 { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+.rule-box p { font-size: 13px; margin: 0; }
+
+.example { background: #1a2332; color: #e5e7eb; border-radius: 8px; padding: 16px; margin: 12px 0; font-family: monospace; font-size: 13px; direction: ltr; text-align: left; white-space: pre-wrap; overflow-x: auto; }
+
+.do-dont { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0; }
+.do { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 14px; }
+.dont { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 14px; }
+.do h4, .dont h4 { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+.do h4 { color: #059669; }
+.dont h4 { color: #dc2626; }
+.do li, .dont li { font-size: 12px; margin-bottom: 4px; }
+
+.step { display: flex; gap: 12px; margin-bottom: 16px; align-items: flex-start; }
+.step-num { width: 32px; height: 32px; background: #0f1419; color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; shrink: 0; flex-shrink: 0; }
+.step-content { flex: 1; }
+.step-content h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.step-content p { font-size: 13px; color: #5f6368; }
+
+.footer { text-align: center; padding: 40px 20px; color: #9ca3af; font-size: 12px; }
+
+@media (max-width: 600px) {
+  .do-dont { grid-template-columns: 1fr; }
+  .header h1 { font-size: 22px; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>מדריך עבודה עם הבוט</h1>
+  <p>איך לבקש שינויים בטלגרם בלי לשבור דברים</p>
+  <div class="badge">קליקת הנדל"ן · לידרפיד</div>
+</div>
+
+<div class="container">
+
+  <!-- כלל הזהב -->
+  <div class="card" style="border-right: 4px solid #dc2626;">
+    <h2>🔴 כלל הזהב</h2>
+    <p style="font-size: 16px; color: #0f1419; font-weight: 600;">
+      בקשות קטנות וממוקדות = הצלחה.<br>
+      בקשות גדולות ומעורפלות = סיכון לשבירה.
+    </p>
+  </div>
+
+  <!-- מה עובד טוב -->
+  <div class="card">
+    <h2>✅ מה עובד מעולה בטלגרם</h2>
+    <ul>
+      <li><strong>שנה צבע כפתור</strong> — "שנה את הכפתור האדום לכחול"</li>
+      <li><strong>תקן טקסט</strong> — "שנה את הכותרת מ-X ל-Y"</li>
+      <li><strong>הוסף כפתור</strong> — "הוסף כפתור 'העתק' ליד הכפתור הקיים"</li>
+      <li><strong>תקן באג</strong> — "הכותרת נחתכת במובייל, תתקן"</li>
+      <li><strong>שנה גודל פונט</strong> — "הגדל את הכותרת ל-18px"</li>
+    </ul>
+    <div class="rule-box green">
+      <h4>הכלל: בקשה אחת, שינוי אחד, קובץ אחד</h4>
+      <p>ככל שהבקשה יותר ספציפית, הסיכוי לשבירה קרוב לאפס.</p>
+    </div>
+  </div>
+
+  <!-- מה מסוכן -->
+  <div class="card">
+    <h2>⚠️ מה יכול לשבור דברים</h2>
+    <ul>
+      <li><strong>"שנה את כל העיצוב"</strong> — יכול לדרוס CSS שלם</li>
+      <li><strong>"תבנה פיצ'ר חדש עם 4 דברים"</strong> — יותר מדי בפעם אחת</li>
+      <li><strong>"תעשה את זה כמו באתר X"</strong> — הבוט לא רואה אתרים אחרים</li>
+      <li><strong>"תשנה את הפיד ואת הנרטיב ואת הכותרות"</strong> — 3 שינויים = 3 הודעות נפרדות</li>
+    </ul>
+    <div class="rule-box">
+      <h4>אם צריך שינוי גדול — עדיף לעבוד עם Claude Code (המחשב)</h4>
+      <p>שינויים גדולים דורשים הבנת הקשר רחבה. Claude Code רואה את כל הפרויקט ויודע מה לא לגעת.</p>
+    </div>
+  </div>
+
+  <!-- Do / Don't -->
+  <div class="card">
+    <h2>📝 דוגמאות נכון / לא נכון</h2>
+    <div class="do-dont">
+      <div class="do">
+        <h4>✅ נכון</h4>
+        <ul>
+          <li>"שנה את צבע הכותרת לכחול"</li>
+          <li>"הוסף אייקון ליד כפתור ההעתקה"</li>
+          <li>"תקן שהטקסט לא נחתך במובייל"</li>
+          <li>"שנה את המילה 'דיגסט' ל-'תקציר'"</li>
+        </ul>
+      </div>
+      <div class="dont">
+        <h4>❌ לא נכון</h4>
+        <ul>
+          <li>"שנה את כל העיצוב של האפליקציה"</li>
+          <li>"תבנה מערכת נרטיבים חדשה"</li>
+          <li>"תוסיף 5 פיצ'רים חדשים"</li>
+          <li>"תעשה את זה כמו סטטיסטה"</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- איך לבקש שינוי -->
+  <div class="card">
+    <h2>🎯 איך לבקש שינוי בטלגרם</h2>
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <h4>תאר את השינוי בצורה ספציפית</h4>
+        <p>"בדף הכותרות, שנה את צבע הכפתור 'נרטיב' מאדום לסגול"</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <h4>ציין באיזו אפליקציה</h4>
+        <p>"באפליקציית לידרפיד (news-generator)" או "באפליקציית המכרזים (tenders-app)"</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <h4>בקשה אחת בכל הודעה</h4>
+        <p>אם יש 3 שינויים — שלח 3 הודעות נפרדות. ככה כל שינוי נבדק בנפרד.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <h4>בדוק אחרי כל שינוי</h4>
+        <p>אחרי שהבוט מסיים — רענן את האפליקציה ובדוק שהכל תקין לפני שמבקשים שינוי נוסף.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- מה הבוט עושה מאחורי הקלעים -->
+  <div class="card">
+    <h2>🔧 מה קורה מאחורי הקלעים</h2>
+    <p>כשאתה שולח בקשה לבוט, הוא:</p>
+    <div class="rule-box blue">
+      <p>1. קורא את <strong>CLAUDE.md</strong> — כללים שמגנים על העיצוב</p>
+      <p>2. עושה <strong>git pull</strong> — מושך את הגרסה הכי חדשה</p>
+      <p>3. <strong>קורא את הקובץ</strong> לפני שמשנה אותו</p>
+      <p>4. <strong>עורך רק את החלק הרלוונטי</strong> — לא משכתב הכל</p>
+      <p>5. בודק <strong>build</strong> — שהקוד תקין</p>
+      <p>6. עושה <strong>deploy + git commit</strong> — שומר ומעלה</p>
+    </div>
+  </div>
+
+  <!-- אפליקציות -->
+  <div class="card">
+    <h2>📱 האפליקציות שלך</h2>
+    <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
+      <tr style="border-bottom: 1px solid #e8eaed;">
+        <td style="padding: 8px; font-weight: 600;">לידרפיד</td>
+        <td style="padding: 8px; color: #5f6368;">news-generator</td>
+        <td style="padding: 8px;"><span style="color: #059669;">✅ מוגן</span></td>
+      </tr>
+      <tr style="border-bottom: 1px solid #e8eaed;">
+        <td style="padding: 8px; font-weight: 600;">מכרזים</td>
+        <td style="padding: 8px; color: #5f6368;">tenders-app</td>
+        <td style="padding: 8px;"><span style="color: #059669;">✅ מוגן</span></td>
+      </tr>
+      <tr style="border-bottom: 1px solid #e8eaed;">
+        <td style="padding: 8px; font-weight: 600;">אוטומציית קרקעות</td>
+        <td style="padding: 8px; color: #5f6368;">land-automation</td>
+        <td style="padding: 8px;"><span style="color: #059669;">✅ מוגן</span></td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- חירום -->
+  <div class="card" style="border-right: 4px solid #d97706;">
+    <h2>🆘 אם משהו נשבר</h2>
+    <ul>
+      <li><strong>אל תבקש מהבוט לתקן</strong> — הוא יכול לשבור יותר</li>
+      <li><strong>פתח Claude Code במחשב</strong> — הוא יודע לשחזר מ-git</li>
+      <li><strong>או שלח הודעה:</strong> "תחזיר את הקובץ X לגרסה הקודמת"</li>
+    </ul>
+  </div>
+
+</div>
+
+<div class="footer">
+  קליקת הנדל"ן · לידרפיד · מערכת מודיעין נדל"ן<br>
+  עודכן: מרץ 2026
+</div>
+
+</body>
+</html>
