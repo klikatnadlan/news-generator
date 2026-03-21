@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import type { ScoredNews } from "@/lib/types";
+import { VoicePlayButton } from "./voice-play-button";
+import { VoiceRecordButton } from "./voice-record-button";
 
 interface NewsCardProps {
   news: ScoredNews;
@@ -13,158 +13,136 @@ interface NewsCardProps {
   onSelect: (id: string, selected: boolean) => void;
 }
 
-// Map known sources to display names for trust signal
-const SOURCE_DISPLAY: Record<string, { label: string; color: string }> = {
+const SOURCES: Record<string, { label: string; color: string }> = {
   "גלובס": { label: "גלובס", color: "#0066cc" },
   "globes": { label: "גלובס", color: "#0066cc" },
-  "כלכליסט": { label: "כלכליסט", color: "#e63946" },
-  "calcalist": { label: "כלכליסט", color: "#e63946" },
-  "דה מרקר": { label: "דה מרקר", color: "#1a8c1a" },
-  "themarker": { label: "דה מרקר", color: "#1a8c1a" },
-  "ביזפורטל": { label: "ביזפורטל", color: "#ff8c00" },
-  "bizportal": { label: "ביזפורטל", color: "#ff8c00" },
-  "ynet": { label: "ynet", color: "#ed1c24" },
-  "וואלה": { label: "וואלה", color: "#00a0e3" },
-  "walla": { label: "וואלה", color: "#00a0e3" },
-  "מעריב": { label: "מעריב", color: "#003366" },
-  "ישראל היום": { label: "ישראל היום", color: "#0055a5" },
-  "מרכז הנדל": { label: "מרכז הנדל\"ן", color: "#8b5cf6" },
-  "nadlancenter": { label: "מרכז הנדל\"ן", color: "#8b5cf6" },
+  "כלכליסט": { label: "כלכליסט", color: "#c0392b" },
+  "calcalist": { label: "כלכליסט", color: "#c0392b" },
+  "דה מרקר": { label: "דה מרקר", color: "#16a34a" },
+  "themarker": { label: "דה מרקר", color: "#16a34a" },
+  "ביזפורטל": { label: "ביזפורטל", color: "#d97706" },
+  "bizportal": { label: "ביזפורטל", color: "#d97706" },
+  "ynet": { label: "ynet", color: "#dc2626" },
+  "וואלה": { label: "וואלה", color: "#0284c7" },
+  "walla": { label: "וואלה", color: "#0284c7" },
+  "מעריב": { label: "מעריב", color: "#1e3a5f" },
+  "ישראל היום": { label: "ישראל היום", color: "#1d4ed8" },
+  "מרכז הנדל": { label: 'מרכז הנדל"ן', color: "#7c3aed" },
   "מגדילים": { label: "מגדילים", color: "#059669" },
-  "magdilim": { label: "מגדילים", color: "#059669" },
   "מדלן": { label: "מדלן", color: "#7c3aed" },
-  "madlan": { label: "מדלן", color: "#7c3aed" },
   "הומלס": { label: "הומלס", color: "#dc2626" },
-  "homeless": { label: "הומלס", color: "#dc2626" },
   "ice": { label: "ICE", color: "#0ea5e9" },
 };
 
-function getSourceInfo(source: string) {
-  const lower = source.toLowerCase();
-  for (const [key, val] of Object.entries(SOURCE_DISPLAY)) {
-    if (lower.includes(key.toLowerCase())) return val;
+function getSource(s: string) {
+  for (const [k, v] of Object.entries(SOURCES)) {
+    if (s.toLowerCase().includes(k.toLowerCase())) return v;
   }
-  return { label: source, color: "#6b7280" };
+  return { label: s, color: "#6b7280" };
 }
 
 export function NewsCard({ news, selected, onSelect }: NewsCardProps) {
   const [copyLabel, setCopyLabel] = useState<string | null>(null);
+  const [generating, setGenerating] = useState<"message" | "article" | null>(null);
+  const [generatedText, setGeneratedText] = useState<string | null>(null);
+  const [generatedType, setGeneratedType] = useState<"message" | "article" | null>(null);
+  const [resultCopyLabel, setResultCopyLabel] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [refineInstruction, setRefineInstruction] = useState("");
+  const [refining, setRefining] = useState(false);
 
-  const scoreBg =
-    news.score >= 80
-      ? "#dcfce7"
-      : news.score >= 60
-      ? "#fef9c3"
-      : "#ffedd5";
+  const src = getSource(news.source);
+  const scoreColor = news.score >= 80 ? "#059669" : news.score >= 60 ? "#d97706" : "#dc2626";
 
-  const scoreColor =
-    news.score >= 80
-      ? "#16a34a"
-      : news.score >= 60
-      ? "#ca8a04"
-      : "#ea580c";
-
-  const scoreBorder =
-    news.score >= 80
-      ? "border-r-green-500"
-      : news.score >= 60
-      ? "border-r-yellow-500"
-      : "border-r-orange-500";
-
-  const sourceInfo = getSourceInfo(news.source);
-
-  const handleCopyTachles = async (e: React.MouseEvent) => {
+  const generate = async (type: "message" | "article", e: React.MouseEvent) => {
     e.stopPropagation();
-    const tachlesText = `${news.title}${news.summary ? `\n${news.summary}` : ""}`;
-    await navigator.clipboard.writeText(tachlesText);
-    setCopyLabel("✓ הועתק!");
-    setTimeout(() => setCopyLabel(null), 2000);
+    setGenerating(type); setGeneratedText(null); setGeneratedType(null);
+    try {
+      if (type === "message") {
+        const res = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ newsItemIds: [news.id], style: "regular" }) });
+        const d = await res.json();
+        if (d.results?.[0]?.text) { setGeneratedText(d.results[0].text); setGeneratedType("message"); }
+      } else {
+        const res = await fetch("/api/article", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ newsItemId: news.id }) });
+        const d = await res.json();
+        if (d.text) { setGeneratedText(d.text); setGeneratedType("article"); }
+      }
+    } catch { /* */ } finally { setGenerating(null); }
   };
 
-  return (
-    <Card
-      className={`border-r-4 ${scoreBorder} cursor-pointer transition-all hover:shadow-md ${
-        selected ? "ring-2 shadow-md" : ""
-      }`}
-      style={
-        selected
-          ? { borderColor: "#1d3557", backgroundColor: "#f8faff", boxShadow: "0 0 0 2px #1d3557" }
-          : undefined
-      }
-      onClick={() => onSelect(news.id, !selected)}
-    >
-      <CardHeader className="pb-2">
-        <div className="flex items-start gap-3">
-          <Checkbox
-            checked={selected}
-            onCheckedChange={(checked) => onSelect(news.id, !!checked)}
-            className="mt-1 h-5 w-5"
-            onClick={(e) => e.stopPropagation()}
-          />
-          <div className="flex-1 min-w-0">
-            {/* Source badge - prominent at top */}
-            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-              <span
-                className="inline-flex items-center text-xs font-bold px-2.5 py-0.5 rounded-full text-white"
-                style={{ backgroundColor: sourceInfo.color }}
-              >
-                {sourceInfo.label}
-              </span>
-              <span
-                className="text-xs font-bold px-2 py-0.5 rounded-full"
-                style={{ backgroundColor: scoreBg, color: scoreColor }}
-              >
-                {news.score} נקודות
-              </span>
-            </div>
+  const refine = async () => {
+    if (!refineInstruction.trim() || refining || !generatedText) return;
+    setRefining(true);
+    try {
+      const res = await fetch("/api/refine", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ currentText: generatedText, instruction: refineInstruction.trim() }) });
+      const d = await res.json();
+      if (d.text) { setGeneratedText(d.text); setRefineInstruction(""); }
+    } finally { setRefining(false); }
+  };
 
-            <CardTitle className="text-base leading-tight">{news.title}</CardTitle>
+  const wc = generatedText ? generatedText.trim().split(/\s+/).filter(Boolean).length : 0;
+
+  return (
+    <article className={`lf-card overflow-hidden cursor-pointer ${selected ? "lf-card-selected" : ""}`} onClick={() => onSelect(news.id, !selected)}>
+      <div className="p-4 sm:p-5">
+        <div className="flex items-center gap-2.5 mb-3">
+          <button className="w-[22px] h-[22px] rounded-md border-2 flex items-center justify-center shrink-0 transition-all" style={{ borderColor: selected ? "#0f1419" : "#d1d5db", background: selected ? "#0f1419" : "#fff" }} onClick={(e) => { e.stopPropagation(); onSelect(news.id, !selected); }}>
+            {selected && <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6l2.5 2.5 4.5-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+          </button>
+          <span className="text-[11px] font-semibold px-2 py-[2px] rounded-md" style={{ color: src.color, background: src.color + "12", border: `1px solid ${src.color}22` }}>{src.label}</span>
+          <div className="flex items-center gap-1 mr-auto">
+            <span className="text-[20px] font-extrabold leading-none" style={{ color: scoreColor, fontFamily: "DM Sans, system-ui" }}>{news.score}</span>
+            {news.source_url && <a href={news.source_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[10px] hover:underline mr-2" style={{ color: "#9ca3af" }}>מקור ←</a>}
           </div>
         </div>
-      </CardHeader>
-      <CardContent className="pt-0 space-y-2">
-        {/* Reasoning in subtle amber box */}
-        <div
-          className="text-xs rounded-md p-2"
-          style={{ backgroundColor: "#fffbeb", color: "#92400e" }}
-        >
-          {news.reasoning}
+        <h3 className="text-[16px] font-bold leading-[1.45] mb-1.5" style={{ color: "#0f1419" }}>{news.title.replace(/<[^>]*>/g, "")}</h3>
+        {news.summary && <p className="text-[13px] leading-[1.6] mb-2.5 line-clamp-2" style={{ color: "#6b7280" }}>{news.summary.replace(/<[^>]*>/g, "")}</p>}
+        {news.reasoning && !/^[a-zA-Z]/.test(news.reasoning) && <p className="text-[11px] leading-[1.4] mb-3 px-2 py-1 rounded-md inline-block" style={{ color: "#92400e", background: "#fffbeb" }}>{news.reasoning}</p>}
+        <div className="flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
+          <button onClick={async (e) => { e.stopPropagation(); await navigator.clipboard.writeText(`${news.title}${news.summary ? `\n${news.summary}` : ""}`); setCopyLabel("✓"); setTimeout(() => setCopyLabel(null), 1500); }} className="text-[11px] font-medium h-[30px] px-3 rounded-md border transition-colors" style={copyLabel ? { background: "#f0fdf4", borderColor: "#059669", color: "#059669" } : { borderColor: "#e5e7eb", color: "#6b7280", background: "#fff" }}>{copyLabel || "📋 העתק תכלס"}</button>
+          <button onClick={(e) => generate("message", e)} disabled={generating !== null} className="text-[11px] font-semibold h-[30px] px-3.5 rounded-md text-white disabled:opacity-40 transition-colors" style={{ background: "#0f1419" }}>{generating === "message" ? "⏳ מייצר..." : "📝 צור הודעה"}</button>
+          <button onClick={(e) => generate("article", e)} disabled={generating !== null} className="text-[11px] font-semibold h-[30px] px-3.5 rounded-md border disabled:opacity-40 transition-colors" style={{ borderColor: "#dc2626", color: "#dc2626", background: "#fff" }}>{generating === "article" ? "⏳ מייצר..." : "📰 צור כתבה"}</button>
         </div>
-
-        {news.summary && (
-          <p className="text-sm text-muted-foreground line-clamp-3">
-            {news.summary}
-          </p>
-        )}
-
-        {/* Action row: Read more + Copy tachles */}
-        <div className="flex items-center gap-2 pt-1 flex-wrap" onClick={(e) => e.stopPropagation()}>
-          {news.source_url && (
-            <a
-              href={news.source_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-md hover:opacity-80 transition-opacity border"
-              style={{ color: sourceInfo.color, borderColor: sourceInfo.color }}
-            >
-              קרא עוד →
-            </a>
-          )}
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleCopyTachles}
-            className="text-xs h-7 px-3"
-            style={
-              copyLabel
-                ? { backgroundColor: "#dcfce7", borderColor: "#16a34a", color: "#16a34a" }
-                : { borderColor: "#1d3557", color: "#1d3557" }
-            }
-          >
-            {copyLabel || "📋 העתק תכלס"}
-          </Button>
+      </div>
+      {generatedText && (
+        <div style={{ borderTop: "1px solid #e5e7eb" }} onClick={(e) => e.stopPropagation()}>
+          <div className="px-4 py-2.5 flex items-center justify-between" style={{ background: "#f9fafb" }}>
+            <div className="flex items-center gap-2 text-[12px]">
+              <span className="font-semibold" style={{ color: "#0f1419" }}>{generatedType === "article" ? "📰 כתבה" : "📝 הודעה"}</span>
+              <span style={{ color: "#9ca3af" }}>{wc} מילים</span>
+            </div>
+            <button onClick={() => { setGeneratedText(null); setGeneratedType(null); setEditing(false); }} className="text-[11px] w-6 h-6 rounded-full flex items-center justify-center hover:bg-gray-200" style={{ color: "#9ca3af" }}>✕</button>
+          </div>
+          <div className="px-4 py-3">
+            {editing ? (
+              <div className="space-y-2">
+                <Textarea value={generatedText} onChange={(e) => setGeneratedText(e.target.value)} className="min-h-[140px] text-[13px] leading-[1.7]" dir="rtl" />
+                <button onClick={() => setEditing(false)} className="text-[11px] font-semibold h-7 px-3 rounded-md text-white" style={{ background: "#0f1419" }}>סיום</button>
+              </div>
+            ) : (
+              <div className={`whitespace-pre-wrap text-[13px] leading-[1.7] cursor-pointer rounded-md p-2 hover:bg-gray-50 text-right ${generatedType === "article" ? "max-h-[280px] overflow-y-auto" : ""}`} dir="rtl" onClick={() => setEditing(true)}>{generatedText}</div>
+            )}
+          </div>
+          <div className="px-4 pb-2">
+            <div className="lf-ai-box p-2.5 space-y-1.5">
+              <span className="text-[10px] font-semibold" style={{ color: "#7c3aed" }}>תקן עם AI</span>
+              <div className="flex gap-1.5">
+                <Textarea value={refineInstruction} onChange={(e) => setRefineInstruction(e.target.value)} placeholder="מה לשנות?" className="text-[12px] min-h-[32px] max-h-[72px] resize-none flex-1 rounded-md" dir="rtl" rows={1} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); refine(); } }} />
+                <div className="flex flex-col gap-1 shrink-0">
+                  <Button size="sm" onClick={refine} disabled={!refineInstruction.trim() || refining} className="text-white text-[10px] h-6 px-2 rounded-md" style={{ backgroundColor: "#7c3aed" }}>{refining ? "..." : "תקן"}</Button>
+                  <VoiceRecordButton onTranscript={(t) => setRefineInstruction((p) => (p ? p + " " + t : t))} />
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="px-4 pb-3 flex flex-wrap gap-1.5">
+            <button onClick={async () => { if (!generatedText) return; await navigator.clipboard.writeText(generatedText); setResultCopyLabel("✓"); setTimeout(() => setResultCopyLabel(null), 1500); }} className="text-[11px] font-medium h-7 px-2.5 rounded-md border" style={resultCopyLabel ? { background: "#f0fdf4", borderColor: "#059669", color: "#059669" } : { borderColor: "#e5e7eb", color: "#6b7280" }}>{resultCopyLabel || "📋 העתק"}</button>
+            {generatedType === "message" && <button onClick={() => { if (!generatedText) return; window.open(`https://wa.me/?text=${encodeURIComponent(generatedText)}`, "_blank"); }} className="text-[11px] font-medium h-7 px-2.5 rounded-md text-white" style={{ background: "#25D366" }}>📱 וואטסאפ</button>}
+            {generatedType === "message" && <button onClick={(e) => generate("article", e)} disabled={generating !== null} className="text-[11px] font-medium h-7 px-2.5 rounded-md border" style={{ borderColor: "#dc2626", color: "#dc2626" }}>הרחב לכתבה</button>}
+            <VoicePlayButton text={generatedText} size="sm" className="text-[11px]" />
+          </div>
         </div>
-      </CardContent>
-    </Card>
+      )}
+    </article>
   );
 }

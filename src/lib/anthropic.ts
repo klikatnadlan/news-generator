@@ -385,3 +385,106 @@ ${text}
   }
   return JSON.parse(jsonMatch[0]);
 }
+
+// ─── Article generation ───
+export async function generateArticle(
+  newsOrTitle: string | { title: string; summary?: string; source?: string },
+  contextOrSummary?: string,
+  pulseContext?: string
+): Promise<string> {
+  const title = typeof newsOrTitle === "string" ? newsOrTitle : newsOrTitle.title;
+  const summary = typeof newsOrTitle === "string" ? (contextOrSummary || "") : (newsOrTitle.summary || "");
+  const extra = typeof newsOrTitle === "string" ? (pulseContext || "") : (contextOrSummary || "");
+  const response = await client.messages.create({
+    model: MODEL,
+    max_tokens: 4096,
+    messages: [
+      {
+        role: "user",
+        content: `כתוב כתבה מקצועית בעברית על הנושא הבא:\n\nכותרת: ${title}\nתקציר: ${summary}\n\n${extra ? `הקשר נוסף:\n${extra}\n` : ""}\n\nהכתבה צריכה להיות:\n- 600-1000 מילים\n- בעברית שיחתית, לא פורמלית\n- עם מספרים ספציפיים\n- בקול של בן סולומון מקליקת הנדל"ן\n- עם פסקאות קצרות\n- חתימה: בן סולומון והחברים מהקליקה`,
+      },
+    ],
+  });
+  return response.content[0].type === "text" ? response.content[0].text : "";
+}
+
+// ─── Sanitize text ───
+export function sanitizeText(text: string): string {
+  return text.replace(/\u2014/g, " - ").replace(/\u200B/g, "").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+// ─── Fact check ───
+export async function factCheck(text: string, _context?: string): Promise<{ passed: boolean; verified?: boolean; issues: string[]; score?: number }> {
+  const response = await client.messages.create({
+    model: MODEL,
+    max_tokens: 1024,
+    messages: [
+      {
+        role: "user",
+        content: `בדוק את הטקסט הבא ומצא טענות שנראות בדויות או לא מדויקות.\n\nטקסט:\n"""\n${text}\n"""\n\nהחזר JSON בלבד:\n{ "passed": true/false, "issues": ["בעיה 1"] }\n\nאם אין בעיות: { "passed": true, "issues": [] }`,
+      },
+    ],
+  });
+  const rt = response.content[0].type === "text" ? response.content[0].text : "";
+  const m = rt.match(/\{[\s\S]*\}/);
+  if (!m) return { passed: true, issues: [] };
+  try { return JSON.parse(m[0]); } catch { return { passed: true, issues: [] }; }
+}
+
+// ─── Refine text with instruction ───
+export async function refineText(currentText: string, instruction: string): Promise<string> {
+  const response = await client.messages.create({
+    model: MODEL,
+    max_tokens: 2048,
+    messages: [
+      { role: "user", content: `שפר את הטקסט הבא לפי ההוראה.\n\nטקסט נוכחי:\n"""\n${currentText}\n"""\n\nהוראה: ${instruction}\n\nהחזר רק את הטקסט המשופר, ללא הסברים.` },
+    ],
+  });
+  return response.content[0].type === "text" ? response.content[0].text : currentText;
+}
+
+// ─── Generate merged narrative ───
+export async function generateMergedNarrative(articles: { title: string; summary?: string; text?: string; source?: string }[]): Promise<string> {
+  const list = articles.map((a, i) => `${i + 1}. ${a.title}\n${a.summary || a.text || ""}`).join("\n\n");
+  const response = await client.messages.create({
+    model: MODEL,
+    max_tokens: 2048,
+    messages: [
+      { role: "user", content: `אתה בן סולומון מקליקת הנדל"ן. כתוב נרטיב מאוחד מהידיעות הבאות:\n\n${list}\n\nכתוב הודעת וואטסאפ אחת שלמה שמחברת את כל הידיעות לסיפור אחד. עברית שיחתית, מספרים ספציפיים, קצר ונקודתי.` },
+    ],
+  });
+  return response.content[0].type === "text" ? response.content[0].text : "";
+}
+
+// ─── Market confidence index ───
+export async function calculateMarketConfidence(newsItems: { title: string; score: number }[], _pulseData?: unknown): Promise<{ index: number; trend: string; summary: string }> {
+  const list = newsItems.map(n => `- ${n.title} (ציון: ${n.score})`).join("\n");
+  const response = await client.messages.create({
+    model: MODEL,
+    max_tokens: 512,
+    messages: [
+      { role: "user", content: `נתח את כותרות הנדל"ן הבאות וחשב מדד אמון שוק 1-100:\n\n${list}\n\nהחזר JSON בלבד:\n{ "index": 65, "trend": "עולה/יורד/יציב", "summary": "משפט אחד" }` },
+    ],
+  });
+  const rt = response.content[0].type === "text" ? response.content[0].text : "";
+  const m = rt.match(/\{[\s\S]*\}/);
+  if (!m) return { index: 50, trend: "יציב", summary: "" };
+  try { return JSON.parse(m[0]); } catch { return { index: 50, trend: "יציב", summary: "" }; }
+}
+
+// ─── Check repetition ───
+export async function checkRepetition(text: string, recentTexts?: string[]): Promise<{ isRepetitive: boolean; similarity: number; suggestion: string }> {
+  if (!recentTexts || recentTexts.length === 0) return { isRepetitive: false, similarity: 0, suggestion: "" };
+  const recent = recentTexts.slice(0, 3).map((t, i) => `טקסט ${i + 1}:\n${t.slice(0, 200)}`).join("\n\n");
+  const response = await client.messages.create({
+    model: MODEL,
+    max_tokens: 512,
+    messages: [
+      { role: "user", content: `בדוק אם הטקסט הבא חוזר על עצמו ביחס לטקסטים קודמים:\n\nטקסט חדש:\n${text.slice(0, 300)}\n\nטקסטים קודמים:\n${recent}\n\nהחזר JSON:\n{ "isRepetitive": true/false, "similarity": 0-100, "suggestion": "מה לשנות" }` },
+    ],
+  });
+  const rt = response.content[0].type === "text" ? response.content[0].text : "";
+  const m = rt.match(/\{[\s\S]*\}/);
+  if (!m) return { isRepetitive: false, similarity: 0, suggestion: "" };
+  try { return JSON.parse(m[0]); } catch { return { isRepetitive: false, similarity: 0, suggestion: "" }; }
+}

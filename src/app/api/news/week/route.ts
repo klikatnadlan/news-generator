@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
-// Detect real source from article URL (mirrors rss.ts logic)
 function detectSourceFromUrl(url: string): string | null {
   if (!url) return null;
   const lower = url.toLowerCase();
@@ -16,7 +15,7 @@ function detectSourceFromUrl(url: string): string | null {
   if (lower.includes("news1.co.il")) return "News1";
   if (lower.includes("ice.co.il")) return "ICE";
   if (lower.includes("kan.org.il")) return "כאן";
-  if (lower.includes("nadlancenter.co.il")) return "מרכז הנדל\"ן";
+  if (lower.includes("nadlancenter.co.il")) return 'מרכז הנדל"ן';
   if (lower.includes("magdilim.co.il")) return "מגדילים";
   if (lower.includes("madlan.co.il")) return "מדלן";
   if (lower.includes("homeless.co.il")) return "הומלס";
@@ -24,16 +23,27 @@ function detectSourceFromUrl(url: string): string | null {
   return null;
 }
 
+/** Get the start of the current Hebrew week (Sunday) */
+function getWeekStart(): string {
+  const now = new Date();
+  const day = now.getDay(); // 0=Sunday
+  const start = new Date(now);
+  start.setDate(now.getDate() - day);
+  return start.toISOString().split("T")[0];
+}
+
 export async function GET() {
   const today = new Date().toISOString().split("T")[0];
+  const weekStart = getWeekStart();
 
   const { data, error } = await supabase
     .from("news_scores")
     .select("*, news_items(*)")
-    .eq("scan_date", today)
+    .gte("scan_date", weekStart)
+    .lte("scan_date", today)
     .gte("score", 30)
     .order("score", { ascending: false })
-    .limit(6);
+    .limit(200);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -48,6 +58,7 @@ export async function GET() {
       score: s.score,
       reasoning: s.reasoning,
       score_id: s.id,
+      scan_date: s.scan_date,
     };
   });
 
@@ -61,5 +72,7 @@ export async function GET() {
   return NextResponse.json({
     news,
     lastScan: lastScan?.[0]?.fetched_at || null,
+    weekStart,
+    today,
   });
 }
