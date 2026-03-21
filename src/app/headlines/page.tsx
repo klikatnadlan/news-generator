@@ -68,6 +68,7 @@ export default function HeadlinesPage() {
   const [triggerLoading, setTriggerLoading] = useState(false);
   const [selectedDay, setSelectedDay] = useState("היום");
   const [tab, setTab] = useState<MainTab>('נדל"ן');
+  const [lastCategory, setLastCategory] = useState<string>('נדל"ן');
   const [narratives, setNarratives] = useState<Narrative[]>([]);
   const [narrativesLoading, setNarrativesLoading] = useState(false);
   const [narrativesCopyLabel, setNarrativesCopyLabel] = useState<string | null>(null);
@@ -85,10 +86,11 @@ export default function HeadlinesPage() {
 
   useEffect(() => { fetchNews(); }, [fetchNews]);
 
-  const fetchNarratives = async () => {
+  const fetchNarratives = async (category?: string) => {
     setNarrativesLoading(true);
     try {
-      const res = await fetch("/api/narratives");
+      const cat = category || lastCategory;
+      const res = await fetch(`/api/narratives?category=${encodeURIComponent(cat)}`);
       const data = await res.json();
       setNarratives(data.narratives || []);
     } finally {
@@ -96,11 +98,12 @@ export default function HeadlinesPage() {
     }
   };
 
+  // When switching to נרטיב, auto-fetch for last active category
   useEffect(() => {
-    if (tab === "נרטיב" && narratives.length === 0 && !narrativesLoading) {
-      fetchNarratives();
+    if (tab === "נרטיב") {
+      fetchNarratives(lastCategory);
     }
-  }, [tab]);
+  }, [tab, lastCategory]);
 
   const todayStr = new Date().toISOString().split("T")[0];
   const todayDay = DAYS[new Date().getDay()];
@@ -218,7 +221,7 @@ export default function HeadlinesPage() {
             return (
               <button
                 key={t.id}
-                onClick={() => { setTab(t.id); setSelected(new Set()); }}
+                onClick={() => { if (t.id !== "נרטיב") setLastCategory(t.id); setTab(t.id); setSelected(new Set()); }}
                 className="flex items-center gap-1.5 px-3 py-2 text-[12px] font-bold rounded-lg transition-all whitespace-nowrap shrink-0"
                 style={{
                   background: isActive ? t.color : "#fff",
@@ -357,7 +360,7 @@ export default function HeadlinesPage() {
           <div className="space-y-3">
             <div className="flex items-center justify-between mb-2">
               <p className="text-[13px] font-bold" style={{ color: "#0f1419" }}>
-                נרטיבים שרצו השבוע
+                נרטיבים שרצו השבוע — {lastCategory}
               </p>
               <div className="flex gap-1.5">
                 {narratives.length > 0 && (
@@ -365,7 +368,7 @@ export default function HeadlinesPage() {
                     {narrativesCopyLabel || "📋 העתק הכל"}
                   </button>
                 )}
-                <button className="lf-btn lf-btn-dark text-[11px] !py-1 !px-2" onClick={fetchNarratives} disabled={narrativesLoading}>
+                <button className="lf-btn lf-btn-dark text-[11px] !py-1 !px-2" onClick={() => fetchNarratives(lastCategory)} disabled={narrativesLoading}>
                   {narrativesLoading ? "⏳ מנתח..." : "🔄 עדכן"}
                 </button>
               </div>

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "@/lib/supabase";
 
@@ -27,7 +27,23 @@ function getWeekStart(): string {
   return start.toISOString().split("T")[0];
 }
 
-export async function GET() {
+// ─── Category classification (mirrors week-all logic) ───
+const RE_KW = ["נדל\"ן","דירה","דירות","משכנתא","בנייה","קבלן","מחיר למשתכן","פינוי בינוי","התחדשות עירונית","מס רכישה","שכירות","מגורים","ריבית","תב\"ע","יזם","עסקאות נדל","התחלות בנייה"];
+const HI_KW = ["הייטק","סטארטאפ","טכנולוגיה","בינה מלאכותית","AI","סייבר","ענן","גיוס הון","הנפקה","IPO","nvidia","אינווידיה","גוגל","אפל","מיקרוסופט","צ'יפ","שבב","יוניקורן","אקזיט","פינטק","ביוטק"];
+const EC_KW = ["כלכלה","בורסה","מניות","דלק","אנרגיה","חשמל","אינפלציה","מדד","תוצר","מיסים","בנק","אשראי","ביטוח","קמעונאות","רכישה","מיזוג","שכר","אבטלה","שקל","דולר","מט\"ח"];
+
+function classifyTitle(title: string): string {
+  const t = title.toLowerCase();
+  for (const k of RE_KW) if (t.includes(k.toLowerCase())) return 'נדל"ן';
+  for (const k of HI_KW) if (t.includes(k.toLowerCase())) return "הייטק";
+  for (const k of EC_KW) if (t.includes(k.toLowerCase())) return "כלכלה";
+  return "אחר";
+}
+
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const category = searchParams.get("category") || "";
+
   const today = new Date().toISOString().split("T")[0];
   const weekStart = getWeekStart();
 
@@ -36,9 +52,8 @@ export async function GET() {
     .select("*, news_items(*)")
     .gte("scan_date", weekStart)
     .lte("scan_date", today)
-    .gte("score", 30)
     .order("score", { ascending: false })
-    .limit(200);
+    .limit(500);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -48,16 +63,23 @@ export async function GET() {
     return NextResponse.json({ narratives: [], weekStart, today });
   }
 
-  const headlines = data.map((s: any) => {
+  const allHeadlines = data.map((s: any) => {
     const item = s.news_items;
     const realSource = detectSourceFromUrl(item.source_url) || item.source;
+    const cleanTitle = (item.title || "").replace(/<[^>]*>/g, "");
     return {
-      title: (item.title || "").replace(/<[^>]*>/g, ""),
+      title: cleanTitle,
       source: realSource,
       score: s.score,
       scan_date: s.scan_date,
+      category: classifyTitle(cleanTitle),
     };
   });
+
+  // Filter by category if provided
+  const headlines = category
+    ? allHeadlines.filter((h: any) => h.category === category)
+    : allHeadlines.filter((h: any) => h.score >= 30);
 
   const headlineList = headlines
     .map((h: any) => `[${h.scan_date}] ${h.title} (${h.source}, ציון: ${h.score})`)
@@ -69,7 +91,7 @@ export async function GET() {
     messages: [
       {
         role: "user",
-        content: `אתה מנתח נרטיבים תקשורתיים בנדל"ן. קיבלת רשימת כותרות חדשות מהשבוע.
+        content: `אתה מנתח נרטיבים תקשורתיים${category ? ` בתחום ${category}` : ""}. קיבלת רשימת כותרות חדשות מהשבוע.
 
 זהה את הנרטיבים המרכזיים שרצו השבוע — נושאים שחוזרים בכמה כתבות ממקורות שונים.
 
