@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import type { ScoredNews } from "@/lib/types";
@@ -28,8 +27,8 @@ const SOURCE_DISPLAY: Record<string, { label: string; color: string }> = {
   "walla": { label: "וואלה", color: "#00a0e3" },
   "מעריב": { label: "מעריב", color: "#003366" },
   "ישראל היום": { label: "ישראל היום", color: "#0055a5" },
-  "מרכז הנדל": { label: "מרכז הנדל\"ן", color: "#8b5cf6" },
-  "nadlancenter": { label: "מרכז הנדל\"ן", color: "#8b5cf6" },
+  'מרכז הנדל"ן': { label: 'מרכז הנדל"ן', color: "#8b5cf6" },
+  "nadlancenter": { label: 'מרכז הנדל"ן', color: "#8b5cf6" },
   "מגדילים": { label: "מגדילים", color: "#059669" },
   "magdilim": { label: "מגדילים", color: "#059669" },
   "מדלן": { label: "מדלן", color: "#7c3aed" },
@@ -49,6 +48,10 @@ function getSourceInfo(source: string) {
 
 export function NewsCard({ news, selected, onSelect }: NewsCardProps) {
   const [copyLabel, setCopyLabel] = useState<string | null>(null);
+  const [inlineText, setInlineText] = useState<string | null>(null);
+  const [inlineLoading, setInlineLoading] = useState(false);
+  const [inlineCopyLabel, setInlineCopyLabel] = useState<string | null>(null);
+  const inlineRef = useRef<HTMLDivElement>(null);
 
   const scoreBg =
     news.score >= 80
@@ -79,6 +82,47 @@ export function NewsCard({ news, selected, onSelect }: NewsCardProps) {
     await navigator.clipboard.writeText(tachlesText);
     setCopyLabel("✓ הועתק!");
     setTimeout(() => setCopyLabel(null), 2000);
+  };
+
+  const handleQuickGenerate = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    // Toggle: if text is already shown, hide it
+    if (inlineText) {
+      setInlineText(null);
+      return;
+    }
+    setInlineLoading(true);
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newsItemIds: [news.id], style: "regular" }),
+      });
+      const data = await res.json();
+      if (data.results?.[0]) {
+        setInlineText(data.results[0].text);
+        // Scroll into view after render
+        setTimeout(() => {
+          inlineRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 100);
+      }
+    } finally {
+      setInlineLoading(false);
+    }
+  };
+
+  const handleInlineCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!inlineText) return;
+    await navigator.clipboard.writeText(inlineText);
+    setInlineCopyLabel("✓ הועתק!");
+    setTimeout(() => setInlineCopyLabel(null), 2000);
+  };
+
+  const handleInlineWhatsApp = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!inlineText) return;
+    window.open(`https://wa.me/?text=${encodeURIComponent(inlineText)}`, "_blank");
   };
 
   return (
@@ -137,7 +181,7 @@ export function NewsCard({ news, selected, onSelect }: NewsCardProps) {
           </p>
         )}
 
-        {/* Action row: Read more + Copy tachles */}
+        {/* Action row: Read more + Copy tachles + Quick generate */}
         <div className="flex items-center gap-2 pt-1 flex-wrap" onClick={(e) => e.stopPropagation()}>
           {news.source_url && (
             <a
@@ -163,7 +207,72 @@ export function NewsCard({ news, selected, onSelect }: NewsCardProps) {
           >
             {copyLabel || "📋 העתק תכלס"}
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleQuickGenerate}
+            disabled={inlineLoading}
+            className="text-xs h-7 px-3"
+            style={
+              inlineText
+                ? { backgroundColor: "#f0f4ff", borderColor: "#1d3557", color: "#1d3557" }
+                : { borderColor: "#e63946", color: "#e63946" }
+            }
+          >
+            {inlineLoading ? "⏳ מייצר..." : inlineText ? "✕ הסתר נוסח" : "⚡ נוסח מהיר"}
+          </Button>
         </div>
+
+        {/* Inline generated text — appears right here in the card */}
+        {inlineText && (
+          <div
+            ref={inlineRef}
+            className="mt-2 rounded-lg border-2 overflow-hidden"
+            style={{ borderColor: "#e63946" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="px-3 py-2 text-xs font-bold flex items-center gap-1.5"
+              style={{ backgroundColor: "#e63946", color: "white" }}
+            >
+              ⚡ נוסח מוכן לשיתוף
+            </div>
+            <div
+              className="p-3 whitespace-pre-wrap text-sm leading-relaxed"
+              style={{ backgroundColor: "#fff8f8", direction: "rtl" }}
+              dir="rtl"
+            >
+              {inlineText}
+            </div>
+            <div
+              className="px-3 py-2 flex gap-2 border-t"
+              style={{ backgroundColor: "#fafafa" }}
+            >
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleInlineCopy}
+                className="text-xs h-7 px-3"
+                style={
+                  inlineCopyLabel
+                    ? { backgroundColor: "#dcfce7", borderColor: "#16a34a", color: "#16a34a" }
+                    : { borderColor: "#1d3557", color: "#1d3557" }
+                }
+              >
+                {inlineCopyLabel || "📋 העתק"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleInlineWhatsApp}
+                className="text-xs h-7 px-3"
+                style={{ borderColor: "#25D366", color: "#25D366" }}
+              >
+                📱 וואטסאפ
+              </Button>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

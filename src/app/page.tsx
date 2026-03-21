@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { NewsCard } from "@/components/news-card";
 import { ScanStatus } from "@/components/scan-status";
@@ -10,6 +10,7 @@ import type { ScoredNews } from "@/lib/types";
 import Link from "next/link";
 
 type Phase = "select" | "generating" | "generating-digest" | "results" | "digest";
+type NarrativePhase = "closed" | "timerange" | "loading" | "preview" | "generating" | "done";
 
 const WORKFLOW_STEPS = [
   { num: 1, label: "סרוק חדשות" },
@@ -32,9 +33,33 @@ export default function HomePage() {
   const [digestTextId, setDigestTextId] = useState<string>("");
   const [username, setUsername] = useState<string | null>(null);
 
+  // Source filter state
+  const [activeSource, setActiveSource] = useState<string | null>(null);
+
+  // Narrative overlay state
+  const [narrativePhase, setNarrativePhase] = useState<NarrativePhase>("closed");
+  const [narrativeNews, setNarrativeNews] = useState<ScoredNews[]>([]);
+  const [narrativeSelected, setNarrativeSelected] = useState<Set<string>>(new Set());
+  const [narrativeText, setNarrativeText] = useState<string>("");
+  const [narrativeError, setNarrativeError] = useState<string | null>(null);
+  const [customStart, setCustomStart] = useState<string>("");
+  const [customEnd, setCustomEnd] = useState<string>("");
+
   useEffect(() => {
     setUsername(localStorage.getItem("news-gen-username"));
   }, []);
+
+  // Unique sources from today's feed
+  const sources = useMemo(
+    () => Array.from(new Set(news.map((n) => n.source).filter(Boolean))),
+    [news]
+  );
+
+  // Filtered news based on active source
+  const filteredNews = useMemo(
+    () => (activeSource ? news.filter((n) => n.source === activeSource) : news),
+    [news, activeSource]
+  );
 
   const fetchNews = useCallback(async () => {
     setLoading(true);
@@ -76,12 +101,10 @@ export default function HomePage() {
   };
 
   const handleSelectAll = () => {
-    if (selected.size === news.length) {
-      // Deselect all
+    if (selected.size === filteredNews.length) {
       setSelected(new Set());
     } else {
-      // Select all
-      setSelected(new Set(news.map((n) => n.id)));
+      setSelected(new Set(filteredNews.map((n) => n.id)));
     }
   };
 
@@ -194,7 +217,65 @@ export default function HomePage() {
     setDigestTextId("");
   };
 
-  const allSelected = news.length > 0 && selected.size === news.length;
+  const fetchNarrativeNews = async (
+    timeRange: "week" | "month" | "custom",
+    startDate?: string,
+    endDate?: string
+  ) => {
+    setNarrativePhase("loading");
+    setNarrativeError(null);
+    try {
+      const params = new URLSearchParams({ timeRange });
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+      if (activeSource) params.set("source", activeSource);
+      const res = await fetch(`/api/narrative?${params}`);
+      const data = await res.json();
+      const items: ScoredNews[] = data.news || [];
+      setNarrativeNews(items);
+      setNarrativeSelected(new Set(items.map((n) => n.id)));
+      setNarrativePhase("preview");
+    } catch {
+      setNarrativeError("שגיאה בטעינת הידיעות. נסו שוב.");
+      setNarrativePhase("timerange");
+    }
+  };
+
+  const handleNarrativeGenerate = async () => {
+    const ids = Array.from(narrativeSelected);
+    if (ids.length === 0) return;
+    setNarrativePhase("generating");
+    setNarrativeError(null);
+    try {
+      const res = await fetch("/api/digest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newsItemIds: ids }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        setNarrativeError(data.error);
+        setNarrativePhase("preview");
+        return;
+      }
+      setNarrativeText(data.digest);
+      setNarrativePhase("done");
+    } catch {
+      setNarrativeError("שגיאה ביצירת הנרטיב. נסו שוב.");
+      setNarrativePhase("preview");
+    }
+  };
+
+  const closeNarrative = () => {
+    setNarrativePhase("closed");
+    setNarrativeNews([]);
+    setNarrativeText("");
+    setNarrativeError(null);
+    setCustomStart("");
+    setCustomEnd("");
+  };
+
+  const allSelected = filteredNews.length > 0 && selected.size === filteredNews.length;
 
   // One-Tap Daily: auto-select top 3 and generate digest
   const handleQuickDigest = async () => {
@@ -342,6 +423,48 @@ export default function HomePage() {
                     </Button>
                   )}
 
+                  {/* Source filter buttons + Narrative button */}
+                  {sources.length > 1 && (
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 flex-wrap">
+                      <button
+                        onClick={() => setActiveSource(null)}
+                        className="px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap border transition-colors shrink-0"
+                        style={
+                          !activeSource
+                            ? { backgroundColor: "#1d3557", color: "white", borderColor: "#1d3557" }
+                            : { borderColor: "#ccc", color: "#555", backgroundColor: "white" }
+                        }
+                      >
+                        הכל ({news.length})
+                      </button>
+                      {sources.map((src) => {
+                        const isActive = activeSource === src;
+                        const count = news.filter((n) => n.source === src).length;
+                        return (
+                          <button
+                            key={src}
+                            onClick={() => setActiveSource(isActive ? null : src)}
+                            className="px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap border transition-colors shrink-0"
+                            style={
+                              isActive
+                                ? { backgroundColor: "#1d3557", color: "white", borderColor: "#1d3557" }
+                                : { borderColor: "#ccc", color: "#555", backgroundColor: "white" }
+                            }
+                          >
+                            {src} ({count})
+                          </button>
+                        );
+                      })}
+                      <button
+                        onClick={() => setNarrativePhase("timerange")}
+                        className="px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap border transition-colors shrink-0 mr-auto"
+                        style={{ borderColor: "#7c3aed", color: "#7c3aed", backgroundColor: "#faf5ff" }}
+                      >
+                        📊 נרטיב{activeSource ? ` (${activeSource})` : ""}
+                      </button>
+                    </div>
+                  )}
+
                   {/* Instruction bar with select all */}
                   <div
                     className="rounded-lg p-3"
@@ -353,7 +476,8 @@ export default function HomePage() {
                           סמנו ידיעות ולחצו על הכפתור למטה
                         </p>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          {news.length} ידיעות נמצאו
+                          {filteredNews.length} ידיעות
+                          {activeSource ? ` מ${activeSource}` : " נמצאו"}
                           {selected.size > 0 &&
                             ` · ${selected.size} נבחרו`}
                         </p>
@@ -370,7 +494,7 @@ export default function HomePage() {
                     </div>
                   </div>
 
-                  {news.map((item) => (
+                  {filteredNews.map((item) => (
                     <NewsCard
                       key={item.id}
                       news={item}
@@ -556,6 +680,235 @@ export default function HomePage() {
           </div>
         )}
       </div>
+
+      {/* === NARRATIVE OVERLAY === */}
+      {narrativePhase !== "closed" && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col"
+          style={{ backgroundColor: "rgba(0,0,0,0.55)" }}
+          onClick={(e) => { if (e.target === e.currentTarget) closeNarrative(); }}
+        >
+          <div
+            className="relative flex flex-col bg-white w-full max-w-2xl mx-auto mt-auto rounded-t-2xl overflow-hidden"
+            style={{ maxHeight: "90vh" }}
+            dir="rtl"
+          >
+            {/* Header */}
+            <div
+              className="flex items-center justify-between px-5 py-4 border-b shrink-0"
+              style={{ borderColor: "#7c3aed" }}
+            >
+              <div>
+                <span className="font-bold text-base" style={{ color: "#7c3aed" }}>
+                  📊 נרטיב{activeSource ? ` — ${activeSource}` : ""}
+                </span>
+                {narrativePhase === "preview" && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {narrativeNews.length} ידיעות נבחרו · לחצו על כרטיס לביטול בחירה
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={closeNarrative}
+                className="text-gray-400 hover:text-gray-600 text-xl font-bold px-2"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="overflow-y-auto flex-1 px-4 py-4 space-y-3">
+
+              {/* Step 1: Time range picker */}
+              {narrativePhase === "timerange" && (
+                <div className="space-y-3">
+                  <p className="text-sm font-medium" style={{ color: "#1d3557" }}>
+                    בחרו טווח זמן לנרטיב:
+                  </p>
+                  {narrativeError && (
+                    <div className="rounded-md p-3 text-sm" style={{ backgroundColor: "#fef2f2", color: "#dc2626" }}>
+                      {narrativeError}
+                    </div>
+                  )}
+                  {[
+                    { key: "week", label: "📅 שבוע אחרון", desc: "7 ימים אחורה" },
+                    { key: "month", label: "📅 חודש אחרון", desc: "30 ימים אחורה" },
+                  ].map(({ key, label, desc }) => (
+                    <button
+                      key={key}
+                      onClick={() => fetchNarrativeNews(key as "week" | "month")}
+                      className="w-full text-right rounded-xl border-2 p-4 transition-all hover:shadow-md"
+                      style={{ borderColor: "#7c3aed" }}
+                    >
+                      <div className="font-bold" style={{ color: "#7c3aed" }}>{label}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">{desc}</div>
+                    </button>
+                  ))}
+                  {/* Custom range */}
+                  <div className="rounded-xl border-2 p-4" style={{ borderColor: "#e5e7eb" }}>
+                    <p className="font-bold text-sm mb-3" style={{ color: "#1d3557" }}>📅 טווח מותאם</p>
+                    <div className="flex gap-3 items-center">
+                      <div className="flex-1">
+                        <label className="text-xs text-muted-foreground">מתאריך</label>
+                        <input
+                          type="date"
+                          value={customStart}
+                          onChange={(e) => setCustomStart(e.target.value)}
+                          className="w-full mt-1 border rounded-md px-2 py-1.5 text-sm"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-xs text-muted-foreground">עד תאריך</label>
+                        <input
+                          type="date"
+                          value={customEnd}
+                          onChange={(e) => setCustomEnd(e.target.value)}
+                          className="w-full mt-1 border rounded-md px-2 py-1.5 text-sm"
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      className="w-full mt-3 text-white"
+                      size="sm"
+                      disabled={!customStart || !customEnd}
+                      onClick={() => fetchNarrativeNews("custom", customStart, customEnd)}
+                      style={{ backgroundColor: "#7c3aed" }}
+                    >
+                      טען ידיעות
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 2: Loading */}
+              {narrativePhase === "loading" && (
+                <div className="text-center py-16 space-y-3">
+                  <div className="text-4xl animate-pulse">📊</div>
+                  <p className="font-bold" style={{ color: "#7c3aed" }}>טוען ידיעות...</p>
+                </div>
+              )}
+
+              {/* Step 3: Preview articles as regular feed */}
+              {narrativePhase === "preview" && (
+                <div className="space-y-3">
+                  {narrativeError && (
+                    <div className="rounded-md p-3 text-sm" style={{ backgroundColor: "#fef2f2", color: "#dc2626" }}>
+                      {narrativeError}
+                    </div>
+                  )}
+                  {narrativeNews.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <p>לא נמצאו ידיעות בטווח הזמן הזה.</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-3"
+                        onClick={() => setNarrativePhase("timerange")}
+                      >
+                        חזרה לבחירת טווח
+                      </Button>
+                    </div>
+                  ) : (
+                    narrativeNews.map((item) => (
+                      <NewsCard
+                        key={item.id}
+                        news={item}
+                        selected={narrativeSelected.has(item.id)}
+                        onSelect={(id, isSelected) => {
+                          setNarrativeSelected((prev) => {
+                            const next = new Set(prev);
+                            if (isSelected) next.add(id);
+                            else next.delete(id);
+                            return next;
+                          });
+                        }}
+                      />
+                    ))
+                  )}
+                </div>
+              )}
+
+              {/* Step 4: Generating narrative */}
+              {narrativePhase === "generating" && (
+                <div className="text-center py-16 space-y-3">
+                  <div className="text-4xl animate-bounce">✍️</div>
+                  <p className="font-bold text-lg" style={{ color: "#7c3aed" }}>
+                    בונה נרטיב מ-{narrativeSelected.size} ידיעות...
+                  </p>
+                  <p className="text-sm text-muted-foreground">Claude מנתח ומסכם את הסיפורים החשובים</p>
+                </div>
+              )}
+
+              {/* Step 5: Narrative result */}
+              {narrativePhase === "done" && (
+                <div className="space-y-4">
+                  <div
+                    className="rounded-lg p-4 border-2"
+                    style={{ backgroundColor: "#faf5ff", borderColor: "#7c3aed" }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">📊</span>
+                      <span className="font-bold text-lg" style={{ color: "#7c3aed" }}>
+                        הנרטיב מוכן!
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 mr-9">
+                      {activeSource ? `נרטיב ${activeSource} ·` : ""} מבוסס על {narrativeSelected.size} ידיעות
+                    </p>
+                  </div>
+
+                  <div
+                    className="whitespace-pre-wrap text-sm leading-relaxed rounded-lg p-5 border"
+                    style={{ backgroundColor: "#fafafa", minHeight: "160px" }}
+                    dir="rtl"
+                  >
+                    {narrativeText}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => { await navigator.clipboard.writeText(narrativeText); }}
+                    >
+                      📋 העתק נרטיב
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="text-white"
+                      style={{ backgroundColor: "#25D366" }}
+                      onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(narrativeText)}`, "_blank")}
+                    >
+                      📱 שתף בוואטסאפ
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setNarrativePhase("preview")}
+                    >
+                      🔄 שנה בחירה
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer: generate button when in preview */}
+            {narrativePhase === "preview" && narrativeSelected.size > 0 && (
+              <div className="shrink-0 px-4 pb-5 pt-3 border-t" style={{ borderColor: "#e5e7eb" }}>
+                <Button
+                  className="w-full font-bold text-white py-5"
+                  size="lg"
+                  onClick={handleNarrativeGenerate}
+                  style={{ backgroundColor: "#7c3aed" }}
+                >
+                  📊 בנה נרטיב מ-{narrativeSelected.size} ידיעות
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </main>
   );
 }
