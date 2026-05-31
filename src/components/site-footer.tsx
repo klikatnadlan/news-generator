@@ -10,36 +10,24 @@ function getHebrewDate(): string {
 
 export function SiteFooter() {
   return (
-    <footer className="lf-footer">
-      <div className="max-w-3xl mx-auto px-4 py-8 flex flex-col items-center gap-3 text-center">
-        <div className="flex items-center gap-2.5">
-          <span className="lf-footer-dot" />
-          <p className="text-[13px] font-bold text-white tracking-tight">
-            מקבוצת קליקת הנדל״ן ובן סולומון
-          </p>
-          <span className="lf-footer-dot" />
-        </div>
-
-        <p className="text-[10px] text-white/40 tracking-[0.18em] uppercase" style={{ fontFamily: "DM Sans, system-ui" }}>
-          by Ben Solomon · Founder
+    <footer className="border-t border-[#e8eaed] mt-12 bg-white">
+      <div className="max-w-3xl mx-auto px-4 py-6 flex flex-col items-center gap-3 text-center">
+        <p className="text-sm font-semibold text-[#0f1419]">
+          מקבוצת קליקת הנדל״ן ובן סולומון
         </p>
-
-        <div className="flex items-center gap-4 mt-1">
-          <Link href="/dashboard" className="text-[11px] text-white/50 hover:text-white transition-colors">
+        <div className="flex items-center gap-4">
+          <Link href="/dashboard" className="text-xs text-[#86868b] hover:text-[#0f1419] transition-colors">
             לוח בקרה
           </Link>
-          <span className="text-[10px] text-white/20">·</span>
-          <Link href="/archive" className="text-[11px] text-white/50 hover:text-white transition-colors">
+          <Link href="/archive" className="text-xs text-[#86868b] hover:text-[#0f1419] transition-colors">
             ארכיון
           </Link>
-          <span className="text-[10px] text-white/20">·</span>
-          <Link href="/headlines" className="text-[11px] text-white/50 hover:text-white transition-colors">
+          <Link href="/headlines" className="text-xs text-[#86868b] hover:text-[#0f1419] transition-colors">
             כותרות
           </Link>
         </div>
-
-        <p className="text-[10px] text-white/25 mt-1">
-          נתונים ציבוריים · עדכון אחרון: {getHebrewDate()}
+        <p className="text-[11px] text-[#c7c7cc]">
+          {`נתונים ציבוריים | עדכון אחרון: ${getHebrewDate()}`}
         </p>
       </div>
     </footer>

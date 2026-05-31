@@ -362,28 +362,3 @@
   scrollbar-width: none;
 }
 
-/* ═══ Footer ═══ */
-.lf-footer {
-  background: linear-gradient(180deg, #0a0e12 0%, #050709 100%);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  margin-top: 48px;
-  position: relative;
-}
-
-.lf-footer::before {
-  content: "";
-  position: absolute;
-  top: 0; left: 50%;
-  transform: translateX(-50%);
-  width: min(420px, 70%);
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(239, 68, 68, 0.45), transparent);
-}
-
-.lf-footer-dot {
-  width: 4px; height: 4px;
-  border-radius: 999px;
-  background: #ef4444;
-  display: inline-block;
-  box-shadow: 0 0 10px rgba(239, 68, 68, 0.6);
-}
