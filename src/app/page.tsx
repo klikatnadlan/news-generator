@@ -151,9 +151,10 @@ export default function HomePage() {
       <header className="lf-header">
         <div className="max-w-3xl mx-auto px-4 flex items-center justify-between h-12">
           <div className="flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.7)]" />
             <span className="text-[14px] font-extrabold text-white tracking-tight" style={{ fontFamily: "DM Sans, system-ui" }}>לידרפיד</span>
-            <span className="text-[10px] text-white/30 hidden sm:inline">|</span>
-            <span className="text-[10px] text-white/30 hidden sm:inline">מודיעין נדל״ן</span>
+            <span className="text-[10px] text-white/30 hidden sm:inline">·</span>
+            <span className="text-[10px] text-white/40 hidden sm:inline">הבאז של הנדל״ן</span>
           </div>
           <nav className="flex items-center gap-3">
             <Link href="/headlines" className="text-[12px] text-white/60 hover:text-white transition-colors">כותרות</Link>
@@ -168,39 +169,93 @@ export default function HomePage() {
       {showHero && phase === "select" && (
         <section className="lf-hero">
           <div className="lf-hero-grid" />
-          <div className="relative max-w-3xl mx-auto px-4 py-8 sm:py-10">
-            <div className="flex items-start justify-between mb-6">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="text-[11px] text-emerald-400 font-medium">מערכת פעילה</span>
-                </div>
-                <h1 className="text-[26px] sm:text-[32px] font-extrabold text-white leading-tight" style={{ fontFamily: "Heebo, system-ui" }}>לידרפיד</h1>
-                <p className="text-[13px] text-white/50 mt-0.5">מודיעין נדל״ן · קליקת הנדל״ן</p>
-              </div>
-              <div className="text-left">
-                <p className="text-[22px] font-bold text-white/90" style={{ fontFamily: "DM Sans, system-ui" }}>{timeStr}</p>
-                <p className="text-[11px] text-white/40">{dateStr}</p>
+          <div className="lf-hero-glow" />
+
+          <div className="relative max-w-3xl mx-auto px-4 pt-12 pb-10 sm:pt-16 sm:pb-14 text-center">
+            {/* Date/time — subtle, top-left */}
+            <div className="absolute top-4 left-4 text-left lf-fade-in" style={{ animationDelay: "120ms" }}>
+              <p className="text-[16px] sm:text-[18px] font-bold text-white/90 leading-none tabular-nums" style={{ fontFamily: "DM Sans" }}>{timeStr}</p>
+              <p className="text-[10px] text-white/40 mt-1">{dateStr}</p>
+            </div>
+
+            {/* LIVE pill — centered above title */}
+            <div className="lf-fade-in" style={{ animationDelay: "200ms" }}>
+              <div className="lf-live-pill">
+                <span className="lf-live-dot" />
+                <span className="text-[10px] font-bold text-emerald-400 tracking-[0.18em]" style={{ fontFamily: "DM Sans" }}>LIVE</span>
+                <span className="text-[10px] text-white/25">·</span>
+                <span className="text-[10px] text-white/55">מערכת פעילה</span>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-2.5">
-              <div className="lf-stat-pill px-3 py-2.5 text-center">
-                <p className="text-[22px] font-extrabold text-white leading-none" style={{ fontFamily: "DM Sans" }}>{loading ? "—" : allNews.filter(n => n.scan_date === todayStr).length}</p>
-                <p className="text-[10px] text-white/40 mt-1">ידיעות היום</p>
+
+            {/* Hero title — massive */}
+            <h1
+              className="mt-6 text-[48px] sm:text-[68px] lg:text-[80px] font-black text-white leading-[1.02] tracking-tight lf-fade-in"
+              style={{ animationDelay: "400ms", fontFamily: "Heebo, system-ui" }}
+            >
+              לידרפיד
+              <span className="lf-dot-red" aria-hidden="true" />
+            </h1>
+
+            {/* Subtitle — three beats of the brand promise */}
+            <div className="mt-5 sm:mt-6 space-y-1">
+              <p
+                className="text-[15px] sm:text-[19px] text-white/85 font-medium leading-relaxed lf-fade-in"
+                style={{ animationDelay: "750ms" }}
+              >
+                לקרוא את הבאז, להבין את הבאז
+              </p>
+              <p
+                className="text-[15px] sm:text-[19px] text-white/85 font-medium leading-relaxed lf-fade-in"
+                style={{ animationDelay: "1050ms" }}
+              >
+                לדעת על מה כולם ידברו <span className="text-red-400 font-bold">גם מחר</span>
+              </p>
+            </div>
+
+            {/* Stats — animated reveal */}
+            <div
+              className="mt-10 grid grid-cols-3 gap-2.5 sm:gap-4 lf-fade-in"
+              style={{ animationDelay: "1350ms" }}
+            >
+              <div className="lf-stat-card-v2">
+                <p className="lf-stat-number">
+                  {loading ? "—" : allNews.filter(n => n.scan_date === todayStr).length}
+                </p>
+                <p className="lf-stat-label">ידיעות היום</p>
               </div>
-              <div className="lf-stat-pill px-3 py-2.5 text-center">
-                <p className="text-[22px] font-extrabold text-white leading-none" style={{ fontFamily: "DM Sans" }}>{loading ? "—" : allNews.length}</p>
-                <p className="text-[10px] text-white/40 mt-1">סה״כ השבוע</p>
+              <div className="lf-stat-card-v2">
+                <p className="lf-stat-number">
+                  {loading ? "—" : allNews.length}
+                </p>
+                <p className="lf-stat-label">סה״כ השבוע</p>
               </div>
-              <div className="lf-stat-pill px-3 py-2.5 text-center">
-                <p className="text-[13px] font-bold text-white/80 leading-none mt-0.5">{lastScan ? new Date(lastScan).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" }) : "—"}</p>
-                <p className="text-[10px] text-white/40 mt-1.5">סריקה אחרונה</p>
+              <div className="lf-stat-card-v2">
+                <p className="lf-stat-number lf-stat-number-sm">
+                  {lastScan ? new Date(lastScan).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" }) : "—"}
+                </p>
+                <p className="lf-stat-label">סריקה אחרונה</p>
               </div>
             </div>
+
+            {/* CTAs */}
             {!loading && news.length >= 3 && (
-              <div className="mt-4 flex gap-2">
-                <button className="flex-1 py-2.5 rounded-lg text-[13px] font-bold text-white transition-all hover:opacity-90" style={{ background: "rgba(220, 38, 38, 0.85)", backdropFilter: "blur(4px)" }} onClick={() => { setShowHero(false); handleQuickDigest(); }}>תקציר יומי מהיר</button>
-                <button className="flex-1 py-2.5 rounded-lg text-[13px] font-semibold text-white/80 transition-all hover:text-white" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.1)" }} onClick={() => setShowHero(false)}>בחירה ידנית</button>
+              <div
+                className="mt-7 flex flex-col sm:flex-row gap-2.5 max-w-[440px] mx-auto lf-fade-in"
+                style={{ animationDelay: "1650ms" }}
+              >
+                <button
+                  className="lf-hero-cta-primary"
+                  onClick={() => { setShowHero(false); handleQuickDigest(); }}
+                >
+                  תקציר יומי מהיר ←
+                </button>
+                <button
+                  className="lf-hero-cta-secondary"
+                  onClick={() => setShowHero(false)}
+                >
+                  בחירה ידנית
+                </button>
               </div>
             )}
           </div>

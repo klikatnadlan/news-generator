@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { SiteFooter } from "@/components/site-footer";
 
 export const metadata: Metadata = {
-  title: "לידרפיד — מודיעין נדל״ן",
-  description: "מערכת מודיעין נדל״ן של קליקת הנדל״ן",
+  title: "לידרפיד — לקרוא את הבאז",
+  description: "לקרוא את הבאז, להבין את הבאז, לדעת על מה כולם ידברו גם מחר",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -32,7 +33,10 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800;900&family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
       </head>
-      <body className="antialiased" style={{ fontFamily: "Heebo, system-ui, sans-serif" }}>{children}</body>
+      <body className="antialiased" style={{ fontFamily: "Heebo, system-ui, sans-serif" }}>
+        {children}
+        <SiteFooter />
+      </body>
     </html>
   );
 }
