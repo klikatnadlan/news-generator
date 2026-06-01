@@ -16,10 +16,13 @@ export function ScanStatus({
 }: ScanStatusProps) {
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState<string | null>(null);
+  const [rescoring, setRescoring] = useState(false);
+  const [needsRescore, setNeedsRescore] = useState(false);
 
   const handleScan = async () => {
     setScanning(true);
     setScanResult(null);
+    setNeedsRescore(false);
     try {
       const res = await fetch("/api/cron/scan", {
         headers: { "x-manual-scan": "true" },
@@ -29,16 +32,42 @@ export function ScanStatus({
         setScanResult(`הסריקה נכשלה: ${data.error}. תוכל לנסות שוב בעוד דקה.`);
       } else if ((data.scanned ?? 0) === 0) {
         setScanResult("הסריקה רצה — לא הופיעו ידיעות חדשות. בדוק שוב בעוד שעה.");
+      } else if ((data.scored ?? 0) === 0) {
+        // All articles were duplicates (already in DB) — but maybe never scored
+        setScanResult(`✓ ${data.scanned} ידיעות סורקו, אבל כולן כבר קיימות מ-RSS. ייתכן שיש כתבות ישנות שלא דורגו.`);
+        setNeedsRescore(true);
       } else {
-        setScanResult(
-          `✓ נסרקו ${data.scanned} ידיעות, ${data.scored ?? 0} עברו את הסף`
-        );
+        setScanResult(`✓ ${data.scanned} ידיעות סורקו, ${data.scored} דורגו על ידי Claude.`);
       }
       onScanComplete();
     } catch {
       setScanResult("לא הצלחנו להתחבר לשרת. בדוק חיבור אינטרנט ונסה שוב.");
     } finally {
       setScanning(false);
+    }
+  };
+
+  const handleRescore = async () => {
+    setRescoring(true);
+    setScanResult("מדרג כתבות מהארכיון שטרם דורגו…");
+    try {
+      const res = await fetch("/api/admin/rescore?days=7", {
+        headers: { "x-manual-scan": "true" },
+      });
+      const data = await res.json();
+      if (data.error) {
+        setScanResult(`Rescore נכשל: ${data.error}`);
+      } else if (data.scored === 0) {
+        setScanResult(data.message || "אין כתבות לדרג מחדש.");
+      } else {
+        setScanResult(`✓ דורגו ${data.scored}/${data.unscored} כתבות מהשבוע. רענן את הדף.`);
+        setNeedsRescore(false);
+      }
+      onScanComplete();
+    } catch (e) {
+      setScanResult("לא הצלחנו להתחבר לשרת. נסה שוב.");
+    } finally {
+      setRescoring(false);
     }
   };
 
@@ -64,7 +93,7 @@ export function ScanStatus({
         <Button
           size="lg"
           onClick={handleScan}
-          disabled={scanning}
+          disabled={scanning || rescoring}
           className="text-white font-bold px-8 py-3 text-base shadow-md hover:shadow-lg transition-shadow disabled:opacity-50"
           style={{ backgroundColor: "#dc2626" }}
         >
@@ -72,6 +101,16 @@ export function ScanStatus({
         </Button>
         {scanResult && (
           <p className="text-[13px] font-medium max-w-sm mx-auto" style={{ color: scanResult.startsWith("✓") ? "#059669" : "#dc2626" }}>{scanResult}</p>
+        )}
+        {needsRescore && (
+          <button
+            onClick={handleRescore}
+            disabled={rescoring}
+            className="text-[12px] font-semibold underline disabled:opacity-50"
+            style={{ color: "#0f1419" }}
+          >
+            {rescoring ? "מדרג… (~30 שניות)" : "🔄 דרג מחדש את כל הארכיון השבועי"}
+          </button>
         )}
       </div>
     );
