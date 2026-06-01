@@ -84,3 +84,5 @@ ${articles}
     newsCount: scores.length,
   });
 }
+
+export const maxDuration = 60;

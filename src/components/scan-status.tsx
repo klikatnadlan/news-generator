@@ -26,15 +26,17 @@ export function ScanStatus({
       });
       const data = await res.json();
       if (data.error) {
-        setScanResult(`שגיאה: ${data.error}`);
+        setScanResult(`הסריקה נכשלה: ${data.error}. תוכל לנסות שוב בעוד דקה.`);
+      } else if ((data.scanned ?? 0) === 0) {
+        setScanResult("הסריקה רצה — לא הופיעו ידיעות חדשות. בדוק שוב בעוד שעה.");
       } else {
         setScanResult(
-          `נסרקו ${data.scanned ?? 0} ידיעות, דורגו ${data.scored ?? 0}`
+          `✓ נסרקו ${data.scanned} ידיעות, ${data.scored ?? 0} עברו את הסף`
         );
       }
       onScanComplete();
     } catch {
-      setScanResult("שגיאה בסריקה");
+      setScanResult("לא הצלחנו להתחבר לשרת. בדוק חיבור אינטרנט ונסה שוב.");
     } finally {
       setScanning(false);
     }
@@ -51,26 +53,26 @@ export function ScanStatus({
   // Large prominent button when no news
   if (!hasNews) {
     return (
-      <div className="text-center py-8 space-y-4">
+      <div className="text-center py-10 space-y-4">
         <div className="text-5xl">📡</div>
-        <p className="text-lg font-medium" style={{ color: "#1d3557" }}>
-          אין חדשות עדיין. בואו נסרוק!
+        <p className="text-[16px] font-bold" style={{ color: "#0f1419" }}>
+          השרת ער. רק חדשות עוד לא הגיעו.
+        </p>
+        <p className="text-[13px] max-w-sm mx-auto leading-[1.5]" style={{ color: "#6b7280" }}>
+          הסריקה האוטומטית רצה כל יום ב-06:00 ומביאה את כל ה-RSS feeds. אפשר גם להריץ עכשיו ידנית — לוקח ~15 שניות.
         </p>
         <Button
           size="lg"
           onClick={handleScan}
           disabled={scanning}
-          className="text-white font-bold px-8 py-3 text-base"
-          style={{ backgroundColor: "#1d3557" }}
+          className="text-white font-bold px-8 py-3 text-base shadow-md hover:shadow-lg transition-shadow disabled:opacity-50"
+          style={{ backgroundColor: "#dc2626" }}
         >
-          {scanning ? "סורק חדשות..." : "🔍 סרוק חדשות עכשיו"}
+          {scanning ? "סורק חדשות… (~15 שניות)" : "🔍 סרוק חדשות עכשיו"}
         </Button>
         {scanResult && (
-          <p className="text-green-600 text-sm font-medium">{scanResult}</p>
+          <p className="text-[13px] font-medium max-w-sm mx-auto" style={{ color: scanResult.startsWith("✓") ? "#059669" : "#dc2626" }}>{scanResult}</p>
         )}
-        <p className="text-xs text-muted-foreground">
-          הסריקה האוטומטית רצה כל יום ב-06:00
-        </p>
       </div>
     );
   }

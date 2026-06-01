@@ -48,3 +48,5 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ results: orderedResults });
 }
+
+export const maxDuration = 60;

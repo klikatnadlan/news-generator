@@ -48,6 +48,13 @@ const TAB_CONFIG: { id: MainTab; label: string; emoji: string; color: string }[]
   { id: "נרטיב", label: "נרטיב", emoji: "🔍", color: "#dc2626" },
 ];
 
+const TAB_TOOLTIPS: Record<string, string> = {
+  'נדל"ן': 'כל הכותרות שעוסקות בנדל״ן — מחירים, משכנתאות, פינוי-בינוי, רגולציה.',
+  "כלכלה": "כותרות מקרו: דולר, אינפלציה, בנק ישראל, בורסה, אבטלה.",
+  "הייטק": "סטארטאפים, גיוסים, אקזיטים, AI, חברות ישראליות במכירה.",
+  "נרטיב": "AI מזהה סיפורים שחוזרים על עצמם בשבוע/חודש האחרון. דוגמה: '12 כתבות על פינוי-בינוי בגוש דן'. בוחרים קטגוריה + טווח זמן ומקבלים סיכום של נרטיבים מובילים + chips של נושאים חמים (פיטורים/גיוסים/אקזיט וכו').",
+};
+
 // Preset topics per category — clicking a chip narrows narrative analysis
 // to headlines matching those keywords (backed by TOPIC_KEYWORDS in /api/narratives)
 const PRESET_TOPICS: Record<string, { emoji: string; label: string }[]> = {
@@ -260,6 +267,7 @@ export default function HeadlinesPage() {
             return (
               <button key={t.id}
                 onClick={() => { if (t.id !== "נרטיב") setLastCategory(t.id); setTab(t.id); setSelected(new Set()); setTriggerForId(null); setTriggerText(null); setNarrativeRange(null); setExpandedNarrative(null); }}
+                title={TAB_TOOLTIPS[t.id]}
                 className="flex items-center gap-1.5 px-3 py-2 text-[12px] font-bold rounded-lg transition-all whitespace-nowrap shrink-0"
                 style={{ background: isActive ? t.color : "#fff", color: isActive ? "#fff" : "#6b7280", border: `1.5px solid ${isActive ? t.color : "#e5e7eb"}` }}>
                 <span>{t.emoji}</span><span>{t.label}</span>
@@ -403,20 +411,25 @@ export default function HeadlinesPage() {
         {tab === "נרטיב" && (<>
           {/* Step 1: Choose time range */}
           {!narrativeRange && (
-            <div className="space-y-3">
-              <p className="text-[14px] font-bold text-center mb-4" style={{ color: "#0f1419" }}>
-                נרטיב {lastCategory} — בחר טווח זמן
-              </p>
+            <div className="space-y-4">
+              <div className="text-center max-w-md mx-auto">
+                <p className="text-[18px] font-bold mb-2" style={{ color: "#0f1419" }}>
+                  מה רץ ב{lastCategory} השבוע?
+                </p>
+                <p className="text-[13px] leading-[1.5]" style={{ color: "#6b7280" }}>
+                  Claude סורק את כל הכתבות בטווח שבחרת ומחזיר את הסיפורים שחזרו ביותר ממקור אחד — מה הנושאים החמים, כמה כתבות, ומי כיסה.
+                </p>
+              </div>
               <div className="grid grid-cols-2 gap-3">
-                <button className="lf-card p-5 text-center hover:border-red-300 transition-all" onClick={() => { setNarrativeRange("week"); fetchNarratives(lastCategory, "week"); }}>
-                  <p className="text-[24px] mb-1">📅</p>
+                <button className="lf-card p-5 text-center hover:border-red-300 hover:shadow-md transition-all" onClick={() => { setNarrativeRange("week"); fetchNarratives(lastCategory, "week"); }}>
+                  <p className="text-[28px] mb-1">📅</p>
                   <p className="text-[14px] font-bold" style={{ color: "#0f1419" }}>שבוע אחרון</p>
-                  <p className="text-[11px] mt-1" style={{ color: "#9ca3af" }}>7 ימים אחרונים</p>
+                  <p className="text-[11px] mt-1" style={{ color: "#9ca3af" }}>7 ימים · ~10 שניות</p>
                 </button>
-                <button className="lf-card p-5 text-center hover:border-red-300 transition-all" onClick={() => { setNarrativeRange("month"); fetchNarratives(lastCategory, "month"); }}>
-                  <p className="text-[24px] mb-1">📊</p>
+                <button className="lf-card p-5 text-center hover:border-red-300 hover:shadow-md transition-all" onClick={() => { setNarrativeRange("month"); fetchNarratives(lastCategory, "month"); }}>
+                  <p className="text-[28px] mb-1">📊</p>
                   <p className="text-[14px] font-bold" style={{ color: "#0f1419" }}>חודש אחרון</p>
-                  <p className="text-[11px] mt-1" style={{ color: "#9ca3af" }}>30 ימים אחרונים</p>
+                  <p className="text-[11px] mt-1" style={{ color: "#9ca3af" }}>30 ימים · ~20 שניות</p>
                 </button>
               </div>
             </div>
@@ -470,8 +483,11 @@ export default function HeadlinesPage() {
 
               {narrativesLoading && narratives.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 gap-3">
-                  <div className="w-5 h-5 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "#dc2626", borderTopColor: "transparent" }} />
-                  <p className="text-[12px]" style={{ color: "#9ca3af" }}>מנתח נרטיבים...</p>
+                  <div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "#dc2626", borderTopColor: "transparent" }} />
+                  <div className="text-center max-w-xs">
+                    <p className="text-[13px] font-bold" style={{ color: "#0f1419" }}>Claude סורק כותרות ומחפש דפוסים…</p>
+                    <p className="text-[11px] mt-1" style={{ color: "#9ca3af" }}>סיפורים שחוזרים ב-2+ מקורות עולים. ~{narrativeRange === "month" ? "20" : "10"} שניות.</p>
+                  </div>
                 </div>
               ) : narratives.length === 0 ? (
                 <div className="text-center py-12" style={{ color: "#9ca3af" }}>

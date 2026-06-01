@@ -80,3 +80,5 @@ ${archiveData}
     articlesUsed: data.length,
   });
 }
+
+export const maxDuration = 60;

@@ -251,9 +251,19 @@ export default function ArchivePage() {
 
         {/* Empty state */}
         {!results && !summaryText && !archiveArticle && (
-          <div className="text-center py-16" style={{ color: "#9ca3af" }}>
-            <p className="text-[13px]">חפש חדשות, צור סיכומים, או בנה כתבות מהארכיון</p>
-            <p className="text-[11px] mt-1">כתוב &quot;משכנתא&quot; או &quot;ריבית&quot; והארכיון ימצא הכל</p>
+          <div className="text-center py-16 space-y-4">
+            <div className="text-4xl">🗂️</div>
+            <div className="max-w-sm mx-auto space-y-2">
+              <p className="text-[15px] font-bold" style={{ color: "#0f1419" }}>הארכיון מכיל אלפי כותרות מהאמ.ש האחרונים</p>
+              <p className="text-[12px] leading-[1.6]" style={{ color: "#6b7280" }}>
+                3 דברים שאפשר לעשות מכאן:
+              </p>
+              <ul className="text-[12px] text-right space-y-1.5 leading-[1.5] mr-4" style={{ color: "#374151" }}>
+                <li>🔎 <strong>חיפוש חופשי</strong> — תכתוב &quot;משכנתא&quot;, &quot;פינוי בינוי&quot;, &quot;ריבית&quot; — והארכיון ימצא הכל</li>
+                <li>📅 <strong>סיכום שבועי / חודשי</strong> — Claude יסכם את הכותרות החשובות בטווח</li>
+                <li>📰 <strong>בניית כתבה</strong> — חיפוש + לחיצה על &quot;כתבה&quot; → כתבה שלמה (600+ מילים) בקול של בן</li>
+              </ul>
+            </div>
           </div>
         )}
       </div>

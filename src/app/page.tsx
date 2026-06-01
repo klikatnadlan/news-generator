@@ -106,7 +106,7 @@ export default function HomePage() {
         return { title: n?.title || "", source: n?.source || "", sourceUrl: n?.source_url || "", text: x.text, newsItemId: x.newsItemId, textId: x.id || "" };
       }));
       setPhase("results");
-    } catch { setGenerateError("שגיאה. נסו שוב."); setPhase("select"); }
+    } catch { setGenerateError("הרשת קרסה באמצע. בדוק חיבור ונסה שוב."); setPhase("select"); }
   };
 
   const handleDigestGenerate = async () => {
@@ -117,7 +117,7 @@ export default function HomePage() {
       const data = await res.json();
       if (data.error) { setGenerateError(data.error); setPhase("select"); return; }
       setDigestText(data.digest); setDigestTextId(data.textId || ""); setPhase("digest");
-    } catch { setGenerateError("שגיאה. נסו שוב."); setPhase("select"); }
+    } catch { setGenerateError("הרשת קרסה באמצע. בדוק חיבור ונסה שוב."); setPhase("select"); }
   };
 
   const handleRegenerate = async (newsItemId: string, style: "short" | "regular" | "commentary"): Promise<{ text: string; id: string } | null> => {
@@ -135,7 +135,7 @@ export default function HomePage() {
       const data = await res.json();
       if (data.error) { setGenerateError(data.error); setPhase("select"); return; }
       setDigestText(data.digest); setDigestTextId(data.textId || ""); setPhase("digest");
-    } catch { setGenerateError("שגיאה. נסו שוב."); setPhase("select"); }
+    } catch { setGenerateError("הרשת קרסה באמצע. בדוק חיבור ונסה שוב."); setPhase("select"); }
   };
 
   const allSelected = news.length > 0 && news.every(n => selected.has(n.id));
@@ -256,23 +256,33 @@ export default function HomePage() {
 
             {/* CTAs */}
             {!loading && news.length >= 3 && (
-              <div
-                className="mt-7 flex flex-col sm:flex-row gap-2.5 max-w-[440px] mx-auto lf-fade-in"
-                style={{ animationDelay: "1650ms" }}
-              >
-                <button
-                  className="lf-hero-cta-primary"
-                  onClick={() => { setShowHero(false); handleQuickDigest(); }}
+              <>
+                <div
+                  className="mt-7 flex flex-col sm:flex-row gap-2.5 max-w-[440px] mx-auto lf-fade-in"
+                  style={{ animationDelay: "1650ms" }}
                 >
-                  תקציר יומי מהיר ←
-                </button>
-                <button
-                  className="lf-hero-cta-secondary"
-                  onClick={() => setShowHero(false)}
+                  <button
+                    className="lf-hero-cta-primary"
+                    onClick={() => { setShowHero(false); handleQuickDigest(); }}
+                    title="Claude יסכם את 3 הידיעות הכי חשובות היום לטקסט וואטסאפ מוכן לשליחה. ~20 שניות."
+                  >
+                    תקציר יומי מהיר ←
+                  </button>
+                  <button
+                    className="lf-hero-cta-secondary"
+                    onClick={() => setShowHero(false)}
+                    title="בחר ידעות בעצמך מהפיד המלא ותפיק נוסחים אישיים."
+                  >
+                    בחירה ידנית
+                  </button>
+                </div>
+                <p
+                  className="mt-3 text-[10px] text-white/40 max-w-xs mx-auto leading-[1.5] lf-fade-in"
+                  style={{ animationDelay: "1850ms" }}
                 >
-                  בחירה ידנית
-                </button>
-              </div>
+                  בחרו &quot;תקציר יומי מהיר&quot; כדי לקבל הודעה מוכנה למסירה תוך 20 שניות
+                </p>
+              </>
             )}
           </div>
         </section>
@@ -299,11 +309,9 @@ export default function HomePage() {
 
           <div className={`mt-4 space-y-2.5 ${selected.size > 0 ? "pb-28" : "pb-8"}`}>
             {loading ? (
-              <div className="flex items-center justify-center py-20">
-                <div className="flex items-center gap-2.5 text-[13px]" style={{ color: "var(--lf-text-secondary)" }}>
-                  <div className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "var(--lf-navy)", borderTopColor: "transparent" }} />
-                  טוען ידיעות...
-                </div>
+              <div className="flex flex-col items-center justify-center py-20 gap-3">
+                <div className="w-5 h-5 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "var(--lf-navy)", borderTopColor: "transparent" }} />
+                <p className="text-[13px]" style={{ color: "var(--lf-text-secondary)" }}>אוסף את הידיעות מ-RSS… (~5 שניות)</p>
               </div>
             ) : allNews.length === 0 ? null : (<>
               {!showHero && news.length >= 3 && selected.size === 0 && (
@@ -390,9 +398,13 @@ export default function HomePage() {
         {(phase === "generating" || phase === "generating-digest") && (
           <div className="flex flex-col items-center justify-center py-24 gap-4">
             <div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "var(--lf-navy)", borderTopColor: "transparent" }} />
-            <div className="text-center">
-              <p className="text-[15px] font-bold" style={{ color: "var(--lf-text)" }}>{phase === "generating-digest" ? "מייצר תקציר..." : `מייצר ${selected.size} נוסחים...`}</p>
-              <p className="text-[12px] mt-1" style={{ color: "var(--lf-text-tertiary)" }}>15-30 שניות</p>
+            <div className="text-center max-w-xs">
+              <p className="text-[15px] font-bold" style={{ color: "var(--lf-text)" }}>
+                {phase === "generating-digest" ? "Claude כותב את התקציר היומי…" : `Claude כותב ${selected.size} נוסחים במקביל…`}
+              </p>
+              <p className="text-[12px] mt-1.5" style={{ color: "var(--lf-text-tertiary)" }}>
+                {phase === "generating-digest" ? "מסכם את הסיפורים הכי חשובים בקול של בן · ~20 שניות" : "כל נוסח בקול של בן, מותאם לוואטסאפ · ~25 שניות"}
+              </p>
             </div>
           </div>
         )}
@@ -430,7 +442,14 @@ export default function HomePage() {
             </div>
             {digestHumanity && digestHumanity !== "loading" && (
               <div className="lf-card p-3 text-[11px]" style={{ borderRight: `3px solid ${digestHumanity.score >= 7 ? "#059669" : digestHumanity.score >= 5 ? "#d97706" : "#dc2626"}` }}>
-                <span className="font-semibold">אנושיות: {digestHumanity.score}/10</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-semibold">אנושיות: {digestHumanity.score}/10</span>
+                  <span
+                    className="text-[9px] text-white font-bold rounded-full w-3.5 h-3.5 inline-flex items-center justify-center cursor-help"
+                    style={{ background: "#9ca3af" }}
+                    title="כמה הטקסט נשמע כמו אדם אמיתי (לא בוט). 7+ = מצוין לשליחה. 5-6 = יש מה לערוך. מתחת ל-5 = להריץ שוב או לערוך ידנית."
+                  >?</span>
+                </div>
                 {digestHumanity.flags?.length > 0 && <span className="mr-2" style={{ color: "var(--lf-text-tertiary)" }}>{digestHumanity.flags.join(" · ")}</span>}
                 {digestHumanity.suggestion && <p className="mt-1" style={{ color: "var(--lf-text-secondary)" }}>{digestHumanity.suggestion}</p>}
               </div>

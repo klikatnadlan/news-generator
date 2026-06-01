@@ -33,3 +33,5 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ commentary: saved });
 }
+
+export const maxDuration = 60;

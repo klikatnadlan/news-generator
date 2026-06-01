@@ -39,3 +39,5 @@ export async function POST(request: NextRequest) {
     id: saved?.id || "",
   });
 }
+
+export const maxDuration = 60;

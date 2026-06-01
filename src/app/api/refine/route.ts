@@ -15,3 +15,5 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ text: refined });
 }
+
+export const maxDuration = 60;

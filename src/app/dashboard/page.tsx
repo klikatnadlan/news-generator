@@ -24,6 +24,7 @@ export default function DashboardPage() {
   const [lastScan, setLastScan] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState(false);
+  const [genError, setGenError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -44,12 +45,29 @@ export default function DashboardPage() {
   const handleGenerateAll = async () => {
     if (news.length === 0) return;
     setGenerating(true);
+    setGenError(null);
     try {
       const topIds = news.slice(0, 3).map((n) => n.id);
-      await fetch("/api/digest", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ newsItemIds: topIds }) });
-      await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ newsItemIds: topIds, style: "regular" }) });
+      const [digestRes, genRes] = await Promise.all([
+        fetch("/api/digest", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ newsItemIds: topIds }) }),
+        fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ newsItemIds: topIds, style: "regular" }) }),
+      ]);
+      if (!digestRes.ok || !genRes.ok) {
+        const which = !digestRes.ok ? "התקציר" : "הנוסחים";
+        setGenError(`לא הצלחנו לייצר את ${which}. נסה שוב, או חזור למסך הראשי.`);
+        return;
+      }
       setGenerated(true);
-    } finally { setGenerating(false); }
+    } catch {
+      setGenError("הרשת קרסה באמצע. בדוק חיבור ונסה שוב.");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const resetGenerate = () => {
+    setGenerated(false);
+    setGenError(null);
   };
 
   const getVerbal = (idx: number) => {
@@ -63,9 +81,9 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" dir="rtl" style={{ background: "var(--lf-bg, #f8f9fb)" }}>
-        <div className="flex items-center gap-2.5 text-[13px]" style={{ color: "#9ca3af" }}>
-          <div className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "#0f1419", borderTopColor: "transparent" }} />
-          טוען לוח בקרה...
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-5 h-5 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "#dc2626", borderTopColor: "transparent" }} />
+          <p className="text-[13px]" style={{ color: "#6b7280" }}>טוען נתוני יום ומדד אמון השוק…</p>
         </div>
       </div>
     );
@@ -102,12 +120,19 @@ export default function DashboardPage() {
           <div className="lf-card p-5 mb-4" style={{ borderRight: `3px solid ${verbal.color}` }}>
             <div className="flex items-center justify-between">
               <div className="flex-1">
-                <p className="text-[13px] font-bold mb-1" style={{ color: "#0f1419" }}>מד אמון שוק הקליקה</p>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <p className="text-[13px] font-bold" style={{ color: "#0f1419" }}>מד אמון השוק</p>
+                  <span
+                    className="text-[10px] text-white font-bold rounded-full w-4 h-4 inline-flex items-center justify-center cursor-help"
+                    style={{ background: "#9ca3af" }}
+                    title="ציון 0–100 שמסכם את הטון של כתבות הנדל״ן השבוע. 75+ = אופטימי, 55–74 = חיובי, 40–54 = מעורב, 25–39 = סוער, 0–24 = חששות. עדכון יומי."
+                  >?</span>
+                </div>
                 <p className="text-[12px] leading-[1.5] mb-1" style={{ color: "#6b7280" }}>{marketIndex.summary}</p>
                 {marketIndex.range && (
                   <p className="text-[11px]" style={{ color: "#9ca3af" }}>טווח שבועי: {marketIndex.range.min}–{marketIndex.range.max}</p>
                 )}
-                <p className="text-[10px] mt-1" style={{ color: "#d1d5db" }}>המדד מבוסס על ניתוח כתבות ולא מהווה המלצת השקעה</p>
+                <p className="text-[10px] mt-1" style={{ color: "#d1d5db" }}>מבוסס ניתוח NLP על כתבות השבוע · לא המלצת השקעה</p>
               </div>
               <div className="text-center mr-4">
                 <div className="text-[36px] font-extrabold leading-none" style={{ color: verbal.color, fontFamily: "DM Sans, system-ui" }}>
@@ -164,24 +189,44 @@ export default function DashboardPage() {
 
         {/* Generate All */}
         {news.length > 0 && !generated && (
-          <button
-            className="lf-btn w-full !py-3.5 text-[14px] font-bold text-white"
-            style={{ background: "#dc2626" }}
-            onClick={handleGenerateAll}
-            disabled={generating}
-          >
-            {generating ? "מייצר תקציר + נוסחים..." : "צור הכל בלחיצה אחת"}
-          </button>
+          <>
+            <button
+              className="lf-btn w-full !py-3.5 text-[14px] font-bold text-white disabled:opacity-50"
+              style={{ background: "#dc2626" }}
+              onClick={handleGenerateAll}
+              disabled={generating}
+            >
+              {generating ? "מייצר תקציר + נוסחים..." : "✨ צור הכל בלחיצה אחת"}
+            </button>
+            <p className="text-[11px] text-center mt-2" style={{ color: "#9ca3af" }}>
+              ייצור תקציר יומי + 3 נוסחי וואטסאפ מהידיעות המובילות. ~30 שניות.
+            </p>
+            {genError && (
+              <div className="mt-3 rounded-lg p-3 text-center text-[12px]" style={{ background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca" }}>
+                {genError}
+              </div>
+            )}
+          </>
         )}
 
         {generated && (
           <div className="space-y-3">
             <div className="lf-card p-4 text-center" style={{ borderRight: "3px solid #059669" }}>
-              <p className="text-[14px] font-bold" style={{ color: "#059669" }}>הכל מוכן!</p>
-              <p className="text-[12px]" style={{ color: "#9ca3af" }}>תקציר + נוסחים נוצרו</p>
+              <p className="text-[14px] font-bold" style={{ color: "#059669" }}>✓ הכל מוכן!</p>
+              <p className="text-[12px]" style={{ color: "#9ca3af" }}>תקציר + 3 נוסחי וואטסאפ נשמרו בהיסטוריה</p>
             </div>
-            <Link href="/">
-              <button className="lf-btn lf-btn-dark w-full !py-2.5 text-[13px]">← חזרה למערכת</button>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={resetGenerate} className="lf-btn lf-btn-outline w-full !py-2.5 text-[13px]">
+                🔄 צור שוב
+              </button>
+              <Link href="/history">
+                <button className="lf-btn lf-btn-dark w-full !py-2.5 text-[13px]">
+                  📋 לראות בהיסטוריה
+                </button>
+              </Link>
+            </div>
+            <Link href="/" className="block">
+              <button className="lf-btn lf-btn-outline w-full !py-2 text-[12px]">← חזרה למסך הראשי</button>
             </Link>
           </div>
         )}
