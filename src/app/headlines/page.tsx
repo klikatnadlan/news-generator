@@ -48,6 +48,31 @@ const TAB_CONFIG: { id: MainTab; label: string; emoji: string; color: string }[]
   { id: "נרטיב", label: "נרטיב", emoji: "🔍", color: "#dc2626" },
 ];
 
+// Preset topics per category — clicking a chip narrows narrative analysis
+// to headlines matching those keywords (backed by TOPIC_KEYWORDS in /api/narratives)
+const PRESET_TOPICS: Record<string, { emoji: string; label: string }[]> = {
+  "הייטק": [
+    { emoji: "💼", label: "פיטורים" },
+    { emoji: "🚀", label: "גיוסים" },
+    { emoji: "💰", label: "אקזיט" },
+    { emoji: "🤖", label: "AI" },
+    { emoji: "📈", label: "הנפקה" },
+  ],
+  'נדל"ן': [
+    { emoji: "🏗️", label: "פינוי בינוי" },
+    { emoji: "💸", label: "משכנתאות" },
+    { emoji: "🏘️", label: "מחיר למשתכן" },
+    { emoji: "📊", label: "מחירי דירות" },
+    { emoji: "🧱", label: "בנייה" },
+  ],
+  "כלכלה": [
+    { emoji: "💵", label: 'דולר/מט"ח' },
+    { emoji: "📊", label: "אינפלציה" },
+    { emoji: "🏦", label: "בנקים" },
+    { emoji: "📉", label: "בורסה" },
+  ],
+};
+
 export default function HeadlinesPage() {
   const [allNews, setAllNews] = useState<HeadlineItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,6 +91,8 @@ export default function HeadlinesPage() {
   const [triggerLoading, setTriggerLoading] = useState(false);
   // Narrative expanded view
   const [expandedNarrative, setExpandedNarrative] = useState<string | null>(null);
+  // Selected preset topic (filters narratives by keyword)
+  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
 
   const triggerRef = useRef<HTMLDivElement>(null);
 
@@ -80,12 +107,15 @@ export default function HeadlinesPage() {
 
   useEffect(() => { fetchNews(); }, [fetchNews]);
 
-  const fetchNarratives = async (category?: string, range?: NarrativeRange) => {
+  const fetchNarratives = async (category?: string, range?: NarrativeRange, topic?: string | null) => {
     setNarrativesLoading(true);
     try {
       const cat = category || lastCategory;
       const r = range || narrativeRange || "week";
-      const res = await fetch(`/api/narratives?category=${encodeURIComponent(cat)}&range=${r}`);
+      const t = topic !== undefined ? topic : selectedTopic;
+      const params = new URLSearchParams({ category: cat, range: r as string });
+      if (t) params.set("topic", t);
+      const res = await fetch(`/api/narratives?${params.toString()}`);
       const data = await res.json();
       setNarratives(data.narratives || []);
     } finally { setNarrativesLoading(false); }
@@ -205,15 +235,18 @@ export default function HeadlinesPage() {
     <div dir="rtl" className="min-h-screen" style={{ background: "var(--lf-bg, #f8f9fb)" }}>
       <header className="lf-header">
         <div className="max-w-3xl mx-auto px-4 flex items-center justify-between h-12">
-          <div className="flex items-center gap-2">
-            <Link href="/" className="text-[14px] font-extrabold text-white tracking-tight" style={{ fontFamily: "DM Sans, system-ui" }}>לידרפיד</Link>
-            <span className="text-[10px] text-white/30">|</span>
-            <span className="text-[10px] text-white/40">כותרות</span>
-          </div>
+          <Link href="/" className="flex items-center gap-2 leading-none">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.7)]" />
+            <span className="flex flex-col items-start leading-none">
+              <span className="text-[14px] font-extrabold text-white tracking-tight" style={{ fontFamily: "DM Sans, system-ui" }}>לידרפיד</span>
+              <span className="text-[8px] md:text-[9px] text-white/45 italic mt-0.5" style={{ fontFamily: "Georgia, serif" }}>by ben solomon</span>
+            </span>
+          </Link>
           <nav className="flex items-center gap-3">
             <Link href="/" className="text-[12px] text-white/60 hover:text-white transition-colors">ראשי</Link>
             <Link href="/dashboard" className="text-[12px] text-white/60 hover:text-white transition-colors">לוח בקרה</Link>
             <Link href="/archive" className="text-[12px] text-white/60 hover:text-white transition-colors">ארכיון</Link>
+            <Link href="/history" className="text-[12px] text-white/60 hover:text-white transition-colors">היסטוריה</Link>
           </nav>
         </div>
       </header>
@@ -394,11 +427,12 @@ export default function HeadlinesPage() {
             <div className="space-y-3">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <button className="text-[11px] px-2 py-0.5 rounded hover:bg-gray-100" style={{ color: "#9ca3af" }} onClick={() => { setNarrativeRange(null); setNarratives([]); setExpandedNarrative(null); }}>
+                  <button className="text-[11px] px-2 py-0.5 rounded hover:bg-gray-100" style={{ color: "#9ca3af" }} onClick={() => { setNarrativeRange(null); setNarratives([]); setExpandedNarrative(null); setSelectedTopic(null); }}>
                     ← חזרה
                   </button>
                   <p className="text-[13px] font-bold" style={{ color: "#0f1419" }}>
                     נרטיבים — {lastCategory} ({narrativeRange === "week" ? "שבוע" : "חודש"})
+                    {selectedTopic && <span style={{ color: "#dc2626" }}> · {selectedTopic}</span>}
                   </p>
                 </div>
                 <div className="flex gap-1.5">
@@ -407,11 +441,32 @@ export default function HeadlinesPage() {
                       {narrativesCopyLabel || "📋 העתק"}
                     </button>
                   )}
-                  <button className="lf-btn lf-btn-dark text-[11px] !py-1 !px-2" onClick={() => fetchNarratives(lastCategory, narrativeRange)} disabled={narrativesLoading}>
+                  <button className="lf-btn lf-btn-dark text-[11px] !py-1 !px-2" onClick={() => fetchNarratives(lastCategory, narrativeRange, selectedTopic)} disabled={narrativesLoading}>
                     {narrativesLoading ? "⏳" : "🔄"}
                   </button>
                 </div>
               </div>
+
+              {/* Preset topic chips — quick narrative focus per category */}
+              {PRESET_TOPICS[lastCategory] && (
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                  <button
+                    onClick={() => { setSelectedTopic(null); fetchNarratives(lastCategory, narrativeRange, null); }}
+                    className="px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap shrink-0 font-medium"
+                    style={{ background: !selectedTopic ? "#dc2626" : "transparent", color: !selectedTopic ? "#fff" : "#6b7280", border: `1px solid ${!selectedTopic ? "#dc2626" : "#e5e7eb"}` }}>
+                    הכל
+                  </button>
+                  {PRESET_TOPICS[lastCategory].map((t) => (
+                    <button
+                      key={t.label}
+                      onClick={() => { setSelectedTopic(t.label); fetchNarratives(lastCategory, narrativeRange, t.label); }}
+                      className="px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap shrink-0 font-medium"
+                      style={{ background: selectedTopic === t.label ? "#dc2626" : "transparent", color: selectedTopic === t.label ? "#fff" : "#6b7280", border: `1px solid ${selectedTopic === t.label ? "#dc2626" : "#e5e7eb"}` }}>
+                      {t.emoji} {t.label}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {narrativesLoading && narratives.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 gap-3">
@@ -420,7 +475,16 @@ export default function HeadlinesPage() {
                 </div>
               ) : narratives.length === 0 ? (
                 <div className="text-center py-12" style={{ color: "#9ca3af" }}>
-                  <p className="text-[13px]">אין מספיק כותרות לזיהוי נרטיבים</p>
+                  <p className="text-[13px]">
+                    {selectedTopic
+                      ? `אין מספיק כותרות בנושא "${selectedTopic}" ב${narrativeRange === "month" ? "חודש האחרון" : "שבוע האחרון"}`
+                      : `אין מספיק כותרות לזיהוי נרטיבים ב${narrativeRange === "month" ? "חודש האחרון" : "שבוע האחרון"}`}
+                  </p>
+                  {selectedTopic && (
+                    <button className="text-[12px] mt-2 underline" style={{ color: "#dc2626" }} onClick={() => { setSelectedTopic(null); fetchNarratives(lastCategory, narrativeRange, null); }}>
+                      נסה ללא סינון נושא
+                    </button>
+                  )}
                 </div>
               ) : (
                 narratives.map((n, i) => {
