@@ -256,34 +256,44 @@ export default function HomePage() {
 
             {/* CTAs */}
             {!loading && news.length >= 3 && (
-              <>
-                <div
-                  className="mt-7 flex flex-col sm:flex-row gap-2.5 max-w-[440px] mx-auto lf-fade-in"
-                  style={{ animationDelay: "1650ms" }}
+              <div
+                className="mt-7 flex flex-col sm:flex-row gap-2.5 max-w-[440px] mx-auto lf-fade-in"
+                style={{ animationDelay: "1650ms" }}
+              >
+                <button
+                  className="lf-hero-cta-primary"
+                  onClick={() => { setShowHero(false); handleQuickDigest(); }}
+                  title="Claude יסכם את 3 הידיעות הכי חשובות היום לטקסט וואטסאפ מוכן לשליחה. ~20 שניות."
                 >
-                  <button
-                    className="lf-hero-cta-primary"
-                    onClick={() => { setShowHero(false); handleQuickDigest(); }}
-                    title="Claude יסכם את 3 הידיעות הכי חשובות היום לטקסט וואטסאפ מוכן לשליחה. ~20 שניות."
-                  >
-                    תקציר יומי מהיר ←
-                  </button>
-                  <button
-                    className="lf-hero-cta-secondary"
-                    onClick={() => setShowHero(false)}
-                    title="בחר ידעות בעצמך מהפיד המלא ותפיק נוסחים אישיים."
-                  >
-                    בחירה ידנית
-                  </button>
-                </div>
-                <p
-                  className="mt-3 text-[10px] text-white/40 max-w-xs mx-auto leading-[1.5] lf-fade-in"
-                  style={{ animationDelay: "1850ms" }}
+                  תקציר יומי מהיר ←
+                </button>
+                <button
+                  className="lf-hero-cta-secondary"
+                  onClick={() => setShowHero(false)}
+                  title="בחר ידעות בעצמך מהפיד המלא ותפיק נוסחים אישיים."
                 >
-                  בחרו &quot;תקציר יומי מהיר&quot; כדי לקבל הודעה מוכנה למסירה תוך 20 שניות
-                </p>
-              </>
+                  בחירה ידנית
+                </button>
+              </div>
             )}
+
+            {/* How it works — 3-step explainer (always visible in hero) */}
+            <div
+              className="mt-10 grid grid-cols-3 gap-3 sm:gap-4 max-w-[520px] mx-auto lf-fade-in"
+              style={{ animationDelay: "1850ms" }}
+            >
+              {[
+                { num: "1", emoji: "📡", title: "סורק", text: "200+ כותרות יומיות מ-15 מקורות" },
+                { num: "2", emoji: "🤖", title: "מדרג", text: "Claude נותן ציון ובוחר את הסיפורים החשובים" },
+                { num: "3", emoji: "📱", title: "מייצר", text: "הודעת וואטסאפ מוכנה בקול של בן" },
+              ].map((s) => (
+                <div key={s.num} className="text-center">
+                  <div className="text-[24px] mb-1">{s.emoji}</div>
+                  <p className="text-[11px] font-bold text-white/85 leading-tight">{s.title}</p>
+                  <p className="text-[10px] mt-0.5 text-white/45 leading-[1.4]">{s.text}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
       )}
