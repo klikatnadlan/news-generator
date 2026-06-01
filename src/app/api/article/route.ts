@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { streamArticle } from "@/lib/anthropic";
+import { fetchArticleText } from "@/lib/fetch-article";
 import { supabase } from "@/lib/supabase";
 
 /**
@@ -42,8 +43,11 @@ export async function POST(request: NextRequest) {
     async start(controller) {
       let fullText = "";
       try {
+        // Read the real article first so the piece is built on actual content
+        // (numbers, quotes), not just the headline. Falls back gracefully.
+        const articleBody = await fetchArticleText(newsItem.source_url || "");
         for await (const chunk of streamArticle(
-          { title: newsItem.title, summary: newsItem.summary || "", source: newsItem.source },
+          { title: newsItem.title, summary: newsItem.summary || "", source: newsItem.source, fullText: articleBody },
           fromNarrative || "",
         )) {
           fullText += chunk;

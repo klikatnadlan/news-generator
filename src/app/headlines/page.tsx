@@ -647,17 +647,21 @@ function HeadlineRow({ item, selected, onToggle, onCopy, getColor, accentColor, 
       </div>
       <div className="flex items-center gap-1 shrink-0">
         <span className="text-[9px] font-semibold px-1.5 py-[1px] rounded" style={{ color: srcColor, background: srcColor + "12" }}>{item.source}</span>
+        {item.source_url && (
+          <a href={item.source_url} target="_blank" rel="noopener noreferrer"
+            className="text-[10px] font-semibold hover:underline px-1 py-0.5 rounded"
+            style={{ color: "#0071e3" }} onClick={(e) => e.stopPropagation()} title="פתח את הכתבה המקורית">
+            מקור ←
+          </a>
+        )}
         {onTrigger && (
           <button className="text-[10px] hover:bg-red-50 rounded px-1 py-0.5 font-semibold" style={{ color: "#dc2626" }}
-            onClick={(e) => { e.stopPropagation(); onTrigger(); }} disabled={triggerLoading}>
+            onClick={(e) => { e.stopPropagation(); onTrigger(); }} disabled={triggerLoading} title="צור מסגרת מהכותרת">
             {triggerLoading ? "⏳" : "⚡"}
           </button>
         )}
         <button className="text-[10px] hover:bg-gray-100 rounded px-1 py-0.5" style={{ color: "#9ca3af" }}
-          onClick={(e) => onCopy(item, e)} title="העתק">📋</button>
-        {item.source_url && (
-          <a href={item.source_url} target="_blank" rel="noopener noreferrer" className="text-[10px] hover:underline" style={{ color: "#9ca3af" }} onClick={(e) => e.stopPropagation()}>←</a>
-        )}
+          onClick={(e) => onCopy(item, e)} title="העתק כותרת">📋</button>
       </div>
     </div>
   );

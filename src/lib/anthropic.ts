@@ -293,9 +293,17 @@ const WHATSAPP_STYLE_PROMPTS: Record<string, string> = {
 
 /** Shared user-message body for WhatsApp text generation (blocking + streaming). */
 function buildWhatsAppPrompt(
-  article: { title: string; summary: string; source: string },
+  article: { title: string; summary: string; source: string; fullText?: string },
   style: "short" | "regular" | "commentary",
 ): string {
+  const hasBody = !!(article.fullText && article.fullText.trim().length > 0);
+  const bodyBlock = hasBody
+    ? `\n=== תוכן הכתבה המלא (השתמש במספרים והעובדות מכאן!) ===\n${article.fullText}\n`
+    : "";
+  const sourceNote = hasBody
+    ? "- בסס את הנוסח על המספרים, השמות והעובדות מתוכן הכתבה המלא שלמעלה. אל תסתפק בכותרת."
+    : "- אם אין לך מספרים ספציפיים מהחדשה, אל תמציא. כתוב \"המספרים ידברו\" או דלג";
+
   return `כתוב נוסח לוואטסאפ על הידיעה הבאה.
 
 ${WHATSAPP_STYLE_PROMPTS[style]}
@@ -303,18 +311,18 @@ ${WHATSAPP_STYLE_PROMPTS[style]}
 === הידיעה ===
 כותרת: ${article.title}
 מקור: ${article.source}
-תקציר: ${article.summary || "אין תקציר. כתוב רק לפי הכותרת, אל תמציא עובדות."}
-
+תקציר: ${article.summary || "אין תקציר"}
+${bodyBlock}
 === תזכורות חשובות ===
 - כתוב טקסט בלבד. בלי JSON, בלי הסברים, בלי "הנה הנוסח:"
-- אם אין לך מספרים ספציפיים מהחדשה, אל תמציא. כתוב "המספרים ידברו" או דלג
+${sourceNote}
 - בלי מקפים ארוכים (—). בלי. אפילו אחד.
 - *כוכביות* לבולד בלבד
 - העברית צריכה להרגיש כמו הודעה שבן כתב מהר בוואטסאפ, לא כמו מאמר`;
 }
 
 export async function generateWhatsAppText(
-  article: { title: string; summary: string; source: string },
+  article: { title: string; summary: string; source: string; fullText?: string },
   style: "short" | "regular" | "commentary",
 ): Promise<string> {
   const response = await client.messages.create({
@@ -330,7 +338,7 @@ export async function generateWhatsAppText(
 
 /** STREAMING WhatsApp text generator. Yields each text delta as Claude writes. */
 export async function* streamWhatsAppText(
-  article: { title: string; summary: string; source: string },
+  article: { title: string; summary: string; source: string; fullText?: string },
   style: "short" | "regular" | "commentary",
 ): AsyncGenerator<string, void, unknown> {
   const stream = client.messages.stream({
@@ -537,18 +545,21 @@ ${text}
 
 // ─── Article generation ───
 /** Shared article prompt — reused by blocking + streaming variants. */
-function buildArticlePrompt(title: string, summary: string, extra: string): string {
+function buildArticlePrompt(title: string, summary: string, extra: string, fullText = ""): string {
+  const hasBody = !!(fullText && fullText.trim().length > 0);
+  const bodyBlock = hasBody
+    ? `\n=== תוכן הכתבה המקורית (בסס את הכתבה על המספרים והעובדות מכאן!) ===\n${fullText}\n`
+    : "";
   return `כתוב כתבה מקצועית בעברית על הנושא הבא:
 
 כותרת: ${title}
 תקציר: ${summary}
-
-${extra ? `הקשר נוסף:\n${extra}\n` : ""}
+${bodyBlock}${extra ? `\nהקשר נוסף:\n${extra}\n` : ""}
 
 הכתבה צריכה להיות:
 - 600-1000 מילים
 - בעברית שיחתית, לא פורמלית
-- עם מספרים ספציפיים
+- ${hasBody ? "מבוססת על המספרים, השמות והעובדות מתוכן הכתבה המקורית שלמעלה (אל תמציא, אל תסתפק בכותרת)" : "עם מספרים ספציפיים (אל תמציא מספרים שאין לך)"}
 - בקול של בן סולומון מקליקת הנדל"ן
 - עם פסקאות קצרות
 - חתימה: בן סולומון והחברים מהקליקה`;
@@ -576,7 +587,7 @@ export async function generateArticle(
  * STREAMING article generator. Yields text deltas as Claude writes.
  */
 export async function* streamArticle(
-  article: { title: string; summary: string; source?: string },
+  article: { title: string; summary: string; source?: string; fullText?: string },
   extraContext: string = "",
 ): AsyncGenerator<string, void, unknown> {
   const stream = client.messages.stream({
@@ -586,7 +597,7 @@ export async function* streamArticle(
     messages: [
       {
         role: "user",
-        content: buildArticlePrompt(article.title, article.summary || "", extraContext),
+        content: buildArticlePrompt(article.title, article.summary || "", extraContext, article.fullText || ""),
       },
     ],
   });

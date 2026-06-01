@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { streamWhatsAppText } from "@/lib/anthropic";
+import { fetchArticleText } from "@/lib/fetch-article";
 import { supabase } from "@/lib/supabase";
 
 type Style = "short" | "regular" | "commentary";
@@ -66,8 +67,12 @@ export async function POST(request: NextRequest) {
       const processItem = async (item: typeof orderedItems[number]) => {
         let fullText = "";
         try {
+          // Read the real article before writing — so the AI uses the actual
+          // numbers/facts, not just the headline + RSS snippet. Falls back to
+          // title+summary if the fetch fails or the source is paywalled.
+          const articleBody = await fetchArticleText(item.source_url || "");
           for await (const chunk of streamWhatsAppText(
-            { title: item.title, summary: item.summary || "", source: item.source },
+            { title: item.title, summary: item.summary || "", source: item.source, fullText: articleBody },
             style,
           )) {
             fullText += chunk;
