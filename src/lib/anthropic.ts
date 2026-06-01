@@ -318,21 +318,15 @@ ${stylePrompts[style]}
   return text;
 }
 
-export async function generateDailyDigest(
-  articles: Array<{ title: string; summary: string; source: string }>
-): Promise<string> {
+/** Build the digest prompt body. Shared between the blocking and streaming generators. */
+function buildDigestPrompt(
+  articles: Array<{ title: string; summary: string; source: string }>,
+): string {
   const articleList = articles
     .map((a, i) => `[חדשה ${i + 1}] ${a.title}\nמקור: ${a.source}\nתקציר: ${a.summary || "אין תקציר"}`)
     .join("\n\n");
 
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: 4096,
-    system: VOICE_DNA_SYSTEM_CACHED,
-    messages: [
-      {
-        role: "user",
-        content: `כתוב הודעת וואטסאפ יומית אחת שלמה שמאחדת את כל הידיעות הבאות.
+  return `כתוב הודעת וואטסאפ יומית אחת שלמה שמאחדת את כל הידיעות הבאות.
 
 === מבנה מדויק של ההודעה ===
 
@@ -369,14 +363,53 @@ ${articleList}
 - בלי המצאות
 - *כוכביות* לבולד
 - 250-400 מילה סה"כ
-- אמפתי ורגיש למצב הנוכחי`,
-      },
-    ],
+- אמפתי ורגיש למצב הנוכחי`;
+}
+
+/** Light em-dash + en-dash cleanup applied after generation (blocking and streaming). */
+function cleanupHebrewDashes(text: string): string {
+  return text.replace(/\s*—\s*/g, ", ").replace(/–/g, "-");
+}
+
+/**
+ * STREAMING digest generator. Yields each text chunk as Claude produces it.
+ * Caller is responsible for buffering the full string if it needs to persist.
+ */
+export async function* streamDailyDigest(
+  articles: Array<{ title: string; summary: string; source: string }>,
+): AsyncGenerator<string, void, unknown> {
+  const prompt = buildDigestPrompt(articles);
+
+  const stream = client.messages.stream({
+    model: MODEL,
+    max_tokens: 4096,
+    system: VOICE_DNA_SYSTEM_CACHED,
+    messages: [{ role: "user", content: prompt }],
   });
 
-  let text = response.content[0].type === "text" ? response.content[0].text : "";
-  text = text.replace(/\s*—\s*/g, ", ").replace(/–/g, "-");
-  return text;
+  for await (const chunk of stream) {
+    if (
+      chunk.type === "content_block_delta" &&
+      chunk.delta?.type === "text_delta" &&
+      typeof chunk.delta.text === "string"
+    ) {
+      yield chunk.delta.text;
+    }
+  }
+}
+
+export async function generateDailyDigest(
+  articles: Array<{ title: string; summary: string; source: string }>
+): Promise<string> {
+  const response = await client.messages.create({
+    model: MODEL,
+    max_tokens: 4096,
+    system: VOICE_DNA_SYSTEM_CACHED,
+    messages: [{ role: "user", content: buildDigestPrompt(articles) }],
+  });
+
+  const text = response.content[0].type === "text" ? response.content[0].text : "";
+  return cleanupHebrewDashes(text);
 }
 
 export async function generateCommentary(

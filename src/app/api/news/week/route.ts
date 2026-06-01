@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { isRealEstate } from "@/lib/classify";
 
 function detectSourceFromUrl(url: string): string | null {
   if (!url) return null;
@@ -21,42 +22,6 @@ function detectSourceFromUrl(url: string): string | null {
   if (lower.includes("homeless.co.il")) return "הומלס";
   if (lower.includes("dira.co.il")) return "דירה";
   return null;
-}
-
-// ─── Real-estate-only keyword filter ───
-// The home feed is a NADLAN-only stream. Articles that score well for
-// "WhatsApp interest" but aren't actually about real estate (politics,
-// general tech, defense, finance-without-housing-angle) get filtered out
-// here so the home page stays focused.
-const REALESTATE_KEYWORDS = [
-  "נדל\"ן", "נדלן", "דירה", "דירות", "משכנתא", "משכנתאות",
-  "בנייה", "בניה", "קבלן", "קבלנים", "יזם", "יזמים",
-  "מחיר למשתכן", "פינוי בינוי", "פינוי-בינוי", "התחדשות עירונית", "תמ\"א",
-  "מס רכישה", "מס שבח", "שכירות", "שכ\"ד", "היטל השבחה",
-  "מגורים", "רוכשים", "רוכשי", "קונים", "רכישת דירה", "שוק הדיור",
-  "ריבית", "ריביות", "בית מגורים", "מחירי דיור", "דיור",
-  "תב\"ע", "בניין", "בניינים", "קומות", "פרויקט מגורים", "מגדל",
-  "עסקאות נדל", "מכירות דירות", "התחלות בנייה", "היצע דירות",
-  "השכרה", "שוכרים", "בעלי דירות", "משקיע נדל",
-  "נטיש", "התחדשות", "תכנון ובניה", "ועדת תכנון",
-];
-
-const REALESTATE_SOURCES = new Set([
-  'מרכז הנדל"ן',
-  "מגדילים",
-  "מדלן",
-  "הומלס",
-  "דירה",
-]);
-
-function isRealEstate(title: string, summary: string, source: string): boolean {
-  // Source-based fast path: dedicated real-estate sources are always allowed
-  if (REALESTATE_SOURCES.has(source)) return true;
-  const text = `${title} ${summary || ""}`.toLowerCase();
-  for (const kw of REALESTATE_KEYWORDS) {
-    if (text.includes(kw.toLowerCase())) return true;
-  }
-  return false;
 }
 
 /** Get the start of the current Hebrew week (Sunday) */

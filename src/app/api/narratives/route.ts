@@ -120,10 +120,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ narratives: [], range, startStr, todayStr, count: 0 });
   }
 
-  // Cap to top 200 by score to keep prompt size manageable
+  // Cap aggressively. נדל"ן had ~150+ candidates and was timing out at 30s on
+  // Vercel because the LLM clustering call ran longer than the function limit.
+  // 60 items still gives Claude plenty to find recurring narratives.
   headlines.sort((a, b) => b.score - a.score);
-  const capped = headlines.slice(0, 200);
+  const capped = headlines.slice(0, 60);
 
+  // Drop summary text — title + source + score is enough signal for clustering
+  // and keeps the prompt small enough to fit comfortably in a 60s response.
   const headlineList = capped
     .map((h) => `[${h.scan_date}] ${h.title} (${h.source}, ציון: ${h.score})`)
     .join("\n");
@@ -182,4 +186,4 @@ ${headlineList}
   return NextResponse.json({ narratives, range, startStr, todayStr, count: capped.length });
 }
 
-export const maxDuration = 30;
+export const maxDuration = 60;

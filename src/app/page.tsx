@@ -111,13 +111,7 @@ export default function HomePage() {
 
   const handleDigestGenerate = async () => {
     if (selected.size === 0) return;
-    setPhase("generating-digest"); setGenerateError(null);
-    try {
-      const res = await fetch("/api/digest", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ newsItemIds: Array.from(selected) }) });
-      const data = await res.json();
-      if (data.error) { setGenerateError(data.error); setPhase("select"); return; }
-      setDigestText(data.digest); setDigestTextId(data.textId || ""); setPhase("digest");
-    } catch { setGenerateError("הרשת קרסה באמצע. בדוק חיבור ונסה שוב."); setPhase("select"); }
+    await runDigestStream(Array.from(selected));
   };
 
   const handleRegenerate = async (newsItemId: string, style: "short" | "regular" | "commentary"): Promise<{ text: string; id: string } | null> => {
@@ -129,13 +123,87 @@ export default function HomePage() {
 
   const handleQuickDigest = async () => {
     const top3 = news.slice(0, 3).map(n => n.id);
-    setSelected(new Set(top3)); setPhase("generating-digest"); setGenerateError(null);
+    setSelected(new Set(top3));
+    await runDigestStream(top3);
+  };
+
+  /**
+   * Consume /api/digest as a Server-Sent Events stream. Each text delta is
+   * appended to digestText so the user sees Claude typing in real time.
+   * On first chunk we flip from "generating-digest" (spinner) to "digest"
+   * (text view). The terminal `event: done` carries the persisted textId.
+   */
+  const runDigestStream = async (ids: string[]) => {
+    setPhase("generating-digest");
+    setDigestText("");
+    setDigestTextId("");
+    setGenerateError(null);
     try {
-      const res = await fetch("/api/digest", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ newsItemIds: top3 }) });
-      const data = await res.json();
-      if (data.error) { setGenerateError(data.error); setPhase("select"); return; }
-      setDigestText(data.digest); setDigestTextId(data.textId || ""); setPhase("digest");
-    } catch { setGenerateError("הרשת קרסה באמצע. בדוק חיבור ונסה שוב."); setPhase("select"); }
+      const res = await fetch("/api/digest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newsItemIds: ids }),
+      });
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => ({}));
+        setGenerateError(data.error || `שגיאה (${res.status}). נסו שוב.`);
+        setPhase("select");
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let receivedFirstChunk = false;
+      let aborted = false;
+
+      while (!aborted) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const events = buffer.split("\n\n");
+        buffer = events.pop() || "";
+
+        for (const evt of events) {
+          if (!evt.trim()) continue;
+          let eventType = "message";
+          let dataStr = "";
+          for (const line of evt.split("\n")) {
+            if (line.startsWith("event:")) eventType = line.slice(6).trim();
+            else if (line.startsWith("data:")) dataStr += line.slice(5).trim();
+          }
+          if (!dataStr) continue;
+          try {
+            const parsed = JSON.parse(dataStr);
+            if (eventType === "done") {
+              setDigestTextId(parsed.textId || "");
+            } else if (eventType === "error") {
+              setGenerateError(parsed.error || "שגיאה ביצירת התקציר.");
+              setPhase("select");
+              aborted = true;
+              break;
+            } else if (typeof parsed.text === "string") {
+              if (!receivedFirstChunk) {
+                setPhase("digest");
+                receivedFirstChunk = true;
+              }
+              setDigestText((prev) => prev + parsed.text);
+            }
+          } catch {
+            // Skip unparseable chunks (shouldn't happen but be resilient)
+          }
+        }
+      }
+
+      if (!receivedFirstChunk && !aborted) {
+        setGenerateError("התקציר חזר ריק. נסו עם פחות ידיעות.");
+        setPhase("select");
+      }
+    } catch {
+      setGenerateError("הרשת קרסה באמצע. בדוק חיבור ונסה שוב.");
+      setPhase("select");
+    }
   };
 
   const allSelected = news.length > 0 && news.every(n => selected.has(n.id));

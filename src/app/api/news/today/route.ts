@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { isRealEstate } from "@/lib/classify";
 
 // Detect real source from article URL (mirrors rss.ts logic)
 function detectSourceFromUrl(url: string): string | null {
@@ -27,29 +28,34 @@ function detectSourceFromUrl(url: string): string | null {
 export async function GET() {
   const today = new Date().toISOString().split("T")[0];
 
+  // Pull more than we need so the real-estate filter doesn't shrink the top-N
   const { data, error } = await supabase
     .from("news_scores")
     .select("*, news_items(*)")
     .eq("scan_date", today)
     .gte("score", 30)
     .order("score", { ascending: false })
-    .limit(6);
+    .limit(30);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const news = (data || []).map((s: any) => {
-    const item = s.news_items;
-    const realSource = detectSourceFromUrl(item.source_url) || item.source;
-    return {
-      ...item,
-      source: realSource,
-      score: s.score,
-      reasoning: s.reasoning,
-      score_id: s.id,
-    };
-  });
+  const news = (data || [])
+    .map((s: any) => {
+      const item = s.news_items;
+      const realSource = detectSourceFromUrl(item.source_url) || item.source;
+      return {
+        ...item,
+        source: realSource,
+        score: s.score,
+        reasoning: s.reasoning,
+        score_id: s.id,
+      };
+    })
+    // Real-estate-only on the dashboard "ידיעות מובילות" strip
+    .filter((n: any) => isRealEstate(n.title || "", n.summary || "", n.source))
+    .slice(0, 6);
 
   // Get last scan time
   const { data: lastScan } = await supabase
