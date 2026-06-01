@@ -71,56 +71,127 @@ interface ScoringResult {
   reasoning: string;
 }
 
-export async function scoreNews(
-  articles: Array<{ title: string; summary: string; source: string }>
-): Promise<ScoringResult[]> {
-  const articleList = articles
-    .map((a, i) => `[${i}] [${a.source}] ${a.title}\n   ${a.summary || "אין תקציר"}`)
-    .join("\n\n");
-
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: 4096,
-    system: `אתה מנתח חדשות נדל"ן בכיר. אתה מדרג ידיעות עבור "קליקת הנדל"ן" לפי הפוטנציאל שלהן ליצור תוכן וואטסאפ מעניין עבור הקהל.
+// Scoring system prompt (kept short + cached for cost savings on every scan)
+const SCORING_SYSTEM = `אתה מנתח חדשות נדל"ן בכיר. אתה מדרג ידיעות עבור "קליקת הנדל"ן" לפי הפוטנציאל שלהן ליצור תוכן וואטסאפ מעניין עבור הקהל.
 
 קהל היעד (ICP):
 - גיל 25-45, מרכז ישראל, היטק/עצמאים
 - הון עצמי 250K-1M ש"ח
 - רוכשי דירה ראשונה, משפרי דיור, משקיעי נדל"ן
 - פוחדים מעסקאות גרועות, מרגישים ניגוד אינטרסים עם סוכנים
-- רוצים מישהו שידריך אותם, יגן עליהם`,
+- רוצים מישהו שידריך אותם, יגן עליהם
+
+קריטריוני דירוג (1-100):
+1. רלוונטיות ישירה לקהל
+2. נגיעה לכסף (מחירים, מימון, משכנתא, סיכון, הזדמנות)
+3. עוררות שאלות ("מה זה אומר עליי?")
+4. פוטנציאל פרשנות
+5. חיזוק מיצוב כמומחים
+6. התאמה לוואטסאפ (אפשר להסביר ב-4-6 שורות?)
+
+סולם:
+- 80-100: חדשה חובה
+- 60-79: חדשה טובה
+- 40-59: בינונית
+- מתחת ל-40: לא רלוונטי`;
+
+/**
+ * Score a small chunk of articles (≤ 25). Each call gets its own max_tokens
+ * budget — generous enough for 25 short reasonings without truncation.
+ */
+async function scoreChunk(
+  chunk: Array<{ title: string; summary: string; source: string }>,
+  indexOffset: number,
+): Promise<ScoringResult[]> {
+  const articleList = chunk
+    .map((a, i) => `[${i}] [${a.source}] ${a.title}\n   ${(a.summary || "אין תקציר").slice(0, 220)}`)
+    .join("\n\n");
+
+  const response = await client.messages.create({
+    model: MODEL,
+    max_tokens: 3000,
+    system: [
+      { type: "text", text: SCORING_SYSTEM, cache_control: { type: "ephemeral" } },
+    ],
     messages: [
       {
         role: "user",
-        content: `דרג כל ידיעה 1-100 לפי 6 קריטריונים:
-
-1. *רלוונטיות ישירה* — האם הקהל שלנו (רוכשים, משקיעים, משפרי דיור) יגיד "רגע, זה נוגע לי"?
-2. *נגיעה לכסף* — מחירים, מימון, משכנתא, סיכון, הזדמנות, הטבות
-3. *עוררות שאלות* — האם אנשים ישאלו "מה זה אומר עליי?" או "מה לעשות?"
-4. *פוטנציאל פרשנות* — האם יש מה לומר מעבר לכותרת? זווית ייחודית?
-5. *חיזוק מיצוב* — האם זה מאפשר לנו להראות שאנחנו מומחים שמגינים על הקהל?
-6. *התאמה לוואטסאפ* — האם אפשר להסביר ב-4-6 שורות? (פשוט = ציון גבוה)
-
-ניקוד:
-- 80-100: חדשה חובה — נוגעת ישירות לכסף/דירה של הקהל
-- 60-79: חדשה טובה — רלוונטית, יש מה לומר
-- 40-59: בינונית — שולית או כללית מדי
-- מתחת ל-40: לא רלוונטית לקהל שלנו
+        content: `דרג את ${chunk.length} הידיעות הבאות.
 
 הידיעות:
 ${articleList}
 
-החזר JSON array בלבד (בלי טקסט נוסף):
-[{ "index": 0, "score": 85, "reasoning": "משפט אחד קצר, למה כדאי להפיץ" }]`,
+החזר JSON array בלבד, אחד לכל ידיעה לפי הסדר. reasoning קצר (משפט אחד):
+[{ "index": 0, "score": 85, "reasoning": "..." }]`,
       },
     ],
   });
 
-  const text =
-    response.content[0].type === "text" ? response.content[0].text : "";
-  const jsonMatch = text.match(/\[[\s\S]*\]/);
-  if (!jsonMatch) return [];
-  return JSON.parse(jsonMatch[0]);
+  const text = response.content[0].type === "text" ? response.content[0].text : "";
+
+  // Try strict JSON first; fall back to bracket extraction
+  let parsed: ScoringResult[] = [];
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    const match = text.match(/\[[\s\S]*\]/);
+    if (match) {
+      try {
+        parsed = JSON.parse(match[0]);
+      } catch (err) {
+        console.error(`scoreChunk: JSON parse failed after bracket extract (offset=${indexOffset})`, err);
+        return [];
+      }
+    } else {
+      console.error(`scoreChunk: no JSON array in response (offset=${indexOffset}), text starts with:`, text.slice(0, 200));
+      return [];
+    }
+  }
+
+  // Adjust indices back to the original article order
+  return parsed
+    .filter((r) => typeof r?.index === "number" && typeof r?.score === "number")
+    .map((r) => ({ ...r, index: r.index + indexOffset }));
+}
+
+/**
+ * Score N articles by batching into 25-article chunks and running ≤ 3 in
+ * parallel. Each chunk failure is isolated — a bad batch doesn't lose the
+ * scan. Returns ALL successful scores with indices mapped to the original
+ * input array.
+ *
+ * Why this matters: with 100 articles in a single call, max_tokens=4096 gets
+ * truncated mid-JSON and the entire scan returns [] (silent data loss).
+ */
+export async function scoreNews(
+  articles: Array<{ title: string; summary: string; source: string }>,
+): Promise<ScoringResult[]> {
+  if (articles.length === 0) return [];
+
+  const CHUNK_SIZE = 25;
+  const CONCURRENCY = 3;
+
+  const chunks: { items: typeof articles; offset: number }[] = [];
+  for (let i = 0; i < articles.length; i += CHUNK_SIZE) {
+    chunks.push({ items: articles.slice(i, i + CHUNK_SIZE), offset: i });
+  }
+
+  // Simple bounded-concurrency runner — preserves results, isolates failures
+  const all: ScoringResult[] = [];
+  for (let i = 0; i < chunks.length; i += CONCURRENCY) {
+    const slice = chunks.slice(i, i + CONCURRENCY);
+    const results = await Promise.all(
+      slice.map((c) =>
+        scoreChunk(c.items, c.offset).catch((err) => {
+          console.error(`scoreNews chunk offset=${c.offset} failed:`, err);
+          return [] as ScoringResult[];
+        }),
+      ),
+    );
+    for (const r of results) all.push(...r);
+  }
+
+  return all;
 }
 
 export async function generateWhatsAppText(
