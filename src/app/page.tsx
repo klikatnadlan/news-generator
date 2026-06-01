@@ -46,6 +46,10 @@ export default function HomePage() {
   const [digestExpandingArticle, setDigestExpandingArticle] = useState(false);
   const [digestArticleText, setDigestArticleText] = useState<string | null>(null);
   const [showHero, setShowHero] = useState(true);
+  // True while the corresponding SSE stream is open — drives the typing
+  // cursor + "LIVE · Claude כותב" pill in the digest/article cards.
+  const [digestStreaming, setDigestStreaming] = useState(false);
+  const [articleStreaming, setArticleStreaming] = useState(false);
 
   useEffect(() => { setUsername(localStorage.getItem("news-gen-username")); }, []);
 
@@ -136,6 +140,7 @@ export default function HomePage() {
     const newsItemId = Array.from(selected)[0] || "";
     if (!newsItemId) return;
     setDigestExpandingArticle(true);
+    setArticleStreaming(true);
     setDigestArticleText("");
     try {
       const res = await fetch("/api/article", {
@@ -185,6 +190,7 @@ export default function HomePage() {
       // network error — leave whatever was streamed in place
     } finally {
       setDigestExpandingArticle(false);
+      setArticleStreaming(false);
     }
   };
 
@@ -199,6 +205,7 @@ export default function HomePage() {
     setDigestText("");
     setDigestTextId("");
     setGenerateError(null);
+    setDigestStreaming(true);
     try {
       const res = await fetch("/api/digest", {
         method: "POST",
@@ -264,6 +271,8 @@ export default function HomePage() {
     } catch {
       setGenerateError("הרשת קרסה באמצע. בדוק חיבור ונסה שוב.");
       setPhase("select");
+    } finally {
+      setDigestStreaming(false);
     }
   };
 
@@ -564,9 +573,16 @@ export default function HomePage() {
                 <button onClick={() => setDigestEditing(false)} className="lf-btn lf-btn-dark text-[11px] !py-1.5 !px-3">סיום עריכה</button>
               </div>
             ) : (
-              <div className="lf-card whitespace-pre-wrap text-[13px] leading-[1.7] p-5 cursor-pointer group relative" dir="rtl" onClick={() => setDigestEditing(true)}>
-                {digestText}
-                <span className="absolute top-2 left-2 text-[10px] opacity-0 group-hover:opacity-100 bg-gray-100 px-1.5 py-0.5 rounded" style={{ color: "var(--lf-text-tertiary)" }}>לחץ לעריכה</span>
+              <div className="lf-card whitespace-pre-wrap text-[13px] leading-[1.7] p-5 cursor-pointer group relative" dir="rtl" onClick={() => !digestStreaming && setDigestEditing(true)}>
+                {digestStreaming && (
+                  <div className="absolute top-2 right-2">
+                    <span className="lf-streaming-pill">LIVE · Claude כותב</span>
+                  </div>
+                )}
+                <span className={digestStreaming ? "lf-streaming-cursor" : ""}>{digestText}</span>
+                {!digestStreaming && (
+                  <span className="absolute top-2 left-2 text-[10px] opacity-0 group-hover:opacity-100 bg-gray-100 px-1.5 py-0.5 rounded" style={{ color: "var(--lf-text-tertiary)" }}>לחץ לעריכה</span>
+                )}
               </div>
             )}
             <div className="lf-ai-box p-3 space-y-1.5">
@@ -602,17 +618,24 @@ export default function HomePage() {
               <button className="lf-btn lf-btn-outline text-[11px] !py-1.5 !px-3" disabled={digestHumanity === "loading"} onClick={async () => { setDigestHumanity("loading"); try { const r = await fetch("/api/humanity-score", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: digestText }) }); setDigestHumanity(await r.json()); } catch { setDigestHumanity(null); } }}>{digestHumanity === "loading" ? "בודק..." : "בדיקת אנושיות"}</button>
               <button className="lf-btn lf-btn-outline text-[11px] !py-1.5 !px-3" style={{ borderColor: "var(--lf-red)", color: "var(--lf-red)" }} disabled={digestExpandingArticle} onClick={runArticleStream}>{digestExpandingArticle ? "Claude כותב..." : "הרחב לכתבה"}</button>
             </div>
-            {digestArticleText && (
+            {digestArticleText !== null && (
               <div className="lf-card p-4 space-y-2" style={{ borderRight: "3px solid var(--lf-red)" }}>
                 <div className="flex items-center justify-between">
-                  <span className="text-[12px] font-semibold" style={{ color: "var(--lf-red)" }}>כתבה — {digestArticleText.trim().split(/\s+/).filter(Boolean).length} מילים</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px] font-semibold" style={{ color: "var(--lf-red)" }}>כתבה — {digestArticleText.trim().split(/\s+/).filter(Boolean).length} מילים</span>
+                    {articleStreaming && <span className="lf-streaming-pill">LIVE · Claude כותב</span>}
+                  </div>
                   <button onClick={() => setDigestArticleText(null)} className="text-[11px]" style={{ color: "var(--lf-text-tertiary)" }}>✕</button>
                 </div>
-                <div className="whitespace-pre-wrap text-[13px] leading-[1.7] max-h-[360px] overflow-y-auto rounded-lg p-3" style={{ background: "var(--lf-surface)" }} dir="rtl">{digestArticleText}</div>
-                <div className="flex gap-1.5">
-                  <button className="lf-btn lf-btn-outline text-[11px] !py-1 !px-2" onClick={async () => { await navigator.clipboard.writeText(digestArticleText); }}>העתק</button>
-                  <VoicePlayButton text={digestArticleText} />
+                <div className="whitespace-pre-wrap text-[13px] leading-[1.7] max-h-[360px] overflow-y-auto rounded-lg p-3" style={{ background: "var(--lf-surface)" }} dir="rtl">
+                  <span className={articleStreaming ? "lf-streaming-cursor" : ""}>{digestArticleText}</span>
                 </div>
+                {!articleStreaming && (
+                  <div className="flex gap-1.5">
+                    <button className="lf-btn lf-btn-outline text-[11px] !py-1 !px-2" onClick={async () => { await navigator.clipboard.writeText(digestArticleText || ""); }}>העתק</button>
+                    <VoicePlayButton text={digestArticleText} />
+                  </div>
+                )}
               </div>
             )}
             <div className="flex justify-center pt-4">
