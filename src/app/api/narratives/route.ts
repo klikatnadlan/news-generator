@@ -120,11 +120,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ narratives: [], range, startStr, todayStr, count: 0 });
   }
 
-  // Cap aggressively. נדל"ן had ~150+ candidates and was timing out at 30s on
-  // Vercel because the LLM clustering call ran longer than the function limit.
-  // 60 items still gives Claude plenty to find recurring narratives.
+  // Cap aggressively. נדל"ן had ~150+ candidates and was timing out at ~40s on
+  // Vercel (one cold start from a 504). 45 top-scored items is plenty for
+  // clustering recurring narratives and keeps the Sonnet call well under the
+  // function timeout.
   headlines.sort((a, b) => b.score - a.score);
-  const capped = headlines.slice(0, 60);
+  const capped = headlines.slice(0, 45);
 
   // Drop summary text — title + source + score is enough signal for clustering
   // and keeps the prompt small enough to fit comfortably in a 60s response.
@@ -143,9 +144,16 @@ export async function GET(request: NextRequest) {
   const themeHint = category && THEME_HINTS[category] ? `\n\n${THEME_HINTS[category]}` : "";
   const topicHint = topic ? `\n\nהמשתמש בחר נושא ספציפי: "${topic}". בנה נרטיבים סביב הנושא הזה בלבד.` : "";
 
+  // Sonnet 4. (Haiku would be faster/cheaper for this clustering task but this
+  // account 404s on claude-3-5-haiku-20241022 — see SCORING_MODEL note.) To
+  // keep the flagship נדל"ן feed away from Vercel's timeout we instead cap the
+  // candidate set hard (see slice above) and keep max_tokens lean.
   const response = await client.messages.create({
     model: "claude-sonnet-4-20250514",
-    max_tokens: 1500,
+    // Output tokens dominate latency here. 8 short narratives (title + count +
+    // 1-2 sentence summary + sources) fit comfortably in ~700 tokens, so 1000
+    // is safe headroom and meaningfully faster than 1500.
+    max_tokens: 1000,
     messages: [
       {
         role: "user",

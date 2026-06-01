@@ -195,9 +195,58 @@ export default function HomePage() {
     await runDigestStream(Array.from(selected));
   };
 
+  /**
+   * Regenerate a single item. /api/generate is an SSE multi-stream now, so we
+   * consume the stream for the one id, accumulate its text, and return the
+   * cleaned result once the item-done event arrives. (Used by ResultsPanel's
+   * "נסח מחדש" — previously this did res.json() and silently failed forever.)
+   */
   const handleRegenerate = async (newsItemId: string, style: "short" | "regular" | "commentary"): Promise<{ text: string; id: string } | null> => {
-    try { const res = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ newsItemIds: [newsItemId], style }) }); const d = await res.json(); if (d.results?.[0]) return { text: d.results[0].text, id: d.results[0].id || "" }; } catch { /**/ }
-    return null;
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newsItemIds: [newsItemId], style }),
+      });
+      if (!res.ok || !res.body) return null;
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let text = "";
+      let textId = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split("\n\n");
+        buffer = events.pop() || "";
+        for (const evt of events) {
+          if (!evt.trim()) continue;
+          let eventType = "message";
+          let dataStr = "";
+          for (const line of evt.split("\n")) {
+            if (line.startsWith("event:")) eventType = line.slice(6).trim();
+            else if (line.startsWith("data:")) dataStr += line.slice(5).trim();
+          }
+          if (!dataStr) continue;
+          try {
+            const parsed = JSON.parse(dataStr);
+            if (eventType === "item-done") {
+              textId = parsed.textId || "";
+            } else if (typeof parsed.text === "string") {
+              text += parsed.text;
+            }
+          } catch { /* skip */ }
+        }
+      }
+
+      text = text.replace(/\s*—\s*/g, ", ").replace(/–/g, "-");
+      return text ? { text, id: textId } : null;
+    } catch {
+      return null;
+    }
   };
 
   const handleBackToSelect = () => { setPhase("select"); setResults([]); setDigestText(""); setDigestTextId(""); };
@@ -263,6 +312,10 @@ export default function HomePage() {
           }
         }
       }
+      // Final em-dash cleanup once the article stream completes
+      setDigestArticleText((prev) =>
+        prev ? prev.replace(/\s*—\s*/g, ", ").replace(/–/g, "-") : prev,
+      );
     } catch {
       // network error — leave whatever was streamed in place
     } finally {
@@ -339,6 +392,12 @@ export default function HomePage() {
             // Skip unparseable chunks (shouldn't happen but be resilient)
           }
         }
+      }
+
+      // Final em-dash cleanup once the stream is complete (matches the
+      // server-side cleanup applied to the persisted copy).
+      if (receivedFirstChunk) {
+        setDigestText((prev) => prev.replace(/\s*—\s*/g, ", ").replace(/–/g, "-"));
       }
 
       if (!receivedFirstChunk && !aborted) {

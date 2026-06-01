@@ -78,11 +78,12 @@ export async function POST(request: NextRequest) {
 
           let textId = "";
           try {
-            const { data: saved } = await supabase
+            const { data: saved, error: saveErr } = await supabase
               .from("generated_texts")
               .insert({ news_item_id: item.id, style, whatsapp_text: cleaned })
               .select()
               .single();
+            if (saveErr) console.error(`generate: persist returned error for ${item.id}`, saveErr.message);
             textId = saved?.id || "";
           } catch (persistErr) {
             console.error(`generate: failed to persist text for ${item.id}`, persistErr);

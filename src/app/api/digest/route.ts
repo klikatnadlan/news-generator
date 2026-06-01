@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
         // client already has the full text on screen.
         let textId = "";
         try {
-          const { data: saved } = await supabase
+          const { data: saved, error: saveErr } = await supabase
             .from("generated_texts")
             .insert({
               news_item_id: ordered[0].id,
@@ -74,6 +74,7 @@ export async function POST(request: NextRequest) {
             })
             .select()
             .single();
+          if (saveErr) console.error("digest: persist returned error", saveErr.message);
           textId = saved?.id || "";
         } catch (persistErr) {
           console.error("digest: failed to persist generated_text", persistErr);

@@ -50,18 +50,22 @@ export async function POST(request: NextRequest) {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: chunk })}\n\n`));
         }
 
+        // Em-dash cleanup before persisting (matches the digest/generate routes)
+        const cleaned = fullText.replace(/\s*—\s*/g, ", ").replace(/–/g, "-");
+
         // Persist after streaming completes
         let textId = "";
         try {
-          const { data: saved } = await supabase
+          const { data: saved, error: saveErr } = await supabase
             .from("generated_texts")
             .insert({
               news_item_id: newsItemId,
               style: fromNarrative ? "article_from_narrative" : "article",
-              whatsapp_text: fullText,
+              whatsapp_text: cleaned,
             })
             .select()
             .single();
+          if (saveErr) console.error("article: persist returned error", saveErr.message);
           textId = saved?.id || "";
         } catch (persistErr) {
           console.error("article: failed to persist generated_text", persistErr);
