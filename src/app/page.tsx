@@ -493,7 +493,7 @@ export default function HomePage() {
                 className="text-[15px] sm:text-[19px] text-white/85 font-medium leading-relaxed lf-fade-in"
                 style={{ animationDelay: "750ms" }}
               >
-                לקרוא את הבאז, להבין את הבאז
+                לקרוא את הבאזז, להבין את הבאזז
               </p>
               <p
                 className="text-[15px] sm:text-[19px] text-white/85 font-medium leading-relaxed lf-fade-in"

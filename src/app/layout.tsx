@@ -3,8 +3,8 @@ import "./globals.css";
 import { SiteFooter } from "@/components/site-footer";
 
 export const metadata: Metadata = {
-  title: "לידרפיד — לקרוא את הבאז",
-  description: "לקרוא את הבאז, להבין את הבאז, לדעת על מה כולם ידברו גם מחר",
+  title: "לידרפיד — לקרוא את הבאזז",
+  description: "לקרוא את הבאזז, להבין את הבאזז, לדעת על מה כולם ידברו גם מחר",
   manifest: "/manifest.json",
   icons: {
     icon: [

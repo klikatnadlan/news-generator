@@ -10,6 +10,7 @@ interface HeadlineItem {
   source_url: string;
   score: number;
   scan_date: string;
+  published_at?: string;
   summary?: string;
   category?: string;
 }
@@ -80,6 +81,27 @@ const PRESET_TOPICS: Record<string, { emoji: string; label: string }[]> = {
   ],
 };
 
+// Keyword bank for the headline-list topic filter (client-side). Mirrors the
+// TOPIC_KEYWORDS in /api/narratives so a chip behaves the same in both places.
+// Broad stems on purpose — Hebrew prefixes (ב/ה/ל/ו) and verb conjugations
+// mean exact words miss a lot (e.g. "ברכישה" wouldn't match "רכשה").
+const TOPIC_KEYWORDS: Record<string, string[]> = {
+  "פיטורים": ["פיטור", "פיטר", "מפטר", "פוטר", "מפוטר", "צמצומ", "קיצוצ", "פרישה", "התייעלות"],
+  "גיוסים": ["גיוס", "גייס", "מגייס", "סבב", "השקע", "ישקיע", "מימון", "Series", "הון סיכון", "מיליון דולר", "מיליארד"],
+  "אקזיט": ["אקזיט", "exit", "נמכר", "מכר", "רכיש", "נרכש", "רכש", "מיזוג", "עסקת ענק", "שווי של"],
+  "AI": ["AI", "בינה מלאכותית", "GPT", "OpenAI", "Anthropic", "צ'אטבוט", "מודל שפה", "LLM", "אינטל", "אנבידיה", "nvidia", "שבב", "צ'יפ"],
+  "הנפקה": ["הנפק", "IPO", "תשקיף", "הנפיק"],
+  "פינוי בינוי": ["פינוי בינוי", "פינוי-בינוי", "התחדשות עירונית", "תמ\"א", "פינוי-בינוי"],
+  "משכנתאות": ["משכנתא", "ריבית", "זכאות", "תמהיל", "מחזור משכנתא", "הלוואת"],
+  "מחיר למשתכן": ["מחיר למשתכן", "מחיר מטרה", "דירה בהנחה", "הגרל", "זכאי", "סבסוד"],
+  "מחירי דירות": ["מחירי דירות", "מדד מחירי", "מחיר דירה", "המחירים", "עסקת", "נמכר", "התייקר", "ירידת מחיר", "עליית מחיר"],
+  "בנייה": ["התחלות בנייה", "היתרי בנייה", "סיומי בנייה", "מכרז", "קבלן", "יזם", "פרויקט", "בנייה"],
+  'דולר/מט"ח': ["דולר", "מט\"ח", "שקל", "אירו", "מטבע", "פיחות", "תיסוף"],
+  "אינפלציה": ["אינפלציה", "מדד המחירים", "יוקר המחיה", "מדד מחירים", "התייקרות"],
+  "בנקים": ["בנק", "אשראי", "פיקדון", "בנק ישראל", "ריבית"],
+  "בורסה": ["בורסה", "מניות", "מניה", "מדד ת\"א", "ת\"א 35", "ת\"א 125", "מסחר", "ני\"ע"],
+};
+
 export default function HeadlinesPage() {
   const [allNews, setAllNews] = useState<HeadlineItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,6 +122,8 @@ export default function HeadlinesPage() {
   const [expandedNarrative, setExpandedNarrative] = useState<string | null>(null);
   // Selected preset topic (filters narratives by keyword)
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+  // Topic filter for the HEADLINE LIST (separate from the narrative one above)
+  const [headlineTopic, setHeadlineTopic] = useState<string | null>(null);
 
   const triggerRef = useRef<HTMLDivElement>(null);
 
@@ -146,9 +170,16 @@ export default function HeadlinesPage() {
   });
 
   const filteredNews = categoryNews.filter((item) => {
-    if (selectedDay === "הכל") return true;
-    if (selectedDay === "היום") return item.scan_date === todayStr;
-    return item.scan_date === selectedDay; // ISO date string
+    // Day filter
+    if (selectedDay === "היום") { if (item.scan_date !== todayStr) return false; }
+    else if (selectedDay !== "הכל") { if (item.scan_date !== selectedDay) return false; }
+    // Topic filter (keyword match on title) — only when a chip is selected
+    if (headlineTopic && TOPIC_KEYWORDS[headlineTopic]) {
+      const t = (item.title || "").toLowerCase();
+      const hit = TOPIC_KEYWORDS[headlineTopic].some((k) => t.includes(k.toLowerCase()));
+      if (!hit) return false;
+    }
+    return true;
   });
 
   const categoryCounts = {
@@ -266,7 +297,7 @@ export default function HeadlinesPage() {
             const count = t.id !== "נרטיב" ? categoryCounts[t.id as keyof typeof categoryCounts] : null;
             return (
               <button key={t.id}
-                onClick={() => { if (t.id !== "נרטיב") setLastCategory(t.id); setTab(t.id); setSelected(new Set()); setTriggerForId(null); setTriggerText(null); setNarrativeRange(null); setExpandedNarrative(null); }}
+                onClick={() => { if (t.id !== "נרטיב") setLastCategory(t.id); setTab(t.id); setSelected(new Set()); setTriggerForId(null); setTriggerText(null); setNarrativeRange(null); setExpandedNarrative(null); setHeadlineTopic(null); }}
                 title={TAB_TOOLTIPS[t.id]}
                 className="flex items-center gap-1.5 px-3 py-2 text-[12px] font-bold rounded-lg transition-all whitespace-nowrap shrink-0"
                 style={{ background: isActive ? t.color : "#fff", color: isActive ? "#fff" : "#6b7280", border: `1.5px solid ${isActive ? t.color : "#e5e7eb"}` }}>
@@ -310,8 +341,36 @@ export default function HeadlinesPage() {
             </button>
           </div>
 
+          {/* ═══ Topic quick-filter chips (per category) ═══ */}
+          {PRESET_TOPICS[tab] && (
+            <div className="flex items-center gap-1.5 mb-3 overflow-x-auto no-scrollbar">
+              <span className="text-[10px] shrink-0 ml-1" style={{ color: "#9ca3af" }}>נושאים:</span>
+              {PRESET_TOPICS[tab].map((t) => {
+                const active = headlineTopic === t.label;
+                return (
+                  <button
+                    key={t.label}
+                    onClick={() => { setHeadlineTopic(active ? null : t.label); setSelected(new Set()); }}
+                    className="px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap shrink-0 font-medium"
+                    style={{ background: active ? tabConfig.color : "#fff", color: active ? "#fff" : "#6b7280", border: `1px solid ${active ? tabConfig.color : "#e5e7eb"}` }}>
+                    {t.emoji} {t.label}
+                  </button>
+                );
+              })}
+              {headlineTopic && (
+                <button
+                  onClick={() => { setHeadlineTopic(null); setSelected(new Set()); }}
+                  className="text-[11px] px-2 py-1 rounded-lg hover:bg-gray-100 whitespace-nowrap shrink-0"
+                  style={{ color: "#9ca3af" }}>
+                  ✕ נקה
+                </button>
+              )}
+            </div>
+          )}
+
           <p className="text-[11px] mb-3" style={{ color: "#9ca3af" }}>
             {filteredNews.length} כותרות {tab}
+            {headlineTopic && <span className="font-semibold" style={{ color: tabConfig.color }}> · {headlineTopic}</span>}
             {selectedDay === "היום"
               ? " להיום"
               : selectedDay === "הכל"
@@ -532,7 +591,7 @@ export default function HeadlinesPage() {
                           <p className="text-[10px] font-semibold mb-1.5" style={{ color: "#dc2626" }}>{matchingArticles.length} כתבות קשורות</p>
                           {matchingArticles.map(article => (
                             <HeadlineRow key={article.id} item={article} selected={selected.has(article.id)} onToggle={toggleSelect} onCopy={copySingle} getColor={getColor} accentColor="#dc2626"
-                              onTrigger={() => triggerSingleAI(article)} triggerLoading={triggerLoading && triggerForId === article.id} />
+                              onTrigger={() => triggerSingleAI(article)} triggerLoading={triggerLoading && triggerForId === article.id} showDate />
                           ))}
                         </div>
                       )}
@@ -548,7 +607,15 @@ export default function HeadlinesPage() {
   );
 }
 
-function HeadlineRow({ item, selected, onToggle, onCopy, getColor, accentColor, onTrigger, triggerLoading }: {
+function formatItemDate(item: HeadlineItem): string {
+  const raw = item.published_at || item.scan_date;
+  if (!raw) return "";
+  const d = new Date(raw.length <= 10 ? raw + "T12:00:00" : raw);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("he-IL", { day: "numeric", month: "numeric" });
+}
+
+function HeadlineRow({ item, selected, onToggle, onCopy, getColor, accentColor, onTrigger, triggerLoading, showDate }: {
   item: HeadlineItem;
   selected: boolean;
   onToggle: (id: string) => void;
@@ -557,8 +624,10 @@ function HeadlineRow({ item, selected, onToggle, onCopy, getColor, accentColor, 
   accentColor: string;
   onTrigger?: () => void;
   triggerLoading?: boolean;
+  showDate?: boolean;
 }) {
   const srcColor = getColor(item.source);
+  const dateLabel = showDate ? formatItemDate(item) : "";
   return (
     <div className="lf-card flex items-start gap-2.5 p-3 cursor-pointer transition-all"
       style={{ borderRight: selected ? `3px solid ${accentColor}` : "3px solid transparent" }}
@@ -570,6 +639,11 @@ function HeadlineRow({ item, selected, onToggle, onCopy, getColor, accentColor, 
       </button>
       <div className="flex-1 min-w-0">
         <h3 className="text-[14px] font-bold leading-[1.4]" style={{ color: "#0f1419" }}>{item.title}</h3>
+        {dateLabel && (
+          <span className="text-[10px] inline-flex items-center gap-1 mt-1" style={{ color: "#9ca3af" }}>
+            🗓️ פורסם {dateLabel}
+          </span>
+        )}
       </div>
       <div className="flex items-center gap-1 shrink-0">
         <span className="text-[9px] font-semibold px-1.5 py-[1px] rounded" style={{ color: srcColor, background: srcColor + "12" }}>{item.source}</span>
