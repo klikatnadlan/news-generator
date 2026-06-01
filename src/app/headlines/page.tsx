@@ -93,7 +93,15 @@ export default function HeadlinesPage() {
 
   const todayStr = new Date().toISOString().split("T")[0];
   const todayDay = DAYS[new Date().getDay()];
-  const dayOrder = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳"];
+
+  // Rolling 7-day window going BACKWARD from today (today + 6 past days).
+  // Each past day stores the real ISO date, so picking ב' on a Sunday
+  // means "last Monday", not "this coming Monday".
+  const pastDays = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - i - 1);
+    return { iso: d.toISOString().split("T")[0], label: DAYS[d.getDay()] };
+  });
 
   const categoryNews = allNews.filter((item) => {
     if (tab === "נרטיב") return false;
@@ -103,7 +111,7 @@ export default function HeadlinesPage() {
   const filteredNews = categoryNews.filter((item) => {
     if (selectedDay === "הכל") return true;
     if (selectedDay === "היום") return item.scan_date === todayStr;
-    return getHebrewDay(item.scan_date) === selectedDay;
+    return item.scan_date === selectedDay; // ISO date string
   });
 
   const categoryCounts = {
@@ -174,10 +182,10 @@ export default function HeadlinesPage() {
     setTimeout(() => setNarrativesCopyLabel(null), 1500);
   };
 
-  const groupedByDay = filteredNews.reduce<Record<string, HeadlineItem[]>>((acc, item) => {
-    const day = getHebrewDay(item.scan_date);
-    if (!acc[day]) acc[day] = [];
-    acc[day].push(item);
+  const groupedByDate = filteredNews.reduce<Record<string, HeadlineItem[]>>((acc, item) => {
+    if (!item.scan_date) return acc;
+    if (!acc[item.scan_date]) acc[item.scan_date] = [];
+    acc[item.scan_date].push(item);
     return acc;
   }, {});
 
@@ -233,13 +241,29 @@ export default function HeadlinesPage() {
         {/* ═══ HEADLINES TABS ═══ */}
         {isHeadlinesTab && (<>
           <div className="flex items-center gap-1 mb-3 overflow-x-auto no-scrollbar">
-            {["היום", ...dayOrder, "הכל"].map((day) => (
-              <button key={day} onClick={() => { setSelectedDay(day); setSelected(new Set()); }}
+            <button
+              key="היום"
+              onClick={() => { setSelectedDay("היום"); setSelected(new Set()); }}
+              className="px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap shrink-0 font-medium"
+              style={{ background: selectedDay === "היום" ? tabConfig.color : "transparent", color: selectedDay === "היום" ? "#fff" : "#9ca3af", border: `1px solid ${selectedDay === "היום" ? tabConfig.color : "#e5e7eb"}` }}>
+              היום ({todayDay})
+            </button>
+            {pastDays.map((d) => (
+              <button
+                key={d.iso}
+                onClick={() => { setSelectedDay(d.iso); setSelected(new Set()); }}
                 className="px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap shrink-0 font-medium"
-                style={{ background: selectedDay === day ? tabConfig.color : "transparent", color: selectedDay === day ? "#fff" : "#9ca3af", border: `1px solid ${selectedDay === day ? tabConfig.color : "#e5e7eb"}` }}>
-                {day === "היום" ? `היום (${todayDay})` : day}
+                style={{ background: selectedDay === d.iso ? tabConfig.color : "transparent", color: selectedDay === d.iso ? "#fff" : "#9ca3af", border: `1px solid ${selectedDay === d.iso ? tabConfig.color : "#e5e7eb"}` }}>
+                {d.label}
               </button>
             ))}
+            <button
+              key="הכל"
+              onClick={() => { setSelectedDay("הכל"); setSelected(new Set()); }}
+              className="px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap shrink-0 font-medium"
+              style={{ background: selectedDay === "הכל" ? tabConfig.color : "transparent", color: selectedDay === "הכל" ? "#fff" : "#9ca3af", border: `1px solid ${selectedDay === "הכל" ? tabConfig.color : "#e5e7eb"}` }}>
+              הכל
+            </button>
             <button onClick={selectAll} className="text-[11px] font-medium px-2.5 py-1 rounded-lg hover:bg-gray-100 whitespace-nowrap shrink-0 mr-auto" style={{ color: "#6b7280" }}>
               {selected.size === filteredNews.length && filteredNews.length > 0 ? "בטל הכל" : "בחר הכל"}
             </button>
@@ -247,7 +271,11 @@ export default function HeadlinesPage() {
 
           <p className="text-[11px] mb-3" style={{ color: "#9ca3af" }}>
             {filteredNews.length} כותרות {tab}
-            {selectedDay !== "הכל" && selectedDay !== "היום" ? ` ליום ${selectedDay}` : selectedDay === "היום" ? " להיום" : " השבוע"}
+            {selectedDay === "היום"
+              ? " להיום"
+              : selectedDay === "הכל"
+                ? " ב-7 ימים אחרונים"
+                : ` ליום ${getHebrewDay(selectedDay)} (${new Date(selectedDay + "T12:00:00").toLocaleDateString("he-IL", { day: "numeric", month: "numeric" })})`}
             {selected.size > 0 && <span className="font-semibold" style={{ color: tabConfig.color }}> · {selected.size} נבחרו</span>}
           </p>
 
@@ -257,15 +285,17 @@ export default function HeadlinesPage() {
             </div>
           ) : (
             <div className="space-y-1">
-              {(selectedDay === "הכל" ? dayOrder.filter(d => groupedByDay[d]?.length).flatMap(day => [
-                { type: "header" as const, day, count: groupedByDay[day].length },
-                ...groupedByDay[day].map(item => ({ type: "item" as const, item })),
-              ]) : filteredNews.map(item => ({ type: "item" as const, item }))
+              {(selectedDay === "הכל"
+                ? Object.keys(groupedByDate).sort().reverse().flatMap(iso => [
+                    { type: "header" as const, iso, day: DAYS[new Date(iso + "T12:00:00").getDay()], count: groupedByDate[iso].length },
+                    ...groupedByDate[iso].map(item => ({ type: "item" as const, item })),
+                  ])
+                : filteredNews.map(item => ({ type: "item" as const, item }))
               ).map((entry, idx) => {
                 if (entry.type === "header") {
                   return (
-                    <div key={`h-${entry.day}`} className="flex items-center gap-2 mb-2 mt-3 first:mt-0">
-                      <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full text-white" style={{ background: tabConfig.color }}>יום {entry.day}</span>
+                    <div key={`h-${entry.iso}`} className="flex items-center gap-2 mb-2 mt-3 first:mt-0">
+                      <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full text-white" style={{ background: tabConfig.color }}>יום {entry.day} · {new Date(entry.iso + "T12:00:00").toLocaleDateString("he-IL", { day: "numeric", month: "numeric" })}</span>
                       <span className="text-[10px]" style={{ color: "#9ca3af" }}>{entry.count} כותרות</span>
                       <div className="flex-1 h-px" style={{ background: "#e5e7eb" }} />
                     </div>
@@ -295,8 +325,12 @@ export default function HeadlinesPage() {
               })}
               {filteredNews.length === 0 && (
                 <div className="text-center py-12" style={{ color: "#9ca3af" }}>
-                  <p className="text-[13px]">אין כותרות {tab} ליום {selectedDay === "היום" ? "הזה" : selectedDay}</p>
-                  <button className="text-[12px] mt-2 underline" style={{ color: tabConfig.color }} onClick={() => setSelectedDay("הכל")}>הצג את כל השבוע</button>
+                  <p className="text-[13px]">
+                    אין כותרות {tab} {selectedDay === "היום"
+                      ? "להיום"
+                      : `ליום ${getHebrewDay(selectedDay)} (${new Date(selectedDay + "T12:00:00").toLocaleDateString("he-IL", { day: "numeric", month: "numeric" })})`}
+                  </p>
+                  <button className="text-[12px] mt-2 underline" style={{ color: tabConfig.color }} onClick={() => setSelectedDay("הכל")}>הצג את הכל</button>
                 </div>
               )}
             </div>

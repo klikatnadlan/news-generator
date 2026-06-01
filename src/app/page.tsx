@@ -63,13 +63,20 @@ export default function HomePage() {
 
   const todayStr = new Date().toISOString().split("T")[0];
   const todayDay = DAYS_HEB[new Date().getDay()];
-  const dayOrder = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳"];
+
+  // Rolling 7-day window going BACKWARD from today (today + 6 past days).
+  // Each past day stores the real ISO date, so picking ב' on a Sunday
+  // means "last Monday", not "this coming Monday".
+  const pastDays = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - i - 1);
+    return { iso: d.toISOString().split("T")[0], label: DAYS_HEB[d.getDay()] };
+  });
 
   const news = allNews.filter(item => {
     if (selectedDay === "הכל") return true;
     if (selectedDay === "היום") return item.scan_date === todayStr;
-    const itemDay = item.scan_date ? getHebrewDay(item.scan_date) : "";
-    return itemDay === selectedDay;
+    return item.scan_date === selectedDay; // ISO date string
   });
 
   const handleSelect = (id: string, sel: boolean) => {
@@ -137,10 +144,10 @@ export default function HomePage() {
   const timeStr = now.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
   const dateStr = now.toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
-  const groupedByDay = news.reduce<Record<string, WeekNews[]>>((acc, item) => {
-    const day = item.scan_date ? getHebrewDay(item.scan_date) : "?";
-    if (!acc[day]) acc[day] = [];
-    acc[day].push(item);
+  const groupedByDate = news.reduce<Record<string, WeekNews[]>>((acc, item) => {
+    if (!item.scan_date) return acc;
+    if (!acc[item.scan_date]) acc[item.scan_date] = [];
+    acc[item.scan_date].push(item);
     return acc;
   }, {});
 
@@ -304,13 +311,29 @@ export default function HomePage() {
               )}
 
               <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
-                {["היום", ...dayOrder, "הכל"].map(day => (
-                  <button key={day} onClick={() => { setSelectedDay(day); setSelected(new Set()); }}
+                <button
+                  key="היום"
+                  onClick={() => { setSelectedDay("היום"); setSelected(new Set()); }}
+                  className="px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap shrink-0 font-medium"
+                  style={{ background: selectedDay === "היום" ? "var(--lf-navy)" : "transparent", color: selectedDay === "היום" ? "#fff" : "var(--lf-text-tertiary)", border: `1px solid ${selectedDay === "היום" ? "var(--lf-navy)" : "var(--lf-border)"}` }}>
+                  היום ({todayDay})
+                </button>
+                {pastDays.map(d => (
+                  <button
+                    key={d.iso}
+                    onClick={() => { setSelectedDay(d.iso); setSelected(new Set()); }}
                     className="px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap shrink-0 font-medium"
-                    style={{ background: selectedDay === day ? "var(--lf-navy)" : "transparent", color: selectedDay === day ? "#fff" : "var(--lf-text-tertiary)", border: `1px solid ${selectedDay === day ? "var(--lf-navy)" : "var(--lf-border)"}` }}>
-                    {day === "היום" ? `היום (${todayDay})` : day}
+                    style={{ background: selectedDay === d.iso ? "var(--lf-navy)" : "transparent", color: selectedDay === d.iso ? "#fff" : "var(--lf-text-tertiary)", border: `1px solid ${selectedDay === d.iso ? "var(--lf-navy)" : "var(--lf-border)"}` }}>
+                    {d.label}
                   </button>
                 ))}
+                <button
+                  key="הכל"
+                  onClick={() => { setSelectedDay("הכל"); setSelected(new Set()); }}
+                  className="px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap shrink-0 font-medium"
+                  style={{ background: selectedDay === "הכל" ? "var(--lf-navy)" : "transparent", color: selectedDay === "הכל" ? "#fff" : "var(--lf-text-tertiary)", border: `1px solid ${selectedDay === "הכל" ? "var(--lf-navy)" : "var(--lf-border)"}` }}>
+                  הכל
+                </button>
                 <span className="text-[10px] mx-0.5" style={{ color: "var(--lf-border)" }}>|</span>
                 <Link href="/headlines" className="px-2.5 py-1 text-[11px] rounded-full whitespace-nowrap shrink-0 font-medium transition-colors" style={{ background: "transparent", color: "#dc2626", border: "1px solid #fecaca" }}>כותרות</Link>
                 <button onClick={handleSelectAll} className="text-[11px] font-medium px-2.5 py-1 rounded-lg hover:bg-gray-100 whitespace-nowrap shrink-0 mr-auto" style={{ color: "var(--lf-text-secondary)" }}>{allSelected ? "בטל הכל" : "בחר הכל"}</button>
@@ -318,14 +341,14 @@ export default function HomePage() {
 
               {selectedDay === "הכל" ? (
                 <div className="space-y-4 mt-2">
-                  {dayOrder.filter(d => groupedByDay[d]?.length).map(day => (
-                    <div key={day}>
+                  {Object.keys(groupedByDate).sort().reverse().map(iso => (
+                    <div key={iso}>
                       <div className="flex items-center gap-2 mb-2 sticky top-0 z-10 py-1" style={{ background: "var(--lf-bg)" }}>
-                        <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full text-white" style={{ background: "var(--lf-navy)" }}>יום {day}</span>
-                        <span className="text-[10px]" style={{ color: "var(--lf-text-tertiary)" }}>{groupedByDay[day].length} ידיעות</span>
+                        <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full text-white" style={{ background: "var(--lf-navy)" }}>יום {DAYS_HEB[new Date(iso + "T12:00:00").getDay()]}׳ · {new Date(iso + "T12:00:00").toLocaleDateString("he-IL", { day: "numeric", month: "numeric" })}</span>
+                        <span className="text-[10px]" style={{ color: "var(--lf-text-tertiary)" }}>{groupedByDate[iso].length} ידיעות</span>
                         <div className="flex-1 h-px" style={{ background: "var(--lf-border)" }} />
                       </div>
-                      {groupedByDay[day].map((item, idx) => (
+                      {groupedByDate[iso].map((item, idx) => (
                         <div key={item.id} className="lf-animate mb-2.5" style={{ animationDelay: `${idx * 40}ms` }}>
                           <NewsCard news={item} selected={selected.has(item.id)} onSelect={handleSelect} />
                         </div>
@@ -343,8 +366,12 @@ export default function HomePage() {
 
               {news.length === 0 && !loading && (
                 <div className="text-center py-12" style={{ color: "var(--lf-text-tertiary)" }}>
-                  <p className="text-[13px]">אין ידיעות ליום {selectedDay === "היום" ? "הזה" : selectedDay}</p>
-                  <button className="text-[12px] mt-2 underline" style={{ color: "var(--lf-navy)" }} onClick={() => setSelectedDay("הכל")}>הצג את כל השבוע</button>
+                  <p className="text-[13px]">
+                    אין ידיעות {selectedDay === "היום"
+                      ? "להיום"
+                      : `ליום ${DAYS_HEB[new Date(selectedDay + "T12:00:00").getDay()]}׳ (${new Date(selectedDay + "T12:00:00").toLocaleDateString("he-IL", { day: "numeric", month: "numeric" })})`}
+                  </p>
+                  <button className="text-[12px] mt-2 underline" style={{ color: "var(--lf-navy)" }} onClick={() => setSelectedDay("הכל")}>הצג את הכל</button>
                 </div>
               )}
             </>)}
