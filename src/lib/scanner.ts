@@ -6,7 +6,7 @@ import type { ScoredNews } from "./types";
 export interface ScanResult {
   scanned: number;
   scored: number;
-  topNews: ScoredNews[];
+  top3: ScoredNews[];
 }
 
 export async function runScan(): Promise<ScanResult> {
@@ -15,7 +15,7 @@ export async function runScan(): Promise<ScanResult> {
   // Step 1: Fetch all RSS feeds
   const articles = await fetchAllFeeds();
   if (articles.length === 0) {
-    return { scanned: 0, scored: 0, topNews: [] };
+    return { scanned: 0, scored: 0, top3: [] };
   }
 
   // Step 2: Store raw news items (upsert to handle dedup)
@@ -38,19 +38,37 @@ export async function runScan(): Promise<ScanResult> {
     throw insertError;
   }
 
-  // Step 3: Score with Claude
+  // Step 3: Score with Claude (only if there are new articles to score)
   const toScore = (insertedNews || []).map((n) => ({
     title: n.title,
     summary: n.summary || "",
     source: n.source,
   }));
 
+  if (toScore.length === 0) {
+    console.log("No new articles to score, skipping Claude API call");
+    // Return existing top 3 for today
+    const today = new Date().toISOString().split("T")[0];
+    const { data: existingTop3 } = await supabase
+      .from("news_scores")
+      .select("*, news_items(*)")
+      .eq("scan_date", today)
+      .order("score", { ascending: false })
+      .limit(3);
+    const top3Mapped: ScoredNews[] = (existingTop3 || []).map((s: any) => ({
+      ...s.news_items,
+      score: s.score,
+      reasoning: s.reasoning,
+    }));
+    return { scanned: articles.length, scored: 0, top3: top3Mapped };
+  }
+
   let scores;
   try {
     scores = await scoreNews(toScore);
   } catch (err) {
     console.error("Claude scoring failed, storing raw news only:", err);
-    return { scanned: articles.length, scored: 0, topNews: [] };
+    return { scanned: articles.length, scored: 0, top3: [] };
   }
 
   // Step 4: Match scores to news items and store
@@ -75,15 +93,15 @@ export async function runScan(): Promise<ScanResult> {
     if (scoreError) console.error("Error inserting scores:", scoreError);
   }
 
-  // Step 5: Return top 6
+  // Step 5: Return top 3
   const { data: top3 } = await supabase
     .from("news_scores")
     .select("*, news_items(*)")
     .eq("scan_date", today)
     .order("score", { ascending: false })
-    .limit(6);
+    .limit(3);
 
-  const topMapped: ScoredNews[] = (top3 || []).map((s: any) => ({
+  const top3Mapped: ScoredNews[] = (top3 || []).map((s: any) => ({
     ...s.news_items,
     score: s.score,
     reasoning: s.reasoning,
@@ -92,6 +110,6 @@ export async function runScan(): Promise<ScanResult> {
   return {
     scanned: articles.length,
     scored: scores.length,
-    topNews: topMapped,
+    top3: top3Mapped,
   };
 }

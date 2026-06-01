@@ -72,6 +72,33 @@ export async function GET(request: NextRequest) {
   startDate.setDate(now.getDate() - days);
   const startStr = startDate.toISOString().split("T")[0];
 
+  // ─── Cache check ───
+  // Narrative synthesis is the slowest call in the app (Sonnet over dozens of
+  // headlines). Memoize per (category|range|topic) with a 15-minute TTL so a
+  // second viewer — or the same user toggling tabs — gets an instant result
+  // and we skip both the headlines query and the Claude call.
+  const cacheKey = `${category}|${range}|${topic}`;
+  const TTL_MS = 15 * 60 * 1000;
+  try {
+    const { data: cached } = await supabase
+      .from("narrative_cache")
+      .select("narratives, count, created_at")
+      .eq("cache_key", cacheKey)
+      .maybeSingle();
+    if (cached && now.getTime() - new Date(cached.created_at).getTime() < TTL_MS) {
+      return NextResponse.json({
+        narratives: cached.narratives || [],
+        range,
+        startStr,
+        todayStr,
+        count: cached.count,
+        cached: true,
+      });
+    }
+  } catch {
+    // Cache miss / table issue — fall through to live generation
+  }
+
   const { data, error } = await supabase
     .from("news_scores")
     .select("*, news_items(*)")
@@ -150,10 +177,12 @@ export async function GET(request: NextRequest) {
   // candidate set hard (see slice above) and keep max_tokens lean.
   const response = await client.messages.create({
     model: "claude-sonnet-4-20250514",
-    // Output tokens dominate latency here. 8 short narratives (title + count +
-    // 1-2 sentence summary + sources) fit comfortably in ~700 tokens, so 1000
-    // is safe headroom and meaningfully faster than 1500.
-    max_tokens: 1000,
+    // 1500 tokens. NOTE: do NOT lower this — Hebrew narratives tokenize
+    // heavily, and at 1000 the JSON array got truncated mid-output (no closing
+    // bracket → parse fails → empty result). Latency is handled by the cache
+    // (repeat views are instant) and the candidate cap, not by starving the
+    // output budget.
+    max_tokens: 1500,
     messages: [
       {
         role: "user",
@@ -181,17 +210,48 @@ ${headlineList}
   });
 
   let narratives: any[] = [];
+  const rawText = (response.content[0] as any)?.text || "";
   try {
-    const text = (response.content[0] as any).text || "";
-    const match = text.match(/\[[\s\S]*\]/);
+    const match = rawText.match(/\[[\s\S]*\]/);
     if (match) {
       narratives = JSON.parse(match[0]);
+    } else {
+      throw new Error("no array match");
     }
   } catch {
-    narratives = [];
+    // Salvage: the array may be truncated (no closing ]). Pull out every
+    // complete {...} object so we still return something instead of empty.
+    try {
+      const objs = rawText.match(/\{[^{}]*\}/g) || [];
+      narratives = objs
+        .map((o: string) => {
+          try { return JSON.parse(o); } catch { return null; }
+        })
+        .filter((n: any) => n && n.title);
+    } catch {
+      narratives = [];
+    }
+    if (narratives.length === 0) {
+      console.error("narratives: parse produced 0 results. raw starts:", rawText.slice(0, 120));
+    }
   }
 
-  return NextResponse.json({ narratives, range, startStr, todayStr, count: capped.length });
+  // Write-through cache. Only store non-empty results so a transient empty
+  // generation doesn't get pinned for 15 minutes.
+  if (narratives.length > 0) {
+    try {
+      await supabase
+        .from("narrative_cache")
+        .upsert(
+          { cache_key: cacheKey, narratives, count: capped.length, created_at: new Date().toISOString() },
+          { onConflict: "cache_key" },
+        );
+    } catch (cacheErr) {
+      console.error("narratives: cache write failed", cacheErr);
+    }
+  }
+
+  return NextResponse.json({ narratives, range, startStr, todayStr, count: capped.length, cached: false });
 }
 
 export const maxDuration = 60;

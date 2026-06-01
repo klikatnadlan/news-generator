@@ -54,20 +54,53 @@ export function NewsCard({ news, selected, onSelect }: NewsCardProps) {
   const src = getSource(news.source);
   const scoreColor = news.score >= 80 ? "#059669" : news.score >= 60 ? "#d97706" : "#dc2626";
 
+  // Paywalled sources — AI can only read headlines, not full articles
+  const PAYWALLED_SOURCES = ["גלובס", "דה מרקר", "כלכליסט"];
+  const isPaywalled = PAYWALLED_SOURCES.some(s => news.source.includes(s));
+
   const generate = async (type: "message" | "article", e: React.MouseEvent) => {
     e.stopPropagation();
     setGenerating(type); setGeneratedText(null); setGeneratedType(null);
+    // /api/generate and /api/article are Server-Sent Event streams now, so we
+    // read the stream and append text deltas live (progressive typing) rather
+    // than awaiting a single JSON body.
+    const url = type === "message" ? "/api/generate" : "/api/article";
+    const body = type === "message"
+      ? { newsItemIds: [news.id], style: "regular" }
+      : { newsItemId: news.id };
     try {
-      if (type === "message") {
-        const res = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ newsItemIds: [news.id], style: "regular" }) });
-        const d = await res.json();
-        if (d.results?.[0]?.text) { setGeneratedText(d.results[0].text); setGeneratedType("message"); }
-      } else {
-        const res = await fetch("/api/article", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ newsItemId: news.id }) });
-        const d = await res.json();
-        if (d.text) { setGeneratedText(d.text); setGeneratedType("article"); }
+      const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!res.ok || !res.body) { setGenerating(null); return; }
+      setGeneratedType(type);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let acc = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split("\n\n");
+        buffer = events.pop() || "";
+        for (const evt of events) {
+          if (!evt.trim()) continue;
+          let dataStr = "";
+          for (const line of evt.split("\n")) {
+            if (line.startsWith("data:")) dataStr += line.slice(5).trim();
+          }
+          if (!dataStr) continue;
+          try {
+            const p = JSON.parse(dataStr);
+            if (typeof p.text === "string") {
+              acc += p.text;
+              setGeneratedText(acc);
+            }
+          } catch { /* skip non-text events (item-done / done / all-done) */ }
+        }
       }
-    } catch { /* */ } finally { setGenerating(null); }
+      // Final em-dash cleanup
+      if (acc) setGeneratedText(acc.replace(/\s*—\s*/g, ", ").replace(/–/g, "-"));
+    } catch { /* leave whatever streamed */ } finally { setGenerating(null); }
   };
 
   const refine = async () => {
@@ -100,8 +133,15 @@ export function NewsCard({ news, selected, onSelect }: NewsCardProps) {
         {news.reasoning && !/^[a-zA-Z]/.test(news.reasoning) && <p className="text-[11px] leading-[1.4] mb-3 px-2 py-1 rounded-md inline-block" style={{ color: "#92400e", background: "#fffbeb" }}>{news.reasoning}</p>}
         <div className="flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
           <button onClick={async (e) => { e.stopPropagation(); await navigator.clipboard.writeText(`${news.title}${news.summary ? `\n${news.summary}` : ""}`); setCopyLabel("✓"); setTimeout(() => setCopyLabel(null), 1500); }} className="text-[11px] font-medium h-[30px] px-3 rounded-md border transition-colors" style={copyLabel ? { background: "#f0fdf4", borderColor: "#059669", color: "#059669" } : { borderColor: "#e5e7eb", color: "#6b7280", background: "#fff" }}>{copyLabel || "📋 העתק תכלס"}</button>
-          <button onClick={(e) => generate("message", e)} disabled={generating !== null} className="text-[11px] font-semibold h-[30px] px-3.5 rounded-md text-white disabled:opacity-40 transition-colors" style={{ background: "#0f1419" }}>{generating === "message" ? "⏳ מייצר..." : "📝 צור הודעה"}</button>
-          <button onClick={(e) => generate("article", e)} disabled={generating !== null} className="text-[11px] font-semibold h-[30px] px-3.5 rounded-md border disabled:opacity-40 transition-colors" style={{ borderColor: "#dc2626", color: "#dc2626", background: "#fff" }}>{generating === "article" ? "⏳ מייצר..." : "📰 צור כתבה"}</button>
+          {!isPaywalled && (
+            <>
+              <button onClick={(e) => generate("message", e)} disabled={generating !== null} className="text-[11px] font-semibold h-[30px] px-3.5 rounded-md text-white disabled:opacity-40 transition-colors" style={{ background: "#0f1419" }}>{generating === "message" ? "⏳ מייצר..." : "📝 צור הודעה"}</button>
+              <button onClick={(e) => generate("article", e)} disabled={generating !== null} className="text-[11px] font-semibold h-[30px] px-3.5 rounded-md border disabled:opacity-40 transition-colors" style={{ borderColor: "#dc2626", color: "#dc2626", background: "#fff" }}>{generating === "article" ? "⏳ מייצר..." : "📰 צור כתבה"}</button>
+            </>
+          )}
+          {isPaywalled && (
+            <span className="text-[10px] px-2 py-1 rounded" style={{ color: "#9ca3af", background: "#f3f4f6" }}>🔒 אתר בתשלום — כותרת בלבד</span>
+          )}
         </div>
       </div>
       {generatedText && (
