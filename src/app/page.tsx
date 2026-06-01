@@ -128,6 +128,67 @@ export default function HomePage() {
   };
 
   /**
+   * Consume /api/article as a Server-Sent Events stream. Renders the article
+   * progressively into digestArticleText so the user watches Claude write
+   * the 600-1000 word piece in real time.
+   */
+  const runArticleStream = async () => {
+    const newsItemId = Array.from(selected)[0] || "";
+    if (!newsItemId) return;
+    setDigestExpandingArticle(true);
+    setDigestArticleText("");
+    try {
+      const res = await fetch("/api/article", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newsItemId, fromNarrative: digestText }),
+      });
+      if (!res.ok || !res.body) {
+        setDigestExpandingArticle(false);
+        return;
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let aborted = false;
+      while (!aborted) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split("\n\n");
+        buffer = events.pop() || "";
+        for (const evt of events) {
+          if (!evt.trim()) continue;
+          let eventType = "message";
+          let dataStr = "";
+          for (const line of evt.split("\n")) {
+            if (line.startsWith("event:")) eventType = line.slice(6).trim();
+            else if (line.startsWith("data:")) dataStr += line.slice(5).trim();
+          }
+          if (!dataStr) continue;
+          try {
+            const parsed = JSON.parse(dataStr);
+            if (eventType === "done") {
+              // article saved — no extra state to update
+            } else if (eventType === "error") {
+              aborted = true;
+              break;
+            } else if (typeof parsed.text === "string") {
+              setDigestArticleText((prev) => (prev || "") + parsed.text);
+            }
+          } catch {
+            // skip
+          }
+        }
+      }
+    } catch {
+      // network error — leave whatever was streamed in place
+    } finally {
+      setDigestExpandingArticle(false);
+    }
+  };
+
+  /**
    * Consume /api/digest as a Server-Sent Events stream. Each text delta is
    * appended to digestText so the user sees Claude typing in real time.
    * On first chunk we flip from "generating-digest" (spinner) to "digest"
@@ -539,7 +600,7 @@ export default function HomePage() {
               <button className={`lf-btn text-[11px] !py-1.5 !px-3 ${digestSent ? "lf-btn-dark" : "lf-btn-outline"}`} onClick={() => setDigestSent(true)} disabled={digestSent || (digestHumanity !== null && digestHumanity !== "loading" && digestHumanity.score < 6)}>{digestSent ? "✓ נשלח" : (digestHumanity !== null && digestHumanity !== "loading" && digestHumanity.score < 6) ? "נחסם (< 6)" : "סמן כנשלח"}</button>
               <VoicePlayButton text={digestText} />
               <button className="lf-btn lf-btn-outline text-[11px] !py-1.5 !px-3" disabled={digestHumanity === "loading"} onClick={async () => { setDigestHumanity("loading"); try { const r = await fetch("/api/humanity-score", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: digestText }) }); setDigestHumanity(await r.json()); } catch { setDigestHumanity(null); } }}>{digestHumanity === "loading" ? "בודק..." : "בדיקת אנושיות"}</button>
-              <button className="lf-btn lf-btn-outline text-[11px] !py-1.5 !px-3" style={{ borderColor: "var(--lf-red)", color: "var(--lf-red)" }} disabled={digestExpandingArticle} onClick={async () => { setDigestExpandingArticle(true); try { const r = await fetch("/api/article", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ newsItemId: Array.from(selected)[0] || "", fromNarrative: digestText }) }); const d = await r.json(); if (d.text) setDigestArticleText(d.text); } finally { setDigestExpandingArticle(false); } }}>{digestExpandingArticle ? "מרחיב..." : "הרחב לכתבה"}</button>
+              <button className="lf-btn lf-btn-outline text-[11px] !py-1.5 !px-3" style={{ borderColor: "var(--lf-red)", color: "var(--lf-red)" }} disabled={digestExpandingArticle} onClick={runArticleStream}>{digestExpandingArticle ? "Claude כותב..." : "הרחב לכתבה"}</button>
             </div>
             {digestArticleText && (
               <div className="lf-card p-4 space-y-2" style={{ borderRight: "3px solid var(--lf-red)" }}>

@@ -1,12 +1,27 @@
-import { NextRequest, NextResponse } from "next/server";
-import { generateArticle } from "@/lib/anthropic";
+import { NextRequest } from "next/server";
+import { streamArticle } from "@/lib/anthropic";
 import { supabase } from "@/lib/supabase";
 
+/**
+ * Streaming article endpoint. Returns text/event-stream so the article
+ * (600-1000 words) is rendered progressively rather than appearing all
+ * at once after a long wait.
+ *
+ * Body: { newsItemId: string, fromNarrative?: string }
+ *
+ * Protocol mirrors /api/digest:
+ *   - `data: {"text": "<chunk>"}`  for each delta
+ *   - `event: done` with the persisted textId
+ *   - `event: error` on failure
+ */
 export async function POST(request: NextRequest) {
   const { newsItemId, fromNarrative } = await request.json();
 
   if (!newsItemId) {
-    return NextResponse.json({ error: "Missing newsItemId" }, { status: 400 });
+    return new Response(JSON.stringify({ error: "Missing newsItemId" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
   const { data: newsItem, error } = await supabase
@@ -16,27 +31,63 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error || !newsItem) {
-    return NextResponse.json({ error: "News item not found" }, { status: 404 });
+    return new Response(JSON.stringify({ error: "News item not found" }), {
+      status: 404,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
-  const article = await generateArticle(
-    { title: newsItem.title, summary: newsItem.summary || "", source: newsItem.source },
-    fromNarrative
-  );
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      let fullText = "";
+      try {
+        for await (const chunk of streamArticle(
+          { title: newsItem.title, summary: newsItem.summary || "", source: newsItem.source },
+          fromNarrative || "",
+        )) {
+          fullText += chunk;
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: chunk })}\n\n`));
+        }
 
-  const { data: saved } = await supabase
-    .from("generated_texts")
-    .insert({
-      news_item_id: newsItemId,
-      style: fromNarrative ? "article_from_narrative" : "article",
-      whatsapp_text: article,
-    })
-    .select()
-    .single();
+        // Persist after streaming completes
+        let textId = "";
+        try {
+          const { data: saved } = await supabase
+            .from("generated_texts")
+            .insert({
+              news_item_id: newsItemId,
+              style: fromNarrative ? "article_from_narrative" : "article",
+              whatsapp_text: fullText,
+            })
+            .select()
+            .single();
+          textId = saved?.id || "";
+        } catch (persistErr) {
+          console.error("article: failed to persist generated_text", persistErr);
+        }
 
-  return NextResponse.json({
-    text: article,
-    id: saved?.id || "",
+        controller.enqueue(
+          encoder.encode(`event: done\ndata: ${JSON.stringify({ textId })}\n\n`),
+        );
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Unknown error";
+        controller.enqueue(
+          encoder.encode(`event: error\ndata: ${JSON.stringify({ error: msg })}\n\n`),
+        );
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    },
   });
 }
 

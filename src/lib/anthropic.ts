@@ -503,6 +503,24 @@ ${text}
 }
 
 // ─── Article generation ───
+/** Shared article prompt — reused by blocking + streaming variants. */
+function buildArticlePrompt(title: string, summary: string, extra: string): string {
+  return `כתוב כתבה מקצועית בעברית על הנושא הבא:
+
+כותרת: ${title}
+תקציר: ${summary}
+
+${extra ? `הקשר נוסף:\n${extra}\n` : ""}
+
+הכתבה צריכה להיות:
+- 600-1000 מילים
+- בעברית שיחתית, לא פורמלית
+- עם מספרים ספציפיים
+- בקול של בן סולומון מקליקת הנדל"ן
+- עם פסקאות קצרות
+- חתימה: בן סולומון והחברים מהקליקה`;
+}
+
 export async function generateArticle(
   newsOrTitle: string | { title: string; summary?: string; source?: string },
   contextOrSummary?: string,
@@ -511,17 +529,44 @@ export async function generateArticle(
   const title = typeof newsOrTitle === "string" ? newsOrTitle : newsOrTitle.title;
   const summary = typeof newsOrTitle === "string" ? (contextOrSummary || "") : (newsOrTitle.summary || "");
   const extra = typeof newsOrTitle === "string" ? (pulseContext || "") : (contextOrSummary || "");
+
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 4096,
+    system: VOICE_DNA_SYSTEM_CACHED,
+    messages: [{ role: "user", content: buildArticlePrompt(title, summary, extra) }],
+  });
+  return response.content[0].type === "text" ? response.content[0].text : "";
+}
+
+/**
+ * STREAMING article generator. Yields text deltas as Claude writes.
+ */
+export async function* streamArticle(
+  article: { title: string; summary: string; source?: string },
+  extraContext: string = "",
+): AsyncGenerator<string, void, unknown> {
+  const stream = client.messages.stream({
+    model: MODEL,
+    max_tokens: 4096,
+    system: VOICE_DNA_SYSTEM_CACHED,
     messages: [
       {
         role: "user",
-        content: `כתוב כתבה מקצועית בעברית על הנושא הבא:\n\nכותרת: ${title}\nתקציר: ${summary}\n\n${extra ? `הקשר נוסף:\n${extra}\n` : ""}\n\nהכתבה צריכה להיות:\n- 600-1000 מילים\n- בעברית שיחתית, לא פורמלית\n- עם מספרים ספציפיים\n- בקול של בן סולומון מקליקת הנדל"ן\n- עם פסקאות קצרות\n- חתימה: בן סולומון והחברים מהקליקה`,
+        content: buildArticlePrompt(article.title, article.summary || "", extraContext),
       },
     ],
   });
-  return response.content[0].type === "text" ? response.content[0].text : "";
+
+  for await (const chunk of stream) {
+    if (
+      chunk.type === "content_block_delta" &&
+      chunk.delta?.type === "text_delta" &&
+      typeof chunk.delta.text === "string"
+    ) {
+      yield chunk.delta.text;
+    }
+  }
 }
 
 // ─── Sanitize text ───
