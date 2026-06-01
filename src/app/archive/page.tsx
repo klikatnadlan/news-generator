@@ -254,7 +254,7 @@ export default function ArchivePage() {
           <div className="text-center py-16 space-y-4">
             <div className="text-4xl">🗂️</div>
             <div className="max-w-sm mx-auto space-y-2">
-              <p className="text-[15px] font-bold" style={{ color: "#0f1419" }}>הארכיון מכיל אלפי כותרות מהאמ.ש האחרונים</p>
+              <p className="text-[15px] font-bold" style={{ color: "#0f1419" }}>הארכיון מכיל אלפי כותרות מהחודשים האחרונים</p>
               <p className="text-[12px] leading-[1.6]" style={{ color: "#6b7280" }}>
                 3 דברים שאפשר לעשות מכאן:
               </p>
