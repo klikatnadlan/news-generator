@@ -105,6 +105,12 @@ function WhatsAppPreview({ text }: { text: string }) {
 
 export function ResultsPanel({ results, onBack, onRegenerate }: ResultsPanelProps) {
   const [items, setItems] = useState<ResultItem[]>(results);
+  // Sync from props so streaming deltas in the parent reflect here too.
+  // Once streaming finishes the parent stops pushing updates and local
+  // edits (regenerate) keep working.
+  useEffect(() => {
+    setItems(results);
+  }, [results]);
   const [copyLabels, setCopyLabels] = useState<Record<number, string>>({});
   const [combinedCopyLabel, setCombinedCopyLabel] = useState("העתק הכל");
   const [regeneratingIdx, setRegeneratingIdx] = useState<number | null>(null);
@@ -343,17 +349,42 @@ export function ResultsPanel({ results, onBack, onRegenerate }: ResultsPanelProp
                     </div>
                   </div>
                 ) : (
-                  <div
-                    className="whitespace-pre-wrap text-sm leading-relaxed rounded-lg p-4 border cursor-pointer group relative"
-                    style={{ backgroundColor: "#fafafa", minHeight: "120px" }}
-                    dir="rtl"
-                    onClick={() => setEditingIdx(i)}
-                  >
-                    {item.text}
-                    <span className="absolute top-2 left-2 text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
-                      לחצו לעריכה
-                    </span>
-                  </div>
+                  (() => {
+                    // Streaming status derived from item state:
+                    //   text === ""           → waiting for first chunk
+                    //   text && textId === "" → streaming in progress
+                    //   text && textId        → done
+                    const isWaiting = !item.text;
+                    const isStreaming = !!item.text && !item.textId;
+                    return (
+                      <div
+                        className="whitespace-pre-wrap text-sm leading-relaxed rounded-lg p-4 border cursor-pointer group relative"
+                        style={{ backgroundColor: "#fafafa", minHeight: "120px" }}
+                        dir="rtl"
+                        onClick={() => !isWaiting && !isStreaming && setEditingIdx(i)}
+                      >
+                        {isWaiting && (
+                          <div className="flex items-center gap-2 text-muted-foreground py-8 justify-center">
+                            <div className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "#1d3557", borderTopColor: "transparent" }} />
+                            <span className="text-[12px]">Claude מתכונן לכתוב…</span>
+                          </div>
+                        )}
+                        {isStreaming && (
+                          <div className="absolute top-2 right-2">
+                            <span className="lf-streaming-pill">LIVE</span>
+                          </div>
+                        )}
+                        <span className={isStreaming ? "lf-streaming-cursor" : ""}>
+                          {item.text}
+                        </span>
+                        {!isWaiting && !isStreaming && (
+                          <span className="absolute top-2 left-2 text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                            לחצו לעריכה
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()
                 )}
 
                 {/* Style regeneration */}

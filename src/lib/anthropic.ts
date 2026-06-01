@@ -5,6 +5,11 @@ const client = new Anthropic({
 });
 
 const MODEL = "claude-sonnet-4-20250514";
+// Cheaper, well-proven model used for classification-only calls (scoring).
+// Generation (digest, article, refine, etc.) stays on MODEL so voice quality
+// is preserved. Haiku 3.5 is ~3x cheaper input + ~5x cheaper output, plenty
+// capable for a 25-item ranking task.
+const SCORING_MODEL = "claude-3-5-haiku-20241022";
 
 // ─── Shared system prompt with full Voice DNA ───
 const VOICE_DNA_SYSTEM = `אתה בן סולומון, מנכ"ל "קליקת הנדל"ן" — מועדון צרכנות נדל"ן עם מעל 300,000 חברים, 2,000+ לקוחות, ומעל 2 מיליארד ש"ח בעסקאות.
@@ -120,7 +125,7 @@ async function scoreChunk(
     .join("\n\n");
 
   const response = await client.messages.create({
-    model: MODEL,
+    model: SCORING_MODEL,
     max_tokens: 3000,
     system: [
       { type: "text", text: SCORING_SYSTEM, cache_control: { type: "ephemeral" } },
@@ -206,11 +211,9 @@ export async function scoreNews(
   return all;
 }
 
-export async function generateWhatsAppText(
-  article: { title: string; summary: string; source: string },
-  style: "short" | "regular" | "commentary"
-): Promise<string> {
-  const stylePrompts: Record<string, string> = {
+// Style prompt bank — kept at module scope so both blocking generateWhatsAppText
+// and the streaming variant reference the same definitions (no drift).
+const WHATSAPP_STYLE_PROMPTS: Record<string, string> = {
     short: `סגנון: *קצר*
 - שורת כותרת בולד (*כוכביות*)
 - 2-3 שורות תמציתיות
@@ -284,18 +287,16 @@ export async function generateWhatsAppText(
 מי שרוצה שנבדוק לו את ההצעה, אנחנו תמיד פה.
 
 בן סולומון והחברים מהקליקה`,
-  };
+};
 
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: 2048,
-    system: VOICE_DNA_SYSTEM_CACHED,
-    messages: [
-      {
-        role: "user",
-        content: `כתוב נוסח לוואטסאפ על הידיעה הבאה.
+/** Shared user-message body for WhatsApp text generation (blocking + streaming). */
+function buildWhatsAppPrompt(
+  article: { title: string; summary: string; source: string },
+  style: "short" | "regular" | "commentary",
+): string {
+  return `כתוב נוסח לוואטסאפ על הידיעה הבאה.
 
-${stylePrompts[style]}
+${WHATSAPP_STYLE_PROMPTS[style]}
 
 === הידיעה ===
 כותרת: ${article.title}
@@ -307,15 +308,45 @@ ${stylePrompts[style]}
 - אם אין לך מספרים ספציפיים מהחדשה, אל תמציא. כתוב "המספרים ידברו" או דלג
 - בלי מקפים ארוכים (—). בלי. אפילו אחד.
 - *כוכביות* לבולד בלבד
-- העברית צריכה להרגיש כמו הודעה שבן כתב מהר בוואטסאפ, לא כמו מאמר`,
-      },
-    ],
+- העברית צריכה להרגיש כמו הודעה שבן כתב מהר בוואטסאפ, לא כמו מאמר`;
+}
+
+export async function generateWhatsAppText(
+  article: { title: string; summary: string; source: string },
+  style: "short" | "regular" | "commentary",
+): Promise<string> {
+  const response = await client.messages.create({
+    model: MODEL,
+    max_tokens: 2048,
+    system: VOICE_DNA_SYSTEM_CACHED,
+    messages: [{ role: "user", content: buildWhatsAppPrompt(article, style) }],
   });
 
-  let text = response.content[0].type === "text" ? response.content[0].text : "";
-  // Strip em dashes as safety net
-  text = text.replace(/\s*—\s*/g, ", ").replace(/–/g, "-");
-  return text;
+  const text = response.content[0].type === "text" ? response.content[0].text : "";
+  return cleanupHebrewDashes(text);
+}
+
+/** STREAMING WhatsApp text generator. Yields each text delta as Claude writes. */
+export async function* streamWhatsAppText(
+  article: { title: string; summary: string; source: string },
+  style: "short" | "regular" | "commentary",
+): AsyncGenerator<string, void, unknown> {
+  const stream = client.messages.stream({
+    model: MODEL,
+    max_tokens: 2048,
+    system: VOICE_DNA_SYSTEM_CACHED,
+    messages: [{ role: "user", content: buildWhatsAppPrompt(article, style) }],
+  });
+
+  for await (const chunk of stream) {
+    if (
+      chunk.type === "content_block_delta" &&
+      chunk.delta?.type === "text_delta" &&
+      typeof chunk.delta.text === "string"
+    ) {
+      yield chunk.delta.text;
+    }
+  }
 }
 
 /** Build the digest prompt body. Shared between the blocking and streaming generators. */

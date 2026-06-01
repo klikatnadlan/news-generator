@@ -96,21 +96,98 @@ export default function HomePage() {
     }
   };
 
+  /**
+   * Streaming batch generation. Pre-seeds N empty result cards on the
+   * results screen, then consumes the SSE multi-stream from /api/generate
+   * to fill each card progressively (each delta tagged with newsItemId).
+   */
   const handleBatchGenerate = async () => {
     if (selected.size === 0) return;
-    setPhase("generating"); setGenerateError(null);
+    setGenerateError(null);
+    const ids = Array.from(selected);
+
+    // Seed empty results so the user sees titles/cards immediately instead
+    // of a long spinner while Claude warms up.
+    const skeletons = ids.map((id) => {
+      const n = allNews.find((nn) => nn.id === id);
+      return {
+        title: n?.title || "",
+        source: n?.source || "",
+        sourceUrl: n?.source_url || "",
+        text: "",
+        newsItemId: id,
+        textId: "",
+      };
+    });
+    setResults(skeletons);
+    setPhase("results");
+
     try {
-      const res = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ newsItemIds: Array.from(selected), style: "regular" }) });
-      const data = await res.json();
-      if (data.error) { setGenerateError(data.error); setPhase("select"); return; }
-      const r = data.results || [];
-      if (r.length === 0) { setGenerateError("לא נוצרו נוסחים."); setPhase("select"); return; }
-      setResults(r.map((x: { text: string; newsItemId: string; id: string }) => {
-        const n = allNews.find(nn => nn.id === x.newsItemId);
-        return { title: n?.title || "", source: n?.source || "", sourceUrl: n?.source_url || "", text: x.text, newsItemId: x.newsItemId, textId: x.id || "" };
-      }));
-      setPhase("results");
-    } catch { setGenerateError("הרשת קרסה באמצע. בדוק חיבור ונסה שוב."); setPhase("select"); }
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newsItemIds: ids, style: "regular" }),
+      });
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => ({}));
+        setGenerateError(data.error || `שגיאה (${res.status}). נסו שוב.`);
+        setPhase("select");
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split("\n\n");
+        buffer = events.pop() || "";
+
+        for (const evt of events) {
+          if (!evt.trim()) continue;
+          let eventType = "message";
+          let dataStr = "";
+          for (const line of evt.split("\n")) {
+            if (line.startsWith("event:")) eventType = line.slice(6).trim();
+            else if (line.startsWith("data:")) dataStr += line.slice(5).trim();
+          }
+          if (!dataStr) continue;
+          try {
+            const parsed = JSON.parse(dataStr);
+            if (eventType === "item-done") {
+              setResults((prev) =>
+                prev.map((r) =>
+                  r.newsItemId === parsed.newsItemId
+                    ? { ...r, textId: parsed.textId || "" }
+                    : r,
+                ),
+              );
+            } else if (eventType === "all-done") {
+              // nothing to do — UI already reflects final state
+            } else if (eventType === "error") {
+              setGenerateError(parsed.error || "שגיאה ביצירת הנוסחים.");
+              return;
+            } else if (typeof parsed.text === "string" && parsed.newsItemId) {
+              setResults((prev) =>
+                prev.map((r) =>
+                  r.newsItemId === parsed.newsItemId
+                    ? { ...r, text: (r.text || "") + parsed.text }
+                    : r,
+                ),
+              );
+            }
+          } catch {
+            // skip malformed chunks
+          }
+        }
+      }
+    } catch {
+      setGenerateError("הרשת קרסה באמצע. בדוק חיבור ונסה שוב.");
+      setPhase("select");
+    }
   };
 
   const handleDigestGenerate = async () => {
