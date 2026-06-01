@@ -23,6 +23,42 @@ function detectSourceFromUrl(url: string): string | null {
   return null;
 }
 
+// ─── Real-estate-only keyword filter ───
+// The home feed is a NADLAN-only stream. Articles that score well for
+// "WhatsApp interest" but aren't actually about real estate (politics,
+// general tech, defense, finance-without-housing-angle) get filtered out
+// here so the home page stays focused.
+const REALESTATE_KEYWORDS = [
+  "נדל\"ן", "נדלן", "דירה", "דירות", "משכנתא", "משכנתאות",
+  "בנייה", "בניה", "קבלן", "קבלנים", "יזם", "יזמים",
+  "מחיר למשתכן", "פינוי בינוי", "פינוי-בינוי", "התחדשות עירונית", "תמ\"א",
+  "מס רכישה", "מס שבח", "שכירות", "שכ\"ד", "היטל השבחה",
+  "מגורים", "רוכשים", "רוכשי", "קונים", "רכישת דירה", "שוק הדיור",
+  "ריבית", "ריביות", "בית מגורים", "מחירי דיור", "דיור",
+  "תב\"ע", "בניין", "בניינים", "קומות", "פרויקט מגורים", "מגדל",
+  "עסקאות נדל", "מכירות דירות", "התחלות בנייה", "היצע דירות",
+  "השכרה", "שוכרים", "בעלי דירות", "משקיע נדל",
+  "נטיש", "התחדשות", "תכנון ובניה", "ועדת תכנון",
+];
+
+const REALESTATE_SOURCES = new Set([
+  'מרכז הנדל"ן',
+  "מגדילים",
+  "מדלן",
+  "הומלס",
+  "דירה",
+]);
+
+function isRealEstate(title: string, summary: string, source: string): boolean {
+  // Source-based fast path: dedicated real-estate sources are always allowed
+  if (REALESTATE_SOURCES.has(source)) return true;
+  const text = `${title} ${summary || ""}`.toLowerCase();
+  for (const kw of REALESTATE_KEYWORDS) {
+    if (text.includes(kw.toLowerCase())) return true;
+  }
+  return false;
+}
+
 /** Get the start of the current Hebrew week (Sunday) */
 function getWeekStart(): string {
   const now = new Date();
@@ -43,24 +79,28 @@ export async function GET() {
     .lte("scan_date", today)
     .gte("score", 30)
     .order("score", { ascending: false })
-    .limit(200);
+    .limit(400);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const news = (data || []).map((s: any) => {
-    const item = s.news_items;
-    const realSource = detectSourceFromUrl(item.source_url) || item.source;
-    return {
-      ...item,
-      source: realSource,
-      score: s.score,
-      reasoning: s.reasoning,
-      score_id: s.id,
-      scan_date: s.scan_date,
-    };
-  });
+  const news = (data || [])
+    .map((s: any) => {
+      const item = s.news_items;
+      const realSource = detectSourceFromUrl(item.source_url) || item.source;
+      return {
+        ...item,
+        source: realSource,
+        score: s.score,
+        reasoning: s.reasoning,
+        score_id: s.id,
+        scan_date: s.scan_date,
+      };
+    })
+    // Hard filter: home feed is real-estate only
+    .filter((n: any) => isRealEstate(n.title || "", n.summary || "", n.source))
+    .slice(0, 200);
 
   // Get last scan time
   const { data: lastScan } = await supabase
