@@ -65,6 +65,18 @@ const VOICE_DNA_SYSTEM = `אתה בן סולומון, מנכ"ל "קליקת הנ
 - "תכלס? [X]. נקודה."
 - "אתם יודעים מה הבעיה עם [X]? שאף אחד לא מסביר את זה פשוט."`;
 
+// Cached version of the voice DNA system prompt — the prompt itself is ~3KB
+// and gets sent on every WhatsApp generation / article / digest call. Caching
+// it with ephemeral (5-minute) cache_control saves ~90% input tokens on
+// repeated calls within the same scan/session.
+const VOICE_DNA_SYSTEM_CACHED = [
+  {
+    type: "text" as const,
+    text: VOICE_DNA_SYSTEM,
+    cache_control: { type: "ephemeral" as const },
+  },
+];
+
 interface ScoringResult {
   index: number;
   score: number;
@@ -277,7 +289,7 @@ export async function generateWhatsAppText(
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 2048,
-    system: VOICE_DNA_SYSTEM,
+    system: VOICE_DNA_SYSTEM_CACHED,
     messages: [
       {
         role: "user",
@@ -316,7 +328,7 @@ export async function generateDailyDigest(
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 4096,
-    system: VOICE_DNA_SYSTEM,
+    system: VOICE_DNA_SYSTEM_CACHED,
     messages: [
       {
         role: "user",
@@ -379,7 +391,7 @@ export async function generateCommentary(
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 4096,
-    system: VOICE_DNA_SYSTEM,
+    system: VOICE_DNA_SYSTEM_CACHED,
     messages: [
       {
         role: "user",
