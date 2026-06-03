@@ -68,6 +68,20 @@ export default function HomePage() {
   const todayStr = new Date().toISOString().split("T")[0];
   const todayDay = DAYS_HEB[new Date().getDay()];
 
+  // Smart default: if "היום" has no news yet (e.g. morning before the scan, or
+  // the daily scan found only duplicates) but the week has items, auto-show
+  // the whole week so the user never lands on an empty page. Runs once after
+  // the first load; never overrides a manual day choice afterwards.
+  const [autoSwitchedDay, setAutoSwitchedDay] = useState(false);
+  useEffect(() => {
+    if (autoSwitchedDay || loading || allNews.length === 0) return;
+    const todayCount = allNews.filter((n) => n.scan_date === todayStr).length;
+    if (selectedDay === "היום" && todayCount === 0) {
+      setSelectedDay("הכל");
+    }
+    setAutoSwitchedDay(true);
+  }, [autoSwitchedDay, loading, allNews, selectedDay, todayStr]);
+
   // Rolling 7-day window going BACKWARD from today (today + 6 past days).
   // Each past day stores the real ISO date, so picking ב' on a Sunday
   // means "last Monday", not "this coming Monday".

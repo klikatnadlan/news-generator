@@ -138,6 +138,17 @@ export default function HeadlinesPage() {
 
   useEffect(() => { fetchNews(); }, [fetchNews]);
 
+  // Smart default: if today has no headlines yet but the week does, show the
+  // whole week so the page never looks empty on landing. Runs once after load.
+  const [autoSwitchedDay, setAutoSwitchedDay] = useState(false);
+  useEffect(() => {
+    if (autoSwitchedDay || loading || allNews.length === 0) return;
+    const today = new Date().toISOString().split("T")[0];
+    const todayCount = allNews.filter((n) => n.scan_date === today).length;
+    if (selectedDay === "היום" && todayCount === 0) setSelectedDay("הכל");
+    setAutoSwitchedDay(true);
+  }, [autoSwitchedDay, loading, allNews, selectedDay]);
+
   const fetchNarratives = async (category?: string, range?: NarrativeRange, topic?: string | null) => {
     setNarrativesLoading(true);
     try {
