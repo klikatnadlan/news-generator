@@ -1,0 +1,51 @@
+name: Deploy to Vercel (production)
+
+# Why this exists:
+# The native Vercel GitHub integration silently stopped firing (the GitHub App
+# lost access to this repo), so pushes were no longer auto-deploying and the
+# live site went stale. GitHub Actions ALWAYS run on push — they're GitHub's
+# own CI, not a third-party webhook that can quietly break — so this guarantees
+# every push to master ships to production.
+#
+# One-time setup (already-done check in the README step below):
+#   Add a repo secret VERCEL_TOKEN  (Vercel → Account Settings → Tokens → Create)
+#   Settings → Secrets and variables → Actions → New repository secret.
+# The org/project IDs below are NOT secret (they live in .vercel/project.json).
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch: {}   # lets you trigger a manual deploy from the Actions tab
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: true
+
+env:
+  VERCEL_ORG_ID: team_hLSnjO6p2ZrBx9pCJeAXH9gu
+  VERCEL_PROJECT_ID: prj_oDKfA3h8MhF2GRhsfgx9HZeLVhHF
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel project settings
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build
+        run: vercel build --prod --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy to production
+        run: vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
