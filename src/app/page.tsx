@@ -457,8 +457,8 @@ export default function HomePage() {
           <div className="relative max-w-3xl mx-auto px-4 pt-12 pb-10 sm:pt-16 sm:pb-14 text-center">
             {/* Date/time — subtle, top-left */}
             <div className="absolute top-4 left-4 text-left lf-fade-in" style={{ animationDelay: "120ms" }}>
-              <p className="text-[16px] sm:text-[18px] font-bold text-white/90 leading-none tabular-nums" style={{ fontFamily: "DM Sans" }}>{timeStr}</p>
-              <p className="text-[10px] text-white/40 mt-1">{dateStr}</p>
+              <p suppressHydrationWarning className="text-[16px] sm:text-[18px] font-bold text-white/90 leading-none tabular-nums" style={{ fontFamily: "DM Sans" }}>{timeStr}</p>
+              <p suppressHydrationWarning className="text-[10px] text-white/40 mt-1">{dateStr}</p>
             </div>
 
             {/* LIVE pill — centered above title */}
