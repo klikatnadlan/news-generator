@@ -516,7 +516,7 @@ export default function HomePage() {
                 <input
                   value={heroQuery}
                   onChange={(e) => setHeroQuery(e.target.value)}
-                  placeholder="חפש נושא, עיר או חברה — להבין את השוק במהירות"
+                  placeholder="להבין את השוק במהירות"
                   className="flex-1 bg-transparent text-[14px] text-white placeholder:text-white/45 focus:outline-none"
                   dir="rtl"
                 />
