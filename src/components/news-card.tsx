@@ -11,6 +11,14 @@ interface NewsCardProps {
   news: ScoredNews;
   selected: boolean;
   onSelect: (id: string, selected: boolean) => void;
+  showDate?: boolean;
+}
+
+function formatNewsDate(iso?: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("he-IL", { day: "numeric", month: "numeric", year: "2-digit" });
 }
 
 const SOURCES: Record<string, { label: string; color: string }> = {
@@ -41,7 +49,7 @@ function getSource(s: string) {
   return { label: s, color: "#6b7280" };
 }
 
-export function NewsCard({ news, selected, onSelect }: NewsCardProps) {
+export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) {
   const [copyLabel, setCopyLabel] = useState<string | null>(null);
   const [generating, setGenerating] = useState<"message" | "article" | null>(null);
   const [generatedText, setGeneratedText] = useState<string | null>(null);
@@ -123,6 +131,9 @@ export function NewsCard({ news, selected, onSelect }: NewsCardProps) {
             {selected && <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6l2.5 2.5 4.5-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
           </button>
           <span className="text-[11px] font-semibold px-2 py-[2px] rounded-md" style={{ color: src.color, background: src.color + "12", border: `1px solid ${src.color}22` }}>{src.label}</span>
+          {showDate && formatNewsDate(news.published_at) && (
+            <span className="text-[11px] inline-flex items-center gap-1" style={{ color: "#9ca3af" }}>🗓️ {formatNewsDate(news.published_at)}</span>
+          )}
           <div className="flex items-center gap-1 mr-auto">
             {news.score != null && <span className="text-[20px] font-extrabold leading-none" style={{ color: scoreColor, fontFamily: "DM Sans, system-ui" }}>{news.score}</span>}
             {news.source_url && <a href={news.source_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[10px] hover:underline mr-2" style={{ color: "#9ca3af" }}>מקור ←</a>}

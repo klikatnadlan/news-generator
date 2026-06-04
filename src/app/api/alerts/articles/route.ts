@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabase.rpc("match_alert_articles", {
     p_keywords: alert.keywords,
-    p_limit: 100,
+    p_limit: 300,
   });
 
   if (error) {

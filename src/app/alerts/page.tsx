@@ -20,6 +20,10 @@ export default function AlertsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [articles, setArticles] = useState<Record<string, ScoredNews[]>>({});
   const [loadingArticles, setLoadingArticles] = useState<string | null>(null);
+  // How many articles are revealed per alert (reveal in batches so a 100-match
+  // alert doesn't flood the screen with full cards at once).
+  const PAGE = 8;
+  const [visibleCount, setVisibleCount] = useState<Record<string, number>>({});
 
   // Add-alert form
   const [showForm, setShowForm] = useState(false);
@@ -224,11 +228,25 @@ export default function AlertsPage() {
                         </div>
                       ) : (articles[alert.id] || []).length === 0 ? (
                         <p className="text-center py-8 text-[13px]" style={{ color: "#9ca3af" }}>לא נמצאו כתבות תואמות עדיין.</p>
-                      ) : (
-                        (articles[alert.id] || []).map((item) => (
-                          <NewsCard key={item.id} news={item} selected={false} onSelect={() => {}} />
-                        ))
-                      )}
+                      ) : (() => {
+                        const all = articles[alert.id] || [];
+                        const shown = visibleCount[alert.id] ?? PAGE;
+                        return (
+                          <>
+                            {all.slice(0, shown).map((item) => (
+                              <NewsCard key={item.id} news={item} selected={false} onSelect={() => {}} showDate />
+                            ))}
+                            {all.length > shown && (
+                              <button
+                                onClick={() => setVisibleCount((p) => ({ ...p, [alert.id]: shown + PAGE }))}
+                                className="lf-btn lf-btn-outline w-full !py-2.5 text-[13px] font-semibold"
+                              >
+                                הצג עוד {Math.min(PAGE, all.length - shown)} כתבות · נותרו {all.length - shown} מתוך {all.length}
+                              </button>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
