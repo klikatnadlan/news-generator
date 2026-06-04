@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { SiteNav } from "@/components/site-nav";
 import Link from "next/link";
 
 interface HeadlineItem {
@@ -282,24 +283,7 @@ export default function HeadlinesPage() {
 
   return (
     <div dir="rtl" className="min-h-screen" style={{ background: "var(--lf-bg, #f8f9fb)" }}>
-      <header className="lf-header">
-        <div className="max-w-3xl mx-auto px-4 flex items-center justify-between h-12">
-          <Link href="/" className="flex items-center gap-2 leading-none">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.7)]" />
-            <span className="flex flex-col items-start leading-none">
-              <span className="text-[14px] font-extrabold text-white tracking-tight" style={{ fontFamily: "DM Sans, system-ui" }}>לידרפיד</span>
-              <span className="text-[8px] md:text-[9px] text-white/45 italic mt-0.5" style={{ fontFamily: "Georgia, serif" }}>by ben solomon</span>
-            </span>
-          </Link>
-          <nav className="flex items-center gap-3">
-            <Link href="/" className="text-[12px] text-white/60 hover:text-white transition-colors">ראשי</Link>
-            <Link href="/alerts" className="text-[12px] text-white/60 hover:text-white transition-colors">מעקבים</Link>
-            <Link href="/dashboard" className="text-[12px] text-white/60 hover:text-white transition-colors">לוח בקרה</Link>
-            <Link href="/archive" className="text-[12px] text-white/60 hover:text-white transition-colors">ארכיון</Link>
-            <Link href="/history" className="text-[12px] text-white/60 hover:text-white transition-colors">היסטוריה</Link>
-          </nav>
-        </div>
-      </header>
+      <SiteNav />
 
       <div className="max-w-3xl mx-auto px-4 py-5">
         {/* ═══ Category Tabs ═══ */}

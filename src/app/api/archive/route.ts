@@ -18,7 +18,10 @@ export async function GET(request: NextRequest) {
     .gte("score", 30);
 
   if (query) {
-    builder = builder.or(`news_items.title.ilike.%${query}%,news_items.summary.ilike.%${query}%`);
+    // Filter on the embedded news_items resource — PostgREST needs the
+    // referencedTable option (NOT a "news_items." column prefix, which fails
+    // to parse the logic tree). With the !inner join this filters the parent.
+    builder = builder.or(`title.ilike.%${query}%,summary.ilike.%${query}%`, { referencedTable: "news_items" });
   }
   if (from) {
     builder = builder.gte("scan_date", from);

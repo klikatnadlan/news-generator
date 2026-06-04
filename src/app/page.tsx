@@ -6,8 +6,10 @@ import { NewsCard } from "@/components/news-card";
 import { ScanStatus } from "@/components/scan-status";
 import { UsernameDialog } from "@/components/username-dialog";
 import { ResultsPanel } from "@/components/results-panel";
+import { SiteNav } from "@/components/site-nav";
 import type { ScoredNews } from "@/lib/types";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { VoicePlayButton } from "@/components/voice-play-button";
 import { VoiceRecordButton } from "@/components/voice-record-button";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,6 +28,8 @@ function getHebrewDay(dateStr: string): string {
 }
 
 export default function HomePage() {
+  const router = useRouter();
+  const [heroQuery, setHeroQuery] = useState("");
   const [allNews, setAllNews] = useState<WeekNews[]>([]);
   const [lastScan, setLastScan] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -443,25 +447,7 @@ export default function HomePage() {
     <main className="min-h-screen" style={{ background: "var(--lf-bg)" }} dir="rtl">
       <UsernameDialog />
 
-      <header className="lf-header">
-        <div className="max-w-3xl mx-auto px-4 flex items-center justify-between h-12">
-          <Link href="/" className="flex items-center gap-2 leading-none">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.7)]" />
-            <span className="flex flex-col items-start leading-none">
-              <span className="text-[14px] font-extrabold text-white tracking-tight" style={{ fontFamily: "DM Sans, system-ui" }}>לידרפיד</span>
-              <span className="text-[8px] md:text-[9px] text-white/45 italic mt-0.5" style={{ fontFamily: "Georgia, serif" }}>by ben solomon</span>
-            </span>
-          </Link>
-          <nav className="flex items-center gap-3">
-            <Link href="/headlines" className="text-[12px] text-white/60 hover:text-white transition-colors">כותרות</Link>
-            <Link href="/alerts" className="text-[12px] text-white/60 hover:text-white transition-colors">מעקבים</Link>
-            <Link href="/dashboard" className="text-[12px] text-white/60 hover:text-white transition-colors">לוח בקרה</Link>
-            <Link href="/archive" className="text-[12px] text-white/60 hover:text-white transition-colors">ארכיון</Link>
-            <Link href="/history" className="text-[12px] text-white/60 hover:text-white transition-colors">היסטוריה</Link>
-            {username && <span className="text-[11px] text-white/25 hidden sm:inline">{username}</span>}
-          </nav>
-        </div>
-      </header>
+      <SiteNav />
 
       {showHero && phase === "select" && (
         <section className="lf-hero">
@@ -517,6 +503,27 @@ export default function HomePage() {
                 לדעת על מה כולם ידברו <span className="text-red-400 font-bold">גם מחר</span>
               </p>
             </div>
+
+            {/* Smart search — jump straight into the archive */}
+            <form
+              onSubmit={(e) => { e.preventDefault(); const q = heroQuery.trim(); if (q) router.push(`/archive?q=${encodeURIComponent(q)}`); }}
+              className="mt-6 max-w-[520px] mx-auto lf-fade-in"
+              style={{ animationDelay: "1200ms" }}
+            >
+              <div className="flex items-center gap-2 rounded-full px-4 h-12 transition-colors"
+                style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.14)", backdropFilter: "blur(8px)" }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="shrink-0 opacity-70"><circle cx="11" cy="11" r="7" stroke="#fff" strokeWidth="2"/><path d="M21 21l-4-4" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg>
+                <input
+                  value={heroQuery}
+                  onChange={(e) => setHeroQuery(e.target.value)}
+                  placeholder="חפש נושא, עיר או חברה — להבין את השוק במהירות"
+                  className="flex-1 bg-transparent text-[14px] text-white placeholder:text-white/45 focus:outline-none"
+                  dir="rtl"
+                />
+                <button type="submit" className="shrink-0 text-[13px] font-bold px-3 py-1.5 rounded-full transition-all hover:opacity-90"
+                  style={{ background: "#dc2626", color: "#fff" }}>חפש ←</button>
+              </div>
+            </form>
 
             {/* Stats — animated reveal */}
             <div

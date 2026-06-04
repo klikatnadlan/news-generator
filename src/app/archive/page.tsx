@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { VoicePlayButton } from "@/components/voice-play-button";
+import { SiteNav } from "@/components/site-nav";
 import Link from "next/link";
 
 interface ArchiveItem {
@@ -64,11 +65,12 @@ export default function ArchivePage() {
   const [archiveArticle, setArchiveArticle] = useState("");
   const [articleLoading, setArticleLoading] = useState(false);
 
-  const search = useCallback(async (page = 1) => {
+  const search = useCallback(async (page = 1, qOverride?: string) => {
+    const q = qOverride ?? query;
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (query) params.set("q", query);
+      if (q) params.set("q", q);
       if (fromDate) params.set("from", fromDate);
       if (toDate) params.set("to", toDate);
       params.set("page", page.toString());
@@ -76,6 +78,13 @@ export default function ArchivePage() {
       setResults(await res.json());
     } finally { setLoading(false); }
   }, [query, fromDate, toDate]);
+
+  // Auto-run a search when arriving from the home search bar (/archive?q=...)
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("q");
+    if (q) { setQuery(q); search(1, q); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const generateSummary = async (type: "weekly" | "monthly") => {
     setSummaryLoading(true); setSummaryType(type); setSummaryText("");
@@ -99,24 +108,7 @@ export default function ArchivePage() {
   return (
     <div dir="rtl" className="min-h-screen" style={{ background: "var(--lf-bg, #f8f9fb)" }}>
       {/* Header */}
-      <header className="lf-header">
-        <div className="max-w-3xl mx-auto px-4 flex items-center justify-between h-12">
-          <Link href="/" className="flex items-center gap-2 leading-none">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.7)]" />
-            <span className="flex flex-col items-start leading-none">
-              <span className="text-[14px] font-extrabold text-white tracking-tight" style={{ fontFamily: "DM Sans, system-ui" }}>לידרפיד</span>
-              <span className="text-[8px] md:text-[9px] text-white/45 italic mt-0.5" style={{ fontFamily: "Georgia, serif" }}>by ben solomon</span>
-            </span>
-          </Link>
-          <nav className="flex items-center gap-3">
-            <Link href="/" className="text-[12px] text-white/60 hover:text-white transition-colors">ראשי</Link>
-            <Link href="/headlines" className="text-[12px] text-white/60 hover:text-white transition-colors">כותרות</Link>
-            <Link href="/alerts" className="text-[12px] text-white/60 hover:text-white transition-colors">מעקבים</Link>
-            <Link href="/dashboard" className="text-[12px] text-white/60 hover:text-white transition-colors">לוח בקרה</Link>
-            <Link href="/history" className="text-[12px] text-white/60 hover:text-white transition-colors">היסטוריה</Link>
-          </nav>
-        </div>
-      </header>
+      <SiteNav />
 
       <div className="max-w-3xl mx-auto px-4 py-6">
         {/* Search */}
@@ -199,7 +191,7 @@ export default function ArchivePage() {
         )}
 
         {/* Search Results */}
-        {results && (
+        {results && Array.isArray(results.items) && (
           <div className="space-y-2">
             <p className="text-[12px] mb-2" style={{ color: "#9ca3af" }}>
               {results.total} תוצאות · עמוד {results.page}/{results.totalPages}
@@ -247,6 +239,15 @@ export default function ArchivePage() {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* No matches for this search */}
+        {results && Array.isArray(results.items) && results.items.length === 0 && !loading && (
+          <div className="text-center py-12 space-y-2">
+            <div className="text-3xl">🔍</div>
+            <p className="text-[14px] font-bold" style={{ color: "#0f1419" }}>לא נמצאו כתבות{query ? ` עבור “${query}”` : ""}</p>
+            <p className="text-[12px]" style={{ color: "#6b7280" }}>נסו מילה אחרת, או הרחיבו את טווח התאריכים.</p>
           </div>
         )}
 

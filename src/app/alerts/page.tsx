@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { NewsCard } from "@/components/news-card";
+import { SiteNav } from "@/components/site-nav";
 import type { ScoredNews } from "@/lib/types";
 
 interface Alert {
@@ -121,23 +122,7 @@ export default function AlertsPage() {
 
   return (
     <div dir="rtl" className="min-h-screen" style={{ background: "var(--lf-bg, #f8f9fb)" }}>
-      <header className="lf-header">
-        <div className="max-w-3xl mx-auto px-4 flex items-center justify-between h-12">
-          <Link href="/" className="flex items-center gap-2 leading-none">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.7)]" />
-            <span className="flex flex-col items-start leading-none">
-              <span className="text-[14px] font-extrabold text-white tracking-tight" style={{ fontFamily: "DM Sans, system-ui" }}>לידרפיד</span>
-              <span className="text-[8px] md:text-[9px] text-white/45 italic mt-0.5" style={{ fontFamily: "Georgia, serif" }}>by ben solomon</span>
-            </span>
-          </Link>
-          <nav className="flex items-center gap-3">
-            <Link href="/" className="text-[12px] text-white/60 hover:text-white transition-colors">ראשי</Link>
-            <Link href="/headlines" className="text-[12px] text-white/60 hover:text-white transition-colors">כותרות</Link>
-            <span className="text-[12px] font-semibold" style={{ color: "#fca5a5" }}>מעקבים</span>
-            <Link href="/archive" className="text-[12px] text-white/60 hover:text-white transition-colors">ארכיון</Link>
-          </nav>
-        </div>
-      </header>
+      <SiteNav />
 
       <div className="max-w-3xl mx-auto px-4 py-5">
         {/* Intro + add */}
