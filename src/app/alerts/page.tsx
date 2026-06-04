@@ -108,6 +108,17 @@ export default function AlertsPage() {
   const fmtDate = (iso: string | null) =>
     iso ? new Date(iso).toLocaleDateString("he-IL", { day: "numeric", month: "numeric", year: "2-digit" }) : "—";
 
+  // Quick-range presets → YYYY-MM-DD
+  const todayIso = () => new Date().toISOString().split("T")[0];
+  const isoDaysAgo = (n: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    return d.toISOString().split("T")[0];
+  };
+  // Is a given preset currently the active range for this alert?
+  const rangeIs = (id: string, days: number) =>
+    dateRange[id]?.to === todayIso() && dateRange[id]?.from === isoDaysAgo(days);
+
   return (
     <div dir="rtl" className="min-h-screen" style={{ background: "var(--lf-bg, #f8f9fb)" }}>
       <header className="lf-header">
@@ -241,7 +252,24 @@ export default function AlertsPage() {
                     <div className="mt-2 mb-3 space-y-2.5">
                       {/* Date-range filter */}
                       <div className="lf-card p-3 flex flex-wrap items-center gap-2 text-[12px]">
-                        <span style={{ color: "#6b7280" }}>📅 טווח תאריכים:</span>
+                        <span style={{ color: "#6b7280" }}>📅 טווח:</span>
+                        {[
+                          { label: "שבוע אחרון", days: 7 },
+                          { label: "חודש אחרון", days: 30 },
+                        ].map((preset) => {
+                          const active = rangeIs(alert.id, preset.days);
+                          return (
+                            <button
+                              key={preset.days}
+                              onClick={() => applyDateRange(alert.id, isoDaysAgo(preset.days), todayIso())}
+                              className="px-2.5 py-1 text-[11px] rounded-full font-medium transition-colors"
+                              style={{ background: active ? "#dc2626" : "#fff", color: active ? "#fff" : "#6b7280", border: `1px solid ${active ? "#dc2626" : "#e5e7eb"}` }}
+                            >
+                              {preset.label}
+                            </button>
+                          );
+                        })}
+                        <span style={{ color: "#d1d5db" }}>|</span>
                         <input
                           type="date"
                           value={dateRange[alert.id]?.from || ""}
