@@ -8,7 +8,7 @@ import { usePathname } from "next/navigation";
 const LINKS = [
   { href: "/", label: "ראשי" },
   { href: "/headlines", label: "כותרות" },
-  { href: "/alerts", label: "מעקבים" },
+  { href: "/alerts", label: "תודעת השוק" },
   { href: "/dashboard", label: "לוח בקרה" },
   { href: "/archive", label: "ארכיון" },
   { href: "/history", label: "היסטוריה" },

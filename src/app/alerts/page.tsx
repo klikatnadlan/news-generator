@@ -128,9 +128,9 @@ export default function AlertsPage() {
         {/* Intro + add */}
         <div className="flex items-start justify-between gap-3 mb-4">
           <div>
-            <h1 className="text-[20px] font-extrabold" style={{ color: "#0f1419" }}>🔔 מעקבים</h1>
+            <h1 className="text-[20px] font-extrabold" style={{ color: "#0f1419" }}>🧠 תודעת השוק</h1>
             <p className="text-[12px] mt-0.5 leading-[1.5]" style={{ color: "#6b7280" }}>
-              הגדר נושאים שחשובים לך, וכל כתבה שמדברת עליהם תיתפס אוטומטית — מהארכיון ומכל סריקה חדשה.
+              הגדר נושאים שחשובים לך, וכל כתבה שמדברת עליהם תיתפס אוטומטית — מהארכיון ומכל סריקה חדשה. כך אתה מרגיש את הדופק של מה שהשוק והעיתונאים מדברים עליו.
             </p>
           </div>
           <button

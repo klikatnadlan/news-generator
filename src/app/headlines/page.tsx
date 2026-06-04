@@ -23,6 +23,15 @@ interface Narrative {
   sources: string[];
 }
 
+interface NarrativeDiff {
+  changed: boolean;
+  summary: string;
+  new: string[];
+  faded: string[];
+  intensified: string[];
+  mood: string;
+}
+
 const SOURCE_COLORS: Record<string, string> = {
   "גלובס": "#0066cc", "כלכליסט": "#c0392b", "דה מרקר": "#16a34a",
   "ynet": "#dc2626", "מעריב": "#1e3a5f", "ביזפורטל": "#d97706",
@@ -68,6 +77,10 @@ const PRESET_TOPICS: Record<string, { emoji: string; label: string }[]> = {
     { emoji: "📈", label: "הנפקה" },
   ],
   'נדל"ן': [
+    { emoji: "🆕", label: "פרויקט חדש" },
+    { emoji: "🚀", label: "השקה" },
+    { emoji: "🏷️", label: "פריסייל" },
+    { emoji: "🎉", label: "מבצע בפרויקט" },
     { emoji: "🏗️", label: "פינוי בינוי" },
     { emoji: "💸", label: "משכנתאות" },
     { emoji: "🏘️", label: "מחיר למשתכן" },
@@ -97,6 +110,11 @@ const TOPIC_KEYWORDS: Record<string, string[]> = {
   "מחיר למשתכן": ["מחיר למשתכן", "מחיר מטרה", "דירה בהנחה", "הגרל", "זכאי", "סבסוד"],
   "מחירי דירות": ["מחירי דירות", "מדד מחירי", "מחיר דירה", "המחירים", "עסקת", "נמכר", "התייקר", "ירידת מחיר", "עליית מחיר"],
   "בנייה": ["התחלות בנייה", "היתרי בנייה", "סיומי בנייה", "מכרז", "קבלן", "יזם", "פרויקט", "בנייה"],
+  // נדל"ן — project-level (what's NEW this week/month at the article level)
+  "פרויקט חדש": ["פרויקט חדש", "מתחם חדש", "שכונה חדשה", "מגדל חדש", "מגדלים חדשים", "מתחם מגורים", "תוכנית חדשה", "יוקם", "ייבנה", "ייבנו", "יקים", "תקים"],
+  "השקה": ["השק", "השיק", "השיקה", "משיק", "משיקה", "יצא לשיווק", "יצאה לשיווק", "ייצא לשיווק", "נפתח לשיווק", "נפתחו המכירות", "נפתחה ההרשמה", "חשפ", "נחשף"],
+  "פריסייל": ["פריסייל", "פרי-סייל", "pre-sale", "presale", "מכירה מוקדמת", "טרום מכירה", "הרשמה מוקדמת", "מחיר מוקדם", "שלב ההרשמה"],
+  "מבצע בפרויקט": ["מבצע", "הטבה", "הטבת", "הנחה", "מבצעי", "ללא ריבית", "80/20", "20/80", "סבסוד מימון", "הלוואת קבלן", "מימון נוח", "פיתוי"],
   'דולר/מט"ח': ["דולר", "מט\"ח", "שקל", "אירו", "מטבע", "פיחות", "תיסוף"],
   "אינפלציה": ["אינפלציה", "מדד המחירים", "יוקר המחיה", "מדד מחירים", "התייקרות"],
   "בנקים": ["בנק", "אשראי", "פיקדון", "בנק ישראל", "ריבית"],
@@ -107,6 +125,8 @@ export default function HeadlinesPage() {
   const [allNews, setAllNews] = useState<HeadlineItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Copy format: include the subtitle (תת-כותרת) by default, or title-only.
+  const [copyWithSubtitle, setCopyWithSubtitle] = useState(true);
   const [copyLabel, setCopyLabel] = useState<string | null>(null);
   const [selectedDay, setSelectedDay] = useState("היום");
   const [tab, setTab] = useState<MainTab>('נדל"ן');
@@ -115,6 +135,9 @@ export default function HeadlinesPage() {
   const [narrativesLoading, setNarrativesLoading] = useState(false);
   const [narrativesCopyLabel, setNarrativesCopyLabel] = useState<string | null>(null);
   const [narrativeRange, setNarrativeRange] = useState<NarrativeRange>(null);
+  // "Did the narrative change?" — period-over-period diff (click-triggered).
+  const [narrativeDiff, setNarrativeDiff] = useState<NarrativeDiff | null>(null);
+  const [diffLoading, setDiffLoading] = useState(false);
   // Per-headline trigger state
   const [triggerForId, setTriggerForId] = useState<string | null>(null);
   const [triggerText, setTriggerText] = useState<string | null>(null);
@@ -152,6 +175,7 @@ export default function HeadlinesPage() {
 
   const fetchNarratives = async (category?: string, range?: NarrativeRange, topic?: string | null) => {
     setNarrativesLoading(true);
+    setNarrativeDiff(null); // new narrative context invalidates the old diff
     try {
       const cat = category || lastCategory;
       const r = range || narrativeRange || "week";
@@ -162,6 +186,21 @@ export default function HeadlinesPage() {
       const data = await res.json();
       setNarratives(data.narratives || []);
     } finally { setNarrativesLoading(false); }
+  };
+
+  // "האם הנרטיב השתנה?" — compares this period vs the previous equal-length
+  // period. One Claude call, cached server-side; only fires on click.
+  const fetchDiff = async () => {
+    setDiffLoading(true);
+    try {
+      const params = new URLSearchParams({ category: lastCategory, range: (narrativeRange || "week") as string });
+      if (selectedTopic) params.set("topic", selectedTopic);
+      const res = await fetch(`/api/narratives/diff?${params.toString()}`);
+      const data = await res.json();
+      setNarrativeDiff(data.diff || null);
+    } catch {
+      setNarrativeDiff({ changed: false, summary: "לא הצלחנו לבדוק את השינוי כרגע. נסה שוב.", new: [], faded: [], intensified: [], mood: "" });
+    } finally { setDiffLoading(false); }
   };
 
   const todayStr = new Date().toISOString().split("T")[0];
@@ -208,16 +247,24 @@ export default function HeadlinesPage() {
     selected.size === filteredNews.length ? setSelected(new Set()) : setSelected(new Set(filteredNews.map(n => n.id)));
   };
 
+  // Shared copy formatter — title alone, or title + subtitle (default).
+  const formatForCopy = (item: HeadlineItem, withSub: boolean) => {
+    const sub = (item.summary || "").trim();
+    const head = withSub && sub ? `${item.title}\n${sub}` : item.title;
+    return `${head} (${item.source})`;
+  };
+
   const copySelected = async () => {
     const items = filteredNews.filter(n => selected.has(n.id));
-    await navigator.clipboard.writeText(items.map(n => `• ${n.title} (${n.source})`).join("\n"));
+    const sep = copyWithSubtitle ? "\n\n" : "\n";
+    await navigator.clipboard.writeText(items.map(n => formatForCopy(n, copyWithSubtitle)).join(sep));
     setCopyLabel("✓ הועתק");
     setTimeout(() => setCopyLabel(null), 1500);
   };
 
   const copySingle = async (item: HeadlineItem, e: React.MouseEvent) => {
     e.stopPropagation();
-    await navigator.clipboard.writeText(`${item.title} (${item.source})`);
+    await navigator.clipboard.writeText(formatForCopy(item, copyWithSubtitle));
   };
 
   // Trigger AI on a SINGLE headline — result shows on that headline
@@ -293,7 +340,7 @@ export default function HeadlinesPage() {
             const count = t.id !== "נרטיב" ? categoryCounts[t.id as keyof typeof categoryCounts] : null;
             return (
               <button key={t.id}
-                onClick={() => { if (t.id !== "נרטיב") setLastCategory(t.id); setTab(t.id); setSelected(new Set()); setTriggerForId(null); setTriggerText(null); setNarrativeRange(null); setExpandedNarrative(null); setHeadlineTopic(null); }}
+                onClick={() => { if (t.id !== "נרטיב") setLastCategory(t.id); setTab(t.id); setSelected(new Set()); setTriggerForId(null); setTriggerText(null); setNarrativeRange(null); setExpandedNarrative(null); setHeadlineTopic(null); setNarrativeDiff(null); }}
                 title={TAB_TOOLTIPS[t.id]}
                 className="flex items-center gap-1.5 px-3 py-2 text-[12px] font-bold rounded-lg transition-all whitespace-nowrap shrink-0"
                 style={{ background: isActive ? t.color : "#fff", color: isActive ? "#fff" : "#6b7280", border: `1.5px solid ${isActive ? t.color : "#e5e7eb"}` }}>
@@ -364,16 +411,31 @@ export default function HeadlinesPage() {
             </div>
           )}
 
-          <p className="text-[11px] mb-3" style={{ color: "#9ca3af" }}>
-            {filteredNews.length} כותרות {tab}
-            {headlineTopic && <span className="font-semibold" style={{ color: tabConfig.color }}> · {headlineTopic}</span>}
-            {selectedDay === "היום"
-              ? " להיום"
-              : selectedDay === "הכל"
-                ? " ב-7 ימים אחרונים"
-                : ` ליום ${getHebrewDay(selectedDay)} (${new Date(selectedDay + "T12:00:00").toLocaleDateString("he-IL", { day: "numeric", month: "numeric" })})`}
-            {selected.size > 0 && <span className="font-semibold" style={{ color: tabConfig.color }}> · {selected.size} נבחרו</span>}
-          </p>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <p className="text-[11px]" style={{ color: "#9ca3af" }}>
+              {filteredNews.length} כותרות {tab}
+              {headlineTopic && <span className="font-semibold" style={{ color: tabConfig.color }}> · {headlineTopic}</span>}
+              {selectedDay === "היום"
+                ? " להיום"
+                : selectedDay === "הכל"
+                  ? " ב-7 ימים אחרונים"
+                  : ` ליום ${getHebrewDay(selectedDay)} (${new Date(selectedDay + "T12:00:00").toLocaleDateString("he-IL", { day: "numeric", month: "numeric" })})`}
+              {selected.size > 0 && <span className="font-semibold" style={{ color: tabConfig.color }}> · {selected.size} נבחרו</span>}
+            </p>
+            {/* Copy format — what lands on the clipboard (📋 / bulk copy) */}
+            <div className="flex items-center gap-0.5 shrink-0 rounded-full p-0.5" style={{ background: "#f1f3f5" }} title="מה יועתק כשתלחץ העתקה">
+              <button onClick={() => setCopyWithSubtitle(true)}
+                className="text-[10px] px-2 py-0.5 rounded-full transition-colors whitespace-nowrap"
+                style={copyWithSubtitle ? { background: "#fff", color: "#0f1419", fontWeight: 700, boxShadow: "0 1px 2px rgba(0,0,0,0.08)" } : { color: "#9ca3af" }}>
+                + תת-כותרת
+              </button>
+              <button onClick={() => setCopyWithSubtitle(false)}
+                className="text-[10px] px-2 py-0.5 rounded-full transition-colors whitespace-nowrap"
+                style={!copyWithSubtitle ? { background: "#fff", color: "#0f1419", fontWeight: 700, boxShadow: "0 1px 2px rgba(0,0,0,0.08)" } : { color: "#9ca3af" }}>
+                כותרת בלבד
+              </button>
+            </div>
+          </div>
 
           {loading ? (
             <div className="flex items-center justify-center py-20">
@@ -495,15 +557,30 @@ export default function HeadlinesPage() {
             <div className="space-y-3">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <button className="text-[11px] px-2 py-0.5 rounded hover:bg-gray-100" style={{ color: "#9ca3af" }} onClick={() => { setNarrativeRange(null); setNarratives([]); setExpandedNarrative(null); setSelectedTopic(null); }}>
+                  <button className="text-[11px] px-2 py-0.5 rounded hover:bg-gray-100" style={{ color: "#9ca3af" }} onClick={() => { setNarrativeRange(null); setNarratives([]); setExpandedNarrative(null); setSelectedTopic(null); setNarrativeDiff(null); }}>
                     ← חזרה
                   </button>
                   <p className="text-[13px] font-bold" style={{ color: "#0f1419" }}>
-                    נרטיבים — {lastCategory} ({narrativeRange === "week" ? "שבוע" : "חודש"})
+                    נרטיבים — {lastCategory}
                     {selectedTopic && <span style={{ color: "#dc2626" }}> · {selectedTopic}</span>}
                   </p>
+                  {/* Inline range switch — narrative follows the selected period */}
+                  <div className="flex items-center gap-0.5 rounded-full p-0.5" style={{ background: "#f1f3f5" }}>
+                    {(["week", "month"] as const).map((r) => (
+                      <button key={r}
+                        onClick={() => { setNarrativeRange(r); fetchNarratives(lastCategory, r, selectedTopic); }}
+                        className="text-[10px] px-2 py-0.5 rounded-full transition-colors whitespace-nowrap"
+                        style={narrativeRange === r ? { background: "#fff", color: "#0f1419", fontWeight: 700, boxShadow: "0 1px 2px rgba(0,0,0,0.08)" } : { color: "#9ca3af" }}>
+                        {r === "week" ? "שבוע" : "חודש"}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div className="flex gap-1.5">
+                  <button className="lf-btn lf-btn-outline text-[11px] !py-1 !px-2" onClick={fetchDiff} disabled={diffLoading}
+                    title="Claude משווה את הנרטיב הנוכחי לתקופה הקודמת ומסביר מה השתנה בשיח">
+                    {diffLoading ? "⏳ בודק…" : "🔍 השתנה?"}
+                  </button>
                   {narratives.length > 0 && (
                     <button className="lf-btn lf-btn-outline text-[11px] !py-1 !px-2" onClick={copyNarratives}>
                       {narrativesCopyLabel || "📋 העתק"}
@@ -514,6 +591,53 @@ export default function HeadlinesPage() {
                   </button>
                 </div>
               </div>
+
+              {/* "האם הנרטיב השתנה?" — period-over-period change analysis */}
+              {(diffLoading || narrativeDiff) && (
+                <div className="lf-card p-3.5" style={{ borderRight: "3px solid #7c3aed", background: "#faf8ff" }}>
+                  {diffLoading && !narrativeDiff ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "#7c3aed", borderTopColor: "transparent" }} />
+                      <p className="text-[12px]" style={{ color: "#6b7280" }}>משווה את {narrativeRange === "month" ? "החודש" : "השבוע"} לתקופה שלפניו…</p>
+                    </div>
+                  ) : narrativeDiff ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[13px] font-extrabold" style={{ color: "#5b21b6" }}>
+                          🔍 מה השתנה בשיח {narrativeDiff.changed ? "" : "— יציב יחסית"}
+                        </p>
+                        <button className="text-[11px] hover:bg-purple-100 rounded px-1.5 py-0.5" style={{ color: "#9ca3af" }} onClick={() => setNarrativeDiff(null)} title="סגור">✕</button>
+                      </div>
+                      {narrativeDiff.summary && <p className="text-[12.5px] leading-[1.6]" style={{ color: "#374151" }} dir="rtl">{narrativeDiff.summary}</p>}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                        {[
+                          { label: "🆕 חדש", items: narrativeDiff.new, color: "#059669" },
+                          { label: "📈 התעצם", items: narrativeDiff.intensified, color: "#d97706" },
+                          { label: "📉 דעך", items: narrativeDiff.faded, color: "#9ca3af" },
+                        ].map((col) => (
+                          <div key={col.label}>
+                            <p className="text-[11px] font-bold mb-1" style={{ color: col.color }}>{col.label}</p>
+                            {col.items && col.items.length > 0 ? (
+                              <ul className="space-y-0.5">
+                                {col.items.map((it, i) => (
+                                  <li key={i} className="text-[11px] leading-[1.4]" style={{ color: "#4b5563" }} dir="rtl">• {it}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-[10px]" style={{ color: "#d1d5db" }}>—</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      {narrativeDiff.mood && (
+                        <p className="text-[11px] mt-1 pt-2 border-t" style={{ color: "#6b7280", borderColor: "#ede9fe" }} dir="rtl">
+                          <span className="font-semibold">מצב הרוח עכשיו:</span> {narrativeDiff.mood}
+                        </p>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+              )}
 
               {/* Preset topic chips — quick narrative focus per category */}
               {PRESET_TOPICS[lastCategory] && (
@@ -622,43 +746,58 @@ function HeadlineRow({ item, selected, onToggle, onCopy, getColor, accentColor, 
   triggerLoading?: boolean;
   showDate?: boolean;
 }) {
+  const [open, setOpen] = useState(false);
   const srcColor = getColor(item.source);
   const dateLabel = showDate ? formatItemDate(item) : "";
+  const hasSummary = !!(item.summary && item.summary.trim());
   return (
-    <div className="lf-card flex items-start gap-2.5 p-3 cursor-pointer transition-all"
-      style={{ borderRight: selected ? `3px solid ${accentColor}` : "3px solid transparent" }}
-      onClick={() => onToggle(item.id)}>
-      <button className="w-[20px] h-[20px] rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all"
-        style={{ borderColor: selected ? accentColor : "#d1d5db", background: selected ? accentColor : "#fff" }}
-        onClick={(e) => { e.stopPropagation(); onToggle(item.id); }}>
-        {selected && <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2.5 6l2.5 2.5 4.5-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
-      </button>
-      <div className="flex-1 min-w-0">
-        <h3 className="text-[14px] font-bold leading-[1.4]" style={{ color: "#0f1419" }}>{item.title}</h3>
-        {dateLabel && (
-          <span className="text-[10px] inline-flex items-center gap-1 mt-1" style={{ color: "#9ca3af" }}>
-            🗓️ פורסם {dateLabel}
-          </span>
-        )}
-      </div>
-      <div className="flex items-center gap-1 shrink-0">
-        <span className="text-[9px] font-semibold px-1.5 py-[1px] rounded" style={{ color: srcColor, background: srcColor + "12" }}>{item.source}</span>
-        {item.source_url && (
-          <a href={item.source_url} target="_blank" rel="noopener noreferrer"
-            className="text-[10px] font-semibold hover:underline px-1 py-0.5 rounded"
-            style={{ color: "#0071e3" }} onClick={(e) => e.stopPropagation()} title="פתח את הכתבה המקורית">
-            מקור ←
-          </a>
-        )}
-        {onTrigger && (
-          <button className="text-[10px] hover:bg-red-50 rounded px-1 py-0.5 font-semibold" style={{ color: "#dc2626" }}
-            onClick={(e) => { e.stopPropagation(); onTrigger(); }} disabled={triggerLoading} title="צור מסגרת מהכותרת">
-            {triggerLoading ? "⏳" : "⚡"}
+    <div className="lf-card p-3 transition-all"
+      style={{ borderRight: selected ? `3px solid ${accentColor}` : "3px solid transparent" }}>
+      <div className="flex items-start gap-2.5 cursor-pointer" onClick={() => onToggle(item.id)}>
+        <button className="w-[20px] h-[20px] rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all"
+          style={{ borderColor: selected ? accentColor : "#d1d5db", background: selected ? accentColor : "#fff" }}
+          onClick={(e) => { e.stopPropagation(); onToggle(item.id); }}>
+          {selected && <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2.5 6l2.5 2.5 4.5-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+        </button>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-[14px] font-bold leading-[1.4] hover:opacity-70 transition-opacity" style={{ color: "#0f1419" }}
+            onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }} title="לחץ לפתיחת תת-הכותרת">{item.title}</h3>
+          {dateLabel && (
+            <span className="text-[10px] inline-flex items-center gap-1 mt-1" style={{ color: "#9ca3af" }}>
+              🗓️ פורסם {dateLabel}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <span className="text-[9px] font-semibold px-1.5 py-[1px] rounded" style={{ color: srcColor, background: srcColor + "12" }}>{item.source}</span>
+          <button className="text-[11px] leading-none hover:bg-gray-100 rounded px-1 py-1" style={{ color: hasSummary ? "#6b7280" : "#d1d5db" }}
+            onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }} title={open ? "סגור תת-כותרת" : "פתח תת-כותרת"}>
+            <span className="inline-block transition-transform" style={{ transform: open ? "rotate(180deg)" : "none" }}>▾</span>
           </button>
-        )}
-        <button className="text-[10px] hover:bg-gray-100 rounded px-1 py-0.5" style={{ color: "#9ca3af" }}
-          onClick={(e) => onCopy(item, e)} title="העתק כותרת">📋</button>
+          {item.source_url && (
+            <a href={item.source_url} target="_blank" rel="noopener noreferrer"
+              className="text-[10px] font-semibold hover:underline px-1 py-0.5 rounded"
+              style={{ color: "#0071e3" }} onClick={(e) => e.stopPropagation()} title="פתח את הכתבה המקורית">
+              מקור ←
+            </a>
+          )}
+          {onTrigger && (
+            <button className="text-[10px] hover:bg-red-50 rounded px-1 py-0.5 font-semibold" style={{ color: "#dc2626" }}
+              onClick={(e) => { e.stopPropagation(); onTrigger(); }} disabled={triggerLoading} title="צור מסגרת מהכותרת">
+              {triggerLoading ? "⏳" : "⚡"}
+            </button>
+          )}
+          <button className="text-[10px] hover:bg-gray-100 rounded px-1 py-0.5" style={{ color: "#9ca3af" }}
+            onClick={(e) => onCopy(item, e)} title="העתק">📋</button>
+        </div>
       </div>
+      {open && (
+        <div className="mt-2 mr-[30px] pr-2.5 border-r-2" style={{ borderColor: "#e5e7eb" }}>
+          <p className="text-[12.5px] leading-[1.65]" style={{ color: hasSummary ? "#374151" : "#9ca3af" }} dir="rtl">
+            {hasSummary ? item.summary : "אין תת-כותרת שמורה לכתבה זו — פתח את המקור לקריאה המלאה."}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
