@@ -24,6 +24,8 @@ export default function AlertsPage() {
   // alert doesn't flood the screen with full cards at once).
   const PAGE = 8;
   const [visibleCount, setVisibleCount] = useState<Record<string, number>>({});
+  // Optional date-range filter per alert (from / to as YYYY-MM-DD)
+  const [dateRange, setDateRange] = useState<Record<string, { from: string; to: string }>>({});
 
   // Add-alert form
   const [showForm, setShowForm] = useState(false);
@@ -45,19 +47,35 @@ export default function AlertsPage() {
 
   useEffect(() => { fetchAlerts(); }, [fetchAlerts]);
 
+  // Fetch (or re-fetch) an alert's matching articles, optionally bounded by a
+  // date range. Resets the reveal count so the newest batch shows first.
+  const loadArticles = async (id: string, from?: string, to?: string) => {
+    setLoadingArticles(id);
+    try {
+      const params = new URLSearchParams({ id });
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
+      const res = await fetch(`/api/alerts/articles?${params.toString()}`);
+      const data = await res.json();
+      setArticles((prev) => ({ ...prev, [id]: data.articles || [] }));
+      setVisibleCount((prev) => ({ ...prev, [id]: PAGE }));
+    } finally {
+      setLoadingArticles(null);
+    }
+  };
+
   const toggleExpand = async (id: string) => {
     if (expandedId === id) { setExpandedId(null); return; }
     setExpandedId(id);
     if (!articles[id]) {
-      setLoadingArticles(id);
-      try {
-        const res = await fetch(`/api/alerts/articles?id=${id}`);
-        const data = await res.json();
-        setArticles((prev) => ({ ...prev, [id]: data.articles || [] }));
-      } finally {
-        setLoadingArticles(null);
-      }
+      const r = dateRange[id];
+      await loadArticles(id, r?.from, r?.to);
     }
+  };
+
+  const applyDateRange = (id: string, from: string, to: string) => {
+    setDateRange((prev) => ({ ...prev, [id]: { from, to } }));
+    loadArticles(id, from, to);
   };
 
   const addAlert = async () => {
@@ -221,13 +239,43 @@ export default function AlertsPage() {
                   {/* Expanded: matching articles as full NewsCards */}
                   {isOpen && (
                     <div className="mt-2 mb-3 space-y-2.5">
+                      {/* Date-range filter */}
+                      <div className="lf-card p-3 flex flex-wrap items-center gap-2 text-[12px]">
+                        <span style={{ color: "#6b7280" }}>📅 טווח תאריכים:</span>
+                        <input
+                          type="date"
+                          value={dateRange[alert.id]?.from || ""}
+                          onChange={(e) => applyDateRange(alert.id, e.target.value, dateRange[alert.id]?.to || "")}
+                          className="h-8 px-2 border rounded-md text-[12px]"
+                          style={{ borderColor: "#e5e7eb" }}
+                        />
+                        <span style={{ color: "#9ca3af" }}>עד</span>
+                        <input
+                          type="date"
+                          value={dateRange[alert.id]?.to || ""}
+                          onChange={(e) => applyDateRange(alert.id, dateRange[alert.id]?.from || "", e.target.value)}
+                          className="h-8 px-2 border rounded-md text-[12px]"
+                          style={{ borderColor: "#e5e7eb" }}
+                        />
+                        {(dateRange[alert.id]?.from || dateRange[alert.id]?.to) && (
+                          <button onClick={() => applyDateRange(alert.id, "", "")} className="text-[11px] underline" style={{ color: "#9ca3af" }}>נקה</button>
+                        )}
+                        {loadingArticles !== alert.id && (
+                          <span className="mr-auto font-bold" style={{ color: "#dc2626" }}>
+                            {(articles[alert.id] || []).length} כתבות{(dateRange[alert.id]?.from || dateRange[alert.id]?.to) ? " בטווח" : ""}
+                          </span>
+                        )}
+                      </div>
+
                       {loadingArticles === alert.id ? (
                         <div className="flex items-center justify-center py-10 gap-2.5 text-[13px]" style={{ color: "#6b7280" }}>
                           <div className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "#dc2626", borderTopColor: "transparent" }} />
                           מחפש כתבות תואמות…
                         </div>
                       ) : (articles[alert.id] || []).length === 0 ? (
-                        <p className="text-center py-8 text-[13px]" style={{ color: "#9ca3af" }}>לא נמצאו כתבות תואמות עדיין.</p>
+                        <p className="text-center py-8 text-[13px]" style={{ color: "#9ca3af" }}>
+                          {(dateRange[alert.id]?.from || dateRange[alert.id]?.to) ? "אין כתבות בטווח התאריכים שבחרת." : "לא נמצאו כתבות תואמות עדיין."}
+                        </p>
                       ) : (() => {
                         const all = articles[alert.id] || [];
                         const shown = visibleCount[alert.id] ?? PAGE;

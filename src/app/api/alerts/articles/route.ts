@@ -27,7 +27,10 @@ function detectSourceFromUrl(url: string): string | null {
 }
 
 export async function GET(request: NextRequest) {
-  const id = new URL(request.url).searchParams.get("id");
+  const params = new URL(request.url).searchParams;
+  const id = params.get("id");
+  const from = params.get("from"); // optional "YYYY-MM-DD"
+  const to = params.get("to");     // optional "YYYY-MM-DD"
   if (!id) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
@@ -45,6 +48,8 @@ export async function GET(request: NextRequest) {
   const { data, error } = await supabase.rpc("match_alert_articles", {
     p_keywords: alert.keywords,
     p_limit: 300,
+    p_from: from || null,
+    p_to: to || null,
   });
 
   if (error) {

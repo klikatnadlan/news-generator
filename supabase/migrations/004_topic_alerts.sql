@@ -65,7 +65,13 @@ language sql stable security definer set search_path = public as $$
 $$;
 
 -- Articles matching a keyword set, newest first, with latest score if any.
-create or replace function public.match_alert_articles(p_keywords text[], p_limit int default 100)
+-- Optional date-range bounds (p_from / p_to) for the per-alert date filter.
+create or replace function public.match_alert_articles(
+  p_keywords text[],
+  p_limit int default 300,
+  p_from timestamptz default null,
+  p_to timestamptz default null
+)
 returns table(id uuid, title text, source text, source_url text, summary text, published_at timestamptz, score int)
 language sql stable security definer set search_path = public as $$
   select ni.id, ni.title, ni.source, ni.source_url, ni.summary, ni.published_at,
@@ -73,13 +79,15 @@ language sql stable security definer set search_path = public as $$
   from public.news_items ni, (select public.keywords_to_regex(p_keywords) as pat) p
   where p.pat is not null
     and (coalesce(ni.title, '') || ' ' || coalesce(ni.summary, '')) ~* p.pat
+    and (p_from is null or ni.published_at >= p_from)
+    and (p_to   is null or ni.published_at <  (p_to + interval '1 day'))
   order by ni.published_at desc nulls last
   limit p_limit;
 $$;
 
 grant execute on function public.keywords_to_regex(text[]) to anon;
 grant execute on function public.alert_overview() to anon;
-grant execute on function public.match_alert_articles(text[], int) to anon;
+grant execute on function public.match_alert_articles(text[], int, timestamptz, timestamptz) to anon;
 
 -- Seed Ben's core topics (editable/deletable from the UI)
 insert into public.topic_alerts (name, keywords, emoji) values
