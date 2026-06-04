@@ -293,6 +293,7 @@ export default function HeadlinesPage() {
           </Link>
           <nav className="flex items-center gap-3">
             <Link href="/" className="text-[12px] text-white/60 hover:text-white transition-colors">ראשי</Link>
+            <Link href="/alerts" className="text-[12px] text-white/60 hover:text-white transition-colors">מעקבים</Link>
             <Link href="/dashboard" className="text-[12px] text-white/60 hover:text-white transition-colors">לוח בקרה</Link>
             <Link href="/archive" className="text-[12px] text-white/60 hover:text-white transition-colors">ארכיון</Link>
             <Link href="/history" className="text-[12px] text-white/60 hover:text-white transition-colors">היסטוריה</Link>

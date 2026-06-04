@@ -124,7 +124,7 @@ export function NewsCard({ news, selected, onSelect }: NewsCardProps) {
           </button>
           <span className="text-[11px] font-semibold px-2 py-[2px] rounded-md" style={{ color: src.color, background: src.color + "12", border: `1px solid ${src.color}22` }}>{src.label}</span>
           <div className="flex items-center gap-1 mr-auto">
-            <span className="text-[20px] font-extrabold leading-none" style={{ color: scoreColor, fontFamily: "DM Sans, system-ui" }}>{news.score}</span>
+            {news.score != null && <span className="text-[20px] font-extrabold leading-none" style={{ color: scoreColor, fontFamily: "DM Sans, system-ui" }}>{news.score}</span>}
             {news.source_url && <a href={news.source_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[10px] hover:underline mr-2" style={{ color: "#9ca3af" }}>מקור ←</a>}
           </div>
         </div>
