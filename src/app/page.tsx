@@ -579,9 +579,9 @@ export default function HomePage() {
               style={{ animationDelay: "1850ms" }}
             >
               {[
-                { num: "1", emoji: "📡", title: "סורק", text: "200+ כותרות יומיות מ-15 מקורות" },
-                { num: "2", emoji: "🤖", title: "מדרג", text: "Claude נותן ציון ובוחר את הסיפורים החשובים" },
-                { num: "3", emoji: "📱", title: "מייצר", text: "הודעת וואטסאפ מוכנה בקול של בן" },
+                { num: "1", emoji: "📡", title: "סורק", text: "מעל 200 כותרות ביום" },
+                { num: "2", emoji: "🤖", title: "מדרג ומנגיש", text: "הסיפורים שמעצבים מציאות של מיליוני ישראלים בכל יום" },
+                { num: "3", emoji: "🔍", title: "מפצח נרטיב", text: "זה לא הסיפור שמייצר גלים, זה הנרטיבים" },
               ].map((s) => (
                 <div key={s.num} className="text-center">
                   <div className="text-[24px] mb-1">{s.emoji}</div>
