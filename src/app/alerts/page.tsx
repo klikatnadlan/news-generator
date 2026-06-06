@@ -13,7 +13,16 @@ interface Alert {
   keywords: string[];
   matchCount: number;
   latestDate: string | null;
+  cur7d?: number;
+  prev7d?: number;
+  trend?: "surge" | "rising" | "cooling" | "";
 }
+
+const TREND_BADGE: Record<string, { label: string; color: string; bg: string }> = {
+  surge: { label: "🔥 מתפוצץ", color: "#b91c1c", bg: "#fef2f2" },
+  rising: { label: "📈 עולה", color: "#047857", bg: "#ecfdf5" },
+  cooling: { label: "📉 דועך", color: "#9ca3af", bg: "#f9fafb" },
+};
 
 export default function AlertsPage() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -34,6 +43,26 @@ export default function AlertsPage() {
   const [newKeywords, setNewKeywords] = useState("");
   const [newEmoji, setNewEmoji] = useState("🔔");
   const [adding, setAdding] = useState(false);
+
+  // Weekly AI brief (click only, Sonnet, cached per week)
+  const [briefText, setBriefText] = useState("");
+  const [briefLoading, setBriefLoading] = useState(false);
+  const [briefCached, setBriefCached] = useState(false);
+  const [briefCopied, setBriefCopied] = useState(false);
+
+  const fetchBrief = async (refresh: boolean) => {
+    setBriefLoading(true);
+    try {
+      const res = await fetch(`/api/weekly-brief${refresh ? "?refresh=1" : ""}`);
+      const data = await res.json();
+      setBriefText(data.brief || data.error || "שגיאה");
+      setBriefCached(!!data.cached);
+    } catch {
+      setBriefText("לא הצלחנו לייצר את המודיעין כרגע. נסה שוב.");
+    } finally {
+      setBriefLoading(false);
+    }
+  };
 
   const fetchAlerts = useCallback(async () => {
     setLoading(true);
@@ -184,6 +213,30 @@ export default function AlertsPage() {
           </div>
         )}
 
+        {/* 📊 Weekly AI brief — click only, Sonnet, cached per week (≈1 call/week) */}
+        <div className="lf-card p-4 mb-3" style={{ borderRight: "3px solid var(--lf-navy)" }}>
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-[14px] font-extrabold" style={{ color: "#0f1419" }}>📊 מודיעין שבועי</p>
+              <p className="text-[11px] leading-[1.4]" style={{ color: "#9ca3af" }}>בריף אסטרטגי על מה שרץ והשתנה השבוע. נוצר בלחיצה שלך, נשמר לכל השבוע.</p>
+            </div>
+            <button onClick={() => fetchBrief(!!briefText)} disabled={briefLoading}
+              className="lf-btn lf-btn-dark text-[12px] !py-2 !px-3 shrink-0 disabled:opacity-50">
+              {briefLoading ? "⏳ מנתח…" : briefText ? "🔄 רענן" : "✨ צור מודיעין"}
+            </button>
+          </div>
+          {briefText && (
+            <div className="mt-3 pt-3 border-t" style={{ borderColor: "#eef0f2" }}>
+              <div className="whitespace-pre-wrap text-[13px] leading-[1.7]" style={{ color: "#374151" }} dir="rtl">{briefText}</div>
+              <div className="flex items-center gap-2 mt-2.5">
+                <button onClick={async () => { await navigator.clipboard.writeText(briefText); setBriefCopied(true); setTimeout(() => setBriefCopied(false), 1500); }}
+                  className="lf-btn lf-btn-outline text-[11px] !py-1 !px-2">{briefCopied ? "✓ הועתק" : "📋 העתק"}</button>
+                {briefCached && <span className="text-[10px]" style={{ color: "#9ca3af" }}>נשמר מהשבוע · 0 טוקנים</span>}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Alerts list */}
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
@@ -200,6 +253,26 @@ export default function AlertsPage() {
           </div>
         ) : (
           <div className="space-y-2.5">
+            {/* 🔥 Trend radar — what's heating up this week vs last (token-free) */}
+            {(() => {
+              const hot = alerts.filter((a) => a.trend === "surge" || a.trend === "rising");
+              if (hot.length === 0) return null;
+              return (
+                <div className="lf-card p-3.5" style={{ borderRight: "3px solid #dc2626", background: "#fff7f7" }}>
+                  <p className="text-[12px] font-extrabold mb-2" style={{ color: "#b91c1c" }}>🔥 מתחמם עכשיו <span className="font-normal" style={{ color: "#9ca3af" }}>· השבוע מול שבוע שעבר</span></p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {hot.map((a) => (
+                      <button key={a.id} onClick={() => toggleExpand(a.id)}
+                        className="text-[11px] px-2.5 py-1 rounded-full font-medium transition-transform hover:scale-[1.03]"
+                        style={{ background: "#fff", border: "1px solid #fecaca", color: "#0f1419" }}
+                        title={`${a.cur7d} כתבות השבוע · ${a.prev7d} בשבוע שעבר`}>
+                        {a.emoji} {a.name} <span style={{ color: a.trend === "surge" ? "#b91c1c" : "#047857" }}>{a.trend === "surge" ? "🔥" : "📈"} {a.cur7d}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
             {alerts.map((alert) => {
               const isOpen = expandedId === alert.id;
               return (
@@ -212,7 +285,14 @@ export default function AlertsPage() {
                     <div className="flex items-center gap-3">
                       <span className="text-[24px] shrink-0">{alert.emoji}</span>
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-[15px] font-bold leading-tight" style={{ color: "#0f1419" }}>{alert.name}</h3>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h3 className="text-[15px] font-bold leading-tight" style={{ color: "#0f1419" }}>{alert.name}</h3>
+                          {alert.trend && TREND_BADGE[alert.trend] && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0" style={{ color: TREND_BADGE[alert.trend].color, background: TREND_BADGE[alert.trend].bg }}>
+                              {TREND_BADGE[alert.trend].label}
+                            </span>
+                          )}
+                        </div>
                         <p className="text-[11px] mt-0.5 truncate" style={{ color: "#9ca3af" }}>
                           {alert.keywords.slice(0, 4).join(" · ")}{alert.keywords.length > 4 ? " · …" : ""}
                         </p>
