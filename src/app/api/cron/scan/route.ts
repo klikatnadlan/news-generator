@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runScan } from "@/lib/scanner";
+import { sendWatchDigest } from "@/lib/email";
 
 export async function GET(request: NextRequest) {
   // Verify cron secret (Vercel sends this automatically)
@@ -14,6 +15,13 @@ export async function GET(request: NextRequest) {
 
   try {
     const result = await runScan();
+    // After the daily scan, push the "🆕 חדש במעקבים" email digest (token-free).
+    // Never let an email failure break the scan response.
+    try {
+      await sendWatchDigest(1);
+    } catch (e) {
+      console.error("watch digest email failed:", e);
+    }
     return NextResponse.json(result);
   } catch (error) {
     console.error("Scan failed:", error);
