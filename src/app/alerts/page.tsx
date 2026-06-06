@@ -50,6 +50,23 @@ export default function AlertsPage() {
   const [briefCached, setBriefCached] = useState(false);
   const [briefCopied, setBriefCopied] = useState(false);
 
+  // "🆕 חדש במעקבים" — fresh hits per watch, last 3 days (token-free).
+  type NewGroup = { alertName: string; emoji: string; total: number; items: { title: string; summary: string; source: string; url: string; date: string | null }[] };
+  const [whatsNew, setWhatsNew] = useState<NewGroup[]>([]);
+  const [whatsNewTotal, setWhatsNewTotal] = useState(0);
+  const [whatsNewOpen, setWhatsNewOpen] = useState(false);
+
+  const fetchWhatsNew = useCallback(async () => {
+    try {
+      const res = await fetch("/api/alerts/whats-new?days=3");
+      const data = await res.json();
+      setWhatsNew(data.groups || []);
+      setWhatsNewTotal(data.totalNew || 0);
+    } catch {
+      /* silent — non-critical */
+    }
+  }, []);
+
   const fetchBrief = async (refresh: boolean) => {
     setBriefLoading(true);
     try {
@@ -75,7 +92,7 @@ export default function AlertsPage() {
     }
   }, []);
 
-  useEffect(() => { fetchAlerts(); }, [fetchAlerts]);
+  useEffect(() => { fetchAlerts(); fetchWhatsNew(); }, [fetchAlerts, fetchWhatsNew]);
 
   // Fetch (or re-fetch) an alert's matching articles, optionally bounded by a
   // date range. Resets the reveal count so the newest batch shows first.
@@ -210,6 +227,41 @@ export default function AlertsPage() {
                 {adding ? "שומר…" : "צור מעקב"}
               </button>
             </div>
+          </div>
+        )}
+
+        {/* 🆕 חדש במעקבים — fresh hits per watch, last 3 days. Token-free. */}
+        {whatsNewTotal > 0 && (
+          <div className="lf-card p-4 mb-3" style={{ borderRight: "3px solid #059669" }}>
+            <button onClick={() => setWhatsNewOpen((o) => !o)} className="w-full flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-[14px] font-extrabold" style={{ color: "#047857" }}>🆕 חדש במעקבים</span>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: "#ecfdf5", color: "#047857" }}>{whatsNewTotal}</span>
+                <span className="text-[10px]" style={{ color: "#9ca3af" }}>· 3 ימים אחרונים</span>
+              </div>
+              <span className="text-[12px]" style={{ color: "#9ca3af" }}>{whatsNewOpen ? "▲" : "▼"}</span>
+            </button>
+            {whatsNewOpen && (
+              <div className="mt-3 space-y-3">
+                {whatsNew.map((g) => (
+                  <div key={g.alertName}>
+                    <p className="text-[12px] font-bold mb-1" style={{ color: "#0f1419" }}>
+                      {g.emoji} {g.alertName}
+                      <span className="font-normal mr-1" style={{ color: "#9ca3af" }}> · {g.total} חדש</span>
+                    </p>
+                    <div className="space-y-1.5 pr-1">
+                      {g.items.map((it, i) => (
+                        <div key={i} className="text-[12px] leading-[1.5]" style={{ color: "#374151" }} dir="rtl">
+                          <span style={{ color: "#9ca3af" }}>•</span> {it.title}
+                          <span className="text-[10px] mr-1" style={{ color: "#9ca3af" }}> ({it.source}{it.date ? ` · ${fmtDate(it.date)}` : ""})</span>
+                          {it.url && <a href={it.url} target="_blank" rel="noopener noreferrer" className="text-[10px] font-semibold mr-1" style={{ color: "#0071e3" }}>מקור ←</a>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
