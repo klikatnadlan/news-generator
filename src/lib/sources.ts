@@ -27,6 +27,11 @@ export const RSS_FEEDS: RSSFeedConfig[] = [
     category: "general",
   },
   {
+    name: 'קליקת הנדל"ן',
+    url: "https://klikatnadlan.co.il/feed/",
+    category: "נדל\"ן",
+  },
+  {
     name: "קליקת חדשות (מאוחד)",
     url: "https://rss.app/feeds/_EXSHhiSZsny9QX8x.xml",
     category: "נדל\"ן",

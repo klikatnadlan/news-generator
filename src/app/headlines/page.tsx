@@ -37,6 +37,7 @@ const SOURCE_COLORS: Record<string, string> = {
   "ynet": "#dc2626", "מעריב": "#1e3a5f", "ביזפורטל": "#d97706",
   "וואלה": "#0284c7", "ישראל היום": "#1d4ed8", "ICE": "#0ea5e9",
   'מרכז הנדל"ן': "#7c3aed", "מגדילים": "#059669", "מדלן": "#7c3aed", "הומלס": "#dc2626",
+  'קליקת הנדל"ן': "#003c8c",
 };
 
 function getColor(source: string) {
@@ -386,7 +387,7 @@ export default function HeadlinesPage() {
 
           {/* ═══ Topic quick-filter chips (per category) ═══ */}
           {PRESET_TOPICS[tab] && (
-            <div className="flex items-center gap-1.5 mb-3 overflow-x-auto no-scrollbar">
+            <div className="flex items-center flex-wrap gap-1.5 mb-3">
               <span className="text-[10px] shrink-0 ml-1" style={{ color: "#9ca3af" }}>נושאים:</span>
               {PRESET_TOPICS[tab].map((t) => {
                 const active = headlineTopic === t.label;
@@ -641,7 +642,7 @@ export default function HeadlinesPage() {
 
               {/* Preset topic chips — quick narrative focus per category */}
               {PRESET_TOPICS[lastCategory] && (
-                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                <div className="flex items-center flex-wrap gap-1.5 pb-1">
                   <button
                     onClick={() => { setSelectedTopic(null); fetchNarratives(lastCategory, narrativeRange, null); }}
                     className="px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap shrink-0 font-medium"

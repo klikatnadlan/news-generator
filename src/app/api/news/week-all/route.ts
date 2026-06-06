@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 function detectSourceFromUrl(url: string): string | null {
   if (!url) return null;
   const lower = url.toLowerCase();
+  if (lower.includes("klikatnadlan.co.il")) return 'קליקת הנדל"ן';
   if (lower.includes("globes.co.il")) return "גלובס";
   if (lower.includes("calcalist.co.il")) return "כלכליסט";
   if (lower.includes("themarker.com")) return "דה מרקר";
