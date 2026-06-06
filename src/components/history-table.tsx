@@ -62,7 +62,7 @@ export function HistoryTable({ history }: HistoryTableProps) {
         <div className="text-4xl">📋</div>
         <p className="text-[16px] font-bold" style={{ color: "#0f1419" }}>עדיין לא נשלח אף נוסח</p>
         <p className="text-[13px] max-w-sm mx-auto leading-[1.5]" style={{ color: "#6b7280" }}>
-          כל נוסח וואטסאפ שתייצר מהמסך הראשי או מ&quot;לוח בקרה&quot; ייכנס לכאן עם תאריך, סגנון וערוץ שליחה. שימושי להחזרה אחורה ולמדידה.
+          כל נוסח וואטסאפ שתייצר מהמסך הראשי או מ&quot;מדד אמון הציבור&quot; ייכנס לכאן עם תאריך, סגנון וערוץ שליחה. שימושי להחזרה אחורה ולמדידה.
         </p>
         <a href="/" className="inline-block lf-btn lf-btn-dark text-[13px] !py-2 !px-4">
           ← למסך הראשי לייצר נוסח

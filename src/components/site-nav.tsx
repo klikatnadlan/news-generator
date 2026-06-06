@@ -9,9 +9,9 @@ const LINKS = [
   { href: "/", label: "ראשי" },
   { href: "/headlines", label: "כותרות" },
   { href: "/alerts", label: "תודעת השוק" },
-  { href: "/dashboard", label: "לוח בקרה" },
+  { href: "/dashboard", label: "מדד אמון הציבור" },
   { href: "/archive", label: "ארכיון" },
-  { href: "/history", label: "היסטוריה" },
+  { href: "/history", label: "המעבדה" },
 ];
 
 export function SiteNav() {
@@ -44,6 +44,19 @@ export function SiteNav() {
               </Link>
             );
           })}
+          {/* Search — jump to the full archive search from any page */}
+          <Link
+            href="/archive"
+            aria-label="חיפוש"
+            title="חיפוש בכל הארכיון"
+            className="shrink-0 p-1.5 rounded-full transition-colors hover:bg-white/10"
+            style={{ color: pathname.startsWith("/archive") ? "#fff" : "rgba(255,255,255,0.6)" }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+              <path d="M21 21l-4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </Link>
         </nav>
       </div>
     </header>

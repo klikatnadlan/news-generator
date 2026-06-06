@@ -21,8 +21,9 @@ export default function HistoryPage() {
       <SiteNav />
 
       <main className="max-w-3xl mx-auto p-4">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold" style={{ color: "#0f1419" }}>היסטוריית שליחות</h1>
+        <div className="mb-4">
+          <h1 className="text-2xl font-bold" style={{ color: "#0f1419" }}>🧪 המעבדה</h1>
+          <p className="text-[12px] mt-0.5" style={{ color: "#6b7280" }}>כל נוסח, תקציר וכתבה שייצרת — שמורים כאן עם תאריך וסגנון, לחזרה ולמדידה.</p>
         </div>
 
         {loading ? (

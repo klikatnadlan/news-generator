@@ -17,7 +17,7 @@ export function SiteFooter() {
         </p>
         <div className="flex items-center gap-4">
           <Link href="/dashboard" className="text-xs text-[#86868b] hover:text-[#0f1419] transition-colors">
-            לוח בקרה
+            מדד אמון הציבור
           </Link>
           <Link href="/archive" className="text-xs text-[#86868b] hover:text-[#0f1419] transition-colors">
             ארכיון

@@ -198,7 +198,7 @@ export default function DashboardPage() {
           <div className="space-y-3">
             <div className="lf-card p-4 text-center" style={{ borderRight: "3px solid #059669" }}>
               <p className="text-[14px] font-bold" style={{ color: "#059669" }}>✓ הכל מוכן!</p>
-              <p className="text-[12px]" style={{ color: "#9ca3af" }}>תקציר + 3 נוסחי וואטסאפ נשמרו בהיסטוריה</p>
+              <p className="text-[12px]" style={{ color: "#9ca3af" }}>תקציר + 3 נוסחי וואטסאפ נשמרו במעבדה</p>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <button onClick={resetGenerate} className="lf-btn lf-btn-outline w-full !py-2.5 text-[13px]">
@@ -206,7 +206,7 @@ export default function DashboardPage() {
               </button>
               <Link href="/history">
                 <button className="lf-btn lf-btn-dark w-full !py-2.5 text-[13px]">
-                  📋 לראות בהיסטוריה
+                  📋 לראות במעבדה
                 </button>
               </Link>
             </div>
