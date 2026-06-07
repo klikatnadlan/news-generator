@@ -148,7 +148,7 @@ export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) 
           {news.summary && <span className="text-[11px] font-normal mr-1" style={{ color: "#9ca3af" }}>{expanded ? "▴" : "▾"}</span>}
         </h3>
         {news.summary && (
-          <p className={`text-[13px] leading-[1.6] mb-2.5 cursor-pointer ${expanded ? "" : "line-clamp-2"}`} style={{ color: "#6b7280" }}
+          <p className={`leading-[1.6] mb-2.5 cursor-pointer ${expanded ? "" : "line-clamp-2"}`} style={{ color: "#6b7280", fontSize: "var(--lf-content-size, 13px)" }}
             onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}>
             {news.summary.replace(/<[^>]*>/g, "")}
           </p>

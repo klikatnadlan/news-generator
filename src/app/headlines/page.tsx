@@ -128,6 +128,22 @@ export default function HeadlinesPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // Copy format: include the subtitle (תת-כותרת) by default, or title-only.
   const [copyWithSubtitle, setCopyWithSubtitle] = useState(true);
+  // Subtitle text size (px) — independent of the global app zoom. Applied via a
+  // CSS var that the subtitle paragraphs read; persisted + restored everywhere.
+  const [contentSize, setContentSize] = useState(13);
+  const applyContentSize = (px: number) => {
+    const clamped = Math.min(22, Math.max(11, px));
+    setContentSize(clamped);
+    document.documentElement.style.setProperty("--lf-content-size", `${clamped}px`);
+    try { localStorage.setItem("lf-content-size", String(clamped)); } catch { /* ignore */ }
+  };
+  useEffect(() => {
+    const saved = parseFloat(localStorage.getItem("lf-content-size") || "");
+    if (!isNaN(saved) && saved >= 11 && saved <= 22) {
+      setContentSize(saved);
+      document.documentElement.style.setProperty("--lf-content-size", `${saved}px`);
+    }
+  }, []);
   const [copyLabel, setCopyLabel] = useState<string | null>(null);
   const [selectedDay, setSelectedDay] = useState("היום");
   const [tab, setTab] = useState<MainTab>('נדל"ן');
@@ -423,8 +439,17 @@ export default function HeadlinesPage() {
                   : ` ליום ${getHebrewDay(selectedDay)} (${new Date(selectedDay + "T12:00:00").toLocaleDateString("he-IL", { day: "numeric", month: "numeric" })})`}
               {selected.size > 0 && <span className="font-semibold" style={{ color: tabConfig.color }}> · {selected.size} נבחרו</span>}
             </p>
+            <div className="flex items-center gap-1.5 shrink-0">
+            {/* Subtitle text size — independent of the app zoom */}
+            <div className="flex items-center gap-0.5 rounded-full p-0.5" style={{ background: "#f1f3f5" }} title="גודל טקסט של תת-הכותרת">
+              <span className="text-[9px] px-1" style={{ color: "#9ca3af" }}>תת-כותרת</span>
+              <button onClick={() => applyContentSize(contentSize - 1)} disabled={contentSize <= 11} aria-label="הקטן תת-כותרת"
+                className="w-5 h-5 flex items-center justify-center rounded-full text-[12px] font-bold hover:bg-white disabled:opacity-30" style={{ color: "#6b7280" }}>א−</button>
+              <button onClick={() => applyContentSize(contentSize + 1)} disabled={contentSize >= 22} aria-label="הגדל תת-כותרת"
+                className="w-5 h-5 flex items-center justify-center rounded-full text-[14px] font-bold hover:bg-white disabled:opacity-30" style={{ color: "#6b7280" }}>א+</button>
+            </div>
             {/* Copy format — what lands on the clipboard (📋 / bulk copy) */}
-            <div className="flex items-center gap-0.5 shrink-0 rounded-full p-0.5" style={{ background: "#f1f3f5" }} title="מה יועתק כשתלחץ העתקה">
+            <div className="flex items-center gap-0.5 rounded-full p-0.5" style={{ background: "#f1f3f5" }} title="מה יועתק כשתלחץ העתקה">
               <button onClick={() => setCopyWithSubtitle(true)}
                 className="text-[10px] px-2 py-0.5 rounded-full transition-colors whitespace-nowrap"
                 style={copyWithSubtitle ? { background: "#fff", color: "#0f1419", fontWeight: 700, boxShadow: "0 1px 2px rgba(0,0,0,0.08)" } : { color: "#9ca3af" }}>
@@ -435,6 +460,7 @@ export default function HeadlinesPage() {
                 style={!copyWithSubtitle ? { background: "#fff", color: "#0f1419", fontWeight: 700, boxShadow: "0 1px 2px rgba(0,0,0,0.08)" } : { color: "#9ca3af" }}>
                 כותרת בלבד
               </button>
+            </div>
             </div>
           </div>
 
@@ -794,7 +820,7 @@ function HeadlineRow({ item, selected, onToggle, onCopy, getColor, accentColor, 
       </div>
       {open && (
         <div className="mt-2 mr-[30px] pr-2.5 border-r-2" style={{ borderColor: "#e5e7eb" }}>
-          <p className="text-[12.5px] leading-[1.65]" style={{ color: hasSummary ? "#374151" : "#9ca3af" }} dir="rtl">
+          <p className="leading-[1.65]" style={{ color: hasSummary ? "#374151" : "#9ca3af", fontSize: "var(--lf-content-size, 12.5px)" }} dir="rtl">
             {hasSummary ? item.summary : "אין תת-כותרת שמורה לכתבה זו — פתח את המקור לקריאה המלאה."}
           </p>
         </div>

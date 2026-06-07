@@ -38,6 +38,12 @@ export function SiteNav() {
     const z = isNaN(saved) ? 1 : Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, saved));
     setZoom(z);
     document.documentElement.style.setProperty("zoom", String(z));
+    // Restore the subtitle/content text size globally (the control lives on the
+    // headlines page; this makes the choice apply to subtitles on every page).
+    const cs = parseFloat(localStorage.getItem("lf-content-size") || "");
+    if (!isNaN(cs) && cs >= 11 && cs <= 22) {
+      document.documentElement.style.setProperty("--lf-content-size", `${cs}px`);
+    }
   }, []);
 
   return (
