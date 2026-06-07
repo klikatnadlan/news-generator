@@ -58,6 +58,9 @@ export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) 
   const [editing, setEditing] = useState(false);
   const [refineInstruction, setRefineInstruction] = useState("");
   const [refining, setRefining] = useState(false);
+  // Click the title (or subtitle) to reveal the full subtitle (it's clamped to
+  // 2 lines by default so long decks don't get cut off with no way to read them).
+  const [expanded, setExpanded] = useState(false);
 
   const src = getSource(news.source);
   const scoreColor = news.score >= 80 ? "#059669" : news.score >= 60 ? "#d97706" : "#dc2626";
@@ -139,8 +142,17 @@ export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) 
             {news.source_url && <a href={news.source_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[10px] hover:underline mr-2" style={{ color: "#9ca3af" }}>מקור ←</a>}
           </div>
         </div>
-        <h3 className="text-[16px] font-bold leading-[1.45] mb-1.5" style={{ color: "#0f1419" }}>{news.title.replace(/<[^>]*>/g, "")}</h3>
-        {news.summary && <p className="text-[13px] leading-[1.6] mb-2.5 line-clamp-2" style={{ color: "#6b7280" }}>{news.summary.replace(/<[^>]*>/g, "")}</p>}
+        <h3 className="text-[16px] font-bold leading-[1.45] mb-1.5 cursor-pointer hover:opacity-70 transition-opacity" style={{ color: "#0f1419" }}
+          onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }} title="לחץ לפתיחת תת-הכותרת המלאה">
+          {news.title.replace(/<[^>]*>/g, "")}
+          {news.summary && <span className="text-[11px] font-normal mr-1" style={{ color: "#9ca3af" }}>{expanded ? "▴" : "▾"}</span>}
+        </h3>
+        {news.summary && (
+          <p className={`text-[13px] leading-[1.6] mb-2.5 cursor-pointer ${expanded ? "" : "line-clamp-2"}`} style={{ color: "#6b7280" }}
+            onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}>
+            {news.summary.replace(/<[^>]*>/g, "")}
+          </p>
+        )}
         {news.reasoning && !/^[a-zA-Z]/.test(news.reasoning) && <p className="text-[11px] leading-[1.4] mb-3 px-2 py-1 rounded-md inline-block" style={{ color: "#92400e", background: "#fffbeb" }}>{news.reasoning}</p>}
         <div className="flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
           <button onClick={async (e) => { e.stopPropagation(); await navigator.clipboard.writeText(`${news.title}${news.summary ? `\n${news.summary}` : ""}`); setCopyLabel("✓"); setTimeout(() => setCopyLabel(null), 1500); }} className="text-[11px] font-medium h-[30px] px-3 rounded-md border transition-colors" style={copyLabel ? { background: "#f0fdf4", borderColor: "#059669", color: "#059669" } : { borderColor: "#e5e7eb", color: "#6b7280", background: "#fff" }}>{copyLabel || "📋 העתק תכלס"}</button>

@@ -24,6 +24,26 @@ const TREND_BADGE: Record<string, { label: string; color: string; bg: string }> 
   cooling: { label: "📉 דועך", color: "#9ca3af", bg: "#f9fafb" },
 };
 
+// Source colors for the per-watch breakdown (editorial vs PR signal).
+const SRC_COLOR: Record<string, string> = {
+  "גלובס": "#0066cc", "כלכליסט": "#c0392b", "דה מרקר": "#16a34a", "ynet": "#dc2626",
+  "מעריב": "#1e3a5f", "ביזפורטל": "#d97706", "וואלה": "#0284c7", "ישראל היום": "#1d4ed8",
+  "ICE": "#0ea5e9", 'מרכז הנדל"ן': "#7c3aed", "מגדילים": "#059669", "מדלן": "#7c3aed",
+  'קליקת הנדל"ן': "#003c8c",
+};
+function srcColor(s: string) {
+  for (const k of Object.keys(SRC_COLOR)) if (s.includes(k)) return SRC_COLOR[k];
+  return "#6b7280";
+}
+function sourceBreakdown(items: { source?: string }[]): { source: string; count: number }[] {
+  const m = new Map<string, number>();
+  for (const it of items) {
+    const s = (it.source || "").trim() || "אחר";
+    m.set(s, (m.get(s) || 0) + 1);
+  }
+  return Array.from(m.entries()).map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count);
+}
+
 export default function AlertsPage() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
@@ -369,6 +389,18 @@ export default function AlertsPage() {
                       bounded set, so the eye separates "the N in this range". */}
                   {isOpen && (
                     <div className="mt-2 mb-3 space-y-2.5 rounded-xl p-2.5" style={{ border: "1px solid #fecaca", background: "#fff7f7" }}>
+                      {/* 📊 Source breakdown — editorial (גלובס/כלכליסט) vs PR-heavy (ICE).
+                          Helps gauge how much of the coverage is real editorial vs paid יח״צ. */}
+                      {loadingArticles !== alert.id && (articles[alert.id] || []).length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-[11px] font-semibold shrink-0" style={{ color: "#6b7280" }} title="כמה כתבות מכל מקור — עוזר להבחין בין סיקור מערכתי ליחצ״נות (למשל ICE = הרבה יח״צ, גלובס/כלכליסט = יותר מערכתי)">📊 מקורות:</span>
+                          {sourceBreakdown(articles[alert.id] || []).map((b) => (
+                            <span key={b.source} className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ color: srcColor(b.source), background: srcColor(b.source) + "14", border: `1px solid ${srcColor(b.source)}28` }}>
+                              {b.source} {b.count}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       {/* Date-range filter */}
                       <div className="lf-card p-3 flex flex-wrap items-center gap-2 text-[12px]">
                         <span style={{ color: "#6b7280" }}>📅 טווח:</span>
