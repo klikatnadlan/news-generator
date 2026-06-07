@@ -364,9 +364,11 @@ export default function AlertsPage() {
                     </div>
                   </div>
 
-                  {/* Expanded: matching articles as full NewsCards */}
+                  {/* Expanded: matching articles as full NewsCards.
+                      Thin frame groups the range-filter + its results as one
+                      bounded set, so the eye separates "the N in this range". */}
                   {isOpen && (
-                    <div className="mt-2 mb-3 space-y-2.5">
+                    <div className="mt-2 mb-3 space-y-2.5 rounded-xl p-2.5" style={{ border: "1px solid #fecaca", background: "#fff7f7" }}>
                       {/* Date-range filter */}
                       <div className="lf-card p-3 flex flex-wrap items-center gap-2 text-[12px]">
                         <span style={{ color: "#6b7280" }}>📅 טווח:</span>
