@@ -35,13 +35,22 @@ function srcColor(s: string) {
   for (const k of Object.keys(SRC_COLOR)) if (s.includes(k)) return SRC_COLOR[k];
   return "#6b7280";
 }
+// Curated source order for the breakdown — the relevant editorial outlets, in
+// this exact order. קליקת הנדל"ן is always shown (our own outlet); the rest
+// (ICE / מגדילים / ynet / מעריב …) is hidden as "not relevant".
+const SOURCE_ORDER = ['גלובס', 'קליקת הנדל"ן', 'כלכליסט', 'דה מרקר', 'ביזפורטל', 'מרכז הנדל"ן'];
 function sourceBreakdown(items: { source?: string }[]): { source: string; count: number }[] {
-  const m = new Map<string, number>();
+  const counts = new Map<string, number>();
   for (const it of items) {
-    const s = (it.source || "").trim() || "אחר";
-    m.set(s, (m.get(s) || 0) + 1);
+    const s = (it.source || "").trim();
+    if (!s) continue;
+    for (const r of SOURCE_ORDER) {
+      if (s === r || s.includes(r)) { counts.set(r, (counts.get(r) || 0) + 1); break; }
+    }
   }
-  return Array.from(m.entries()).map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count);
+  return SOURCE_ORDER
+    .map((r) => ({ source: r, count: counts.get(r) || 0 }))
+    .filter((x) => x.count > 0 || x.source === 'קליקת הנדל"ן');
 }
 
 export default function AlertsPage() {
