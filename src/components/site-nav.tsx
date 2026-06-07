@@ -15,6 +15,7 @@ const LINKS = [
   { href: "/", label: "ראשי" },
   { href: "/headlines", label: "כותרות" },
   { href: "/alerts", label: "תודעת השוק" },
+  { href: "/cities", label: "ערים" },
   { href: "/dashboard", label: "מדד אמון הציבור" },
   { href: "/archive", label: "ארכיון" },
   { href: "/history", label: "המעבדה" },
