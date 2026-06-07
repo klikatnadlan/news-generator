@@ -2,6 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState, useEffect, useCallback } from "react";
+
+const ZOOM_KEY = "lf-zoom";
+const ZOOM_MIN = 0.9;
+const ZOOM_MAX = 1.7;
+const ZOOM_STEP = 0.1;
 
 // One shared top bar for every page. Every destination is always present and
 // the current page is highlighted (pill), so you always know where you are.
@@ -16,9 +22,26 @@ const LINKS = [
 
 export function SiteNav() {
   const pathname = usePathname() || "/";
+
+  // Text-size control: scale the WHOLE app (incl. fixed-px fonts) via CSS zoom.
+  // Persisted in localStorage and re-applied on every page so the choice sticks.
+  const [zoom, setZoom] = useState(1);
+  const applyZoom = useCallback((z: number) => {
+    const clamped = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100));
+    setZoom(clamped);
+    document.documentElement.style.setProperty("zoom", String(clamped));
+    try { localStorage.setItem(ZOOM_KEY, String(clamped)); } catch { /* ignore */ }
+  }, []);
+  useEffect(() => {
+    const saved = parseFloat(localStorage.getItem(ZOOM_KEY) || "1");
+    const z = isNaN(saved) ? 1 : Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, saved));
+    setZoom(z);
+    document.documentElement.style.setProperty("zoom", String(z));
+  }, []);
+
   return (
     <header className="lf-header">
-      <div className="max-w-3xl mx-auto px-4 flex items-center justify-between h-12 gap-3">
+      <div className="max-w-3xl mx-auto px-4 flex items-center justify-between h-12 gap-2">
         <Link href="/" className="flex items-center gap-2 leading-none shrink-0">
           <span className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.7)]" />
           <span className="flex flex-col items-start leading-none">
@@ -26,6 +49,16 @@ export function SiteNav() {
             <span className="text-[8px] md:text-[9px] text-white/45 italic mt-0.5" style={{ fontFamily: "Georgia, serif" }}>by ben solomon</span>
           </span>
         </Link>
+        <div className="flex items-center gap-1.5 min-w-0">
+        {/* Text-size control (א− / % / א+) — pinned, never scrolls away */}
+        <div className="flex items-center gap-0.5 shrink-0 rounded-full px-0.5 py-0.5" style={{ background: "rgba(255,255,255,0.1)" }} title="גודל טקסט">
+          <button onClick={() => applyZoom(zoom - ZOOM_STEP)} disabled={zoom <= ZOOM_MIN} aria-label="הקטן טקסט"
+            className="w-6 h-6 flex items-center justify-center rounded-full text-[13px] font-bold text-white/70 hover:bg-white/10 disabled:opacity-30">א−</button>
+          <button onClick={() => applyZoom(1)} aria-label="איפוס גודל טקסט"
+            className="text-[9px] text-white/55 tabular-nums px-0.5 min-w-[26px] text-center hover:text-white/80">{Math.round(zoom * 100)}%</button>
+          <button onClick={() => applyZoom(zoom + ZOOM_STEP)} disabled={zoom >= ZOOM_MAX} aria-label="הגדל טקסט"
+            className="w-6 h-6 flex items-center justify-center rounded-full text-[15px] font-bold text-white/70 hover:bg-white/10 disabled:opacity-30">א+</button>
+        </div>
         <nav className="flex items-center gap-0.5 sm:gap-1 overflow-x-auto no-scrollbar">
           {LINKS.map((l) => {
             const active = l.href === "/" ? pathname === "/" : pathname.startsWith(l.href);
@@ -58,6 +91,7 @@ export function SiteNav() {
             </svg>
           </Link>
         </nav>
+        </div>
       </div>
     </header>
   );
