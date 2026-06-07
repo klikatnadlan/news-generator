@@ -8,6 +8,36 @@ export async function GET() {
     const today = new Date().toISOString().split("T")[0];
     const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
 
+    // ─── Token-saving cache ───
+    // The index is computed via a Claude call. It only needs computing ONCE per
+    // day — serve today's cached value for every later load (was: a Claude call
+    // on EVERY dashboard load, which also made it slow and occasionally 500).
+    const { data: cachedToday } = await supabase
+      .from("market_index_history")
+      .select("index_value, trend, summary")
+      .eq("date", today)
+      .maybeSingle();
+    if (cachedToday) {
+      const { data: history } = await supabase
+        .from("market_index_history")
+        .select("index_value, date")
+        .order("date", { ascending: false })
+        .limit(5);
+      const values = history?.map((h: { index_value: number }) => h.index_value) || [cachedToday.index_value];
+      const movingAvg = Math.round(values.reduce((a: number, b: number) => a + b, 0) / values.length);
+      return NextResponse.json({
+        index: cachedToday.index_value,
+        trend: cachedToday.trend,
+        summary: cachedToday.summary,
+        date: today,
+        movingAvg,
+        range: { min: Math.min(...values), max: Math.max(...values) },
+        historyDays: values.length,
+        cached: true,
+        disclaimer: "המדד מבוסס על ניתוח כתבות ונתוני ממשלה. אינו מהווה המלצת השקעה.",
+      });
+    }
+
     // Get today's news (or yesterday)
     let { data: scores } = await supabase
       .from("news_scores")
