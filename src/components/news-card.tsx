@@ -96,8 +96,9 @@ export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) 
   const src = getSource(news.source);
   const scoreColor = news.score >= 80 ? "#059669" : news.score >= 60 ? "#d97706" : "#dc2626";
 
-  // Paywalled sources — AI can only read headlines, not full articles
-  const PAYWALLED_SOURCES = ["גלובס", "דה מרקר", "כלכליסט"];
+  // Paywalled sources — AI can only read headlines, not full articles.
+  // (כלכליסט is FREE — not paywalled.)
+  const PAYWALLED_SOURCES = ["גלובס", "דה מרקר"];
   const isPaywalled = PAYWALLED_SOURCES.some(s => news.source.includes(s));
 
   const generate = async (type: "message" | "article", e: React.MouseEvent) => {
