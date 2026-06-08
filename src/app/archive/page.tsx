@@ -246,7 +246,7 @@ export default function ArchivePage() {
         {results && Array.isArray(results.items) && results.items.length === 0 && !loading && (
           <div className="text-center py-12 space-y-2">
             <div className="text-3xl">🔍</div>
-            <p className="text-[14px] font-bold" style={{ color: "#0f1419" }}>לא נמצאו כתבות{query ? ` עבור “${query}”` : ""}</p>
+            <p className="text-[14px] font-bold" style={{ color: "#0f1419" }}>לא נמצאו באזים{query ? ` עבור “${query}”` : ""}</p>
             <p className="text-[12px]" style={{ color: "#6b7280" }}>נסו מילה אחרת, או הרחיבו את טווח התאריכים.</p>
           </div>
         )}

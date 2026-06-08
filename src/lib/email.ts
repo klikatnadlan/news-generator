@@ -92,7 +92,7 @@ export async function sendWatchDigest(days = 1): Promise<{ sent: boolean; total?
       <div style="font-size:13px;opacity:.7">🆕 חדש במעקבים שלך · ${today}</div>
     </div>
     <div style="background:#fff;border-radius:12px;padding:18px 20px;border:1px solid #eef0f2">
-      <div style="font-size:13px;color:#6b7280;margin-bottom:14px">${total} כתבות חדשות נתפסו במעקבים שלך ביממה האחרונה.</div>
+      <div style="font-size:13px;color:#6b7280;margin-bottom:14px">${total} באזים חדשים נתפסו במעקבים שלך ביממה האחרונה.</div>
       ${body}
     </div>
     <div style="text-align:center;font-size:12px;color:#9ca3af;padding:14px">
@@ -101,6 +101,6 @@ export async function sendWatchDigest(days = 1): Promise<{ sent: boolean; total?
     </div>
   </div></body></html>`;
 
-  const r = await sendEmail({ to, subject: `🆕 חדש במעקבים · ${total} כתבות · ${today}`, html });
+  const r = await sendEmail({ to, subject: `🆕 חדש במעקבים · ${total} באזים · ${today}`, html });
   return r.ok ? { sent: true, total } : { sent: false, error: r.error };
 }

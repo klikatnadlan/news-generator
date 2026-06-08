@@ -246,7 +246,7 @@ export default function AlertsPage() {
             />
             <div className="flex items-center justify-between">
               <p className="text-[11px]" style={{ color: "#9ca3af" }}>
-                כל כתבה שמכילה אחת מהמילים תיתפס. אפשר לשנות/למחוק בכל רגע.
+                כל באז שמכיל אחת מהמילים ייתפס. אפשר לשנות/למחוק בכל רגע.
               </p>
               <button
                 onClick={addAlert}
@@ -329,7 +329,7 @@ export default function AlertsPage() {
             <div className="text-4xl">🔔</div>
             <p className="text-[15px] font-bold" style={{ color: "#0f1419" }}>עדיין אין מעקבים</p>
             <p className="text-[13px] max-w-sm mx-auto" style={{ color: "#6b7280" }}>
-              צור מעקב ראשון (למשל &quot;חוק התיווך&quot;) והמערכת תתפוס לך כל כתבה רלוונטית, אוטומטית.
+              צור מעקב ראשון (למשל &quot;חוק התיווך&quot;) והמערכת תתפוס לך כל באז רלוונטי, אוטומטית.
             </p>
           </div>
         ) : (
@@ -346,7 +346,7 @@ export default function AlertsPage() {
                       <button key={a.id} onClick={() => toggleExpand(a.id)}
                         className="text-[11px] px-2.5 py-1 rounded-full font-medium transition-transform hover:scale-[1.03]"
                         style={{ background: "#fff", border: "1px solid #fecaca", color: "#0f1419" }}
-                        title={`${a.cur7d} כתבות השבוע · ${a.prev7d} בשבוע שעבר`}>
+                        title={`${a.cur7d} באזים השבוע · ${a.prev7d} בשבוע שעבר`}>
                         {a.emoji} {a.name} <span style={{ color: a.trend === "surge" ? "#b91c1c" : "#047857" }}>{a.trend === "surge" ? "🔥" : "📈"} {a.cur7d}</span>
                       </button>
                     ))}
@@ -381,7 +381,7 @@ export default function AlertsPage() {
                       <div className="flex items-center gap-3 shrink-0">
                         <div className="text-center">
                           <p className="text-[20px] font-extrabold leading-none" style={{ color: "#dc2626", fontFamily: "DM Sans" }}>{alert.matchCount}</p>
-                          <p className="text-[9px]" style={{ color: "#9ca3af" }}>כתבות</p>
+                          <p className="text-[9px]" style={{ color: "#9ca3af" }}>באזים</p>
                         </div>
                         <div className="text-center hidden sm:block">
                           <p className="text-[11px] font-semibold" style={{ color: "#0f1419" }}>{fmtDate(alert.latestDate)}</p>
@@ -402,7 +402,7 @@ export default function AlertsPage() {
                           Helps gauge how much of the coverage is real editorial vs paid יח״צ. */}
                       {loadingArticles !== alert.id && (articles[alert.id] || []).length > 0 && (
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="text-[11px] font-semibold shrink-0" style={{ color: "#6b7280" }} title="כמה כתבות מכל מקור — עוזר להבחין בין סיקור מערכתי ליחצ״נות (למשל ICE = הרבה יח״צ, גלובס/כלכליסט = יותר מערכתי)">📊 מקורות:</span>
+                          <span className="text-[11px] font-semibold shrink-0" style={{ color: "#6b7280" }} title="כמה באזים מכל מקור — עוזר להבחין בין סיקור מערכתי ליחצ״נות (למשל ICE = הרבה יח״צ, גלובס/כלכליסט = יותר מערכתי)">📊 מקורות:</span>
                           {sourceBreakdown(articles[alert.id] || []).map((b) => (
                             <span key={b.source} className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ color: srcColor(b.source), background: srcColor(b.source) + "14", border: `1px solid ${srcColor(b.source)}28` }}>
                               {b.source} {b.count}
@@ -450,7 +450,7 @@ export default function AlertsPage() {
                         )}
                         {loadingArticles !== alert.id && (
                           <span className="mr-auto font-bold" style={{ color: "#dc2626" }}>
-                            {(articles[alert.id] || []).length} כתבות{(dateRange[alert.id]?.from || dateRange[alert.id]?.to) ? " בטווח" : ""}
+                            {(articles[alert.id] || []).length} באזים{(dateRange[alert.id]?.from || dateRange[alert.id]?.to) ? " בטווח" : ""}
                           </span>
                         )}
                       </div>
@@ -458,11 +458,11 @@ export default function AlertsPage() {
                       {loadingArticles === alert.id ? (
                         <div className="flex items-center justify-center py-10 gap-2.5 text-[13px]" style={{ color: "#6b7280" }}>
                           <div className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "#dc2626", borderTopColor: "transparent" }} />
-                          מחפש כתבות תואמות…
+                          מחפש באזים תואמים…
                         </div>
                       ) : (articles[alert.id] || []).length === 0 ? (
                         <p className="text-center py-8 text-[13px]" style={{ color: "#9ca3af" }}>
-                          {(dateRange[alert.id]?.from || dateRange[alert.id]?.to) ? "אין כתבות בטווח התאריכים שבחרת." : "לא נמצאו כתבות תואמות עדיין."}
+                          {(dateRange[alert.id]?.from || dateRange[alert.id]?.to) ? "אין באזים בטווח התאריכים שבחרת." : "לא נמצאו באזים תואמים עדיין."}
                         </p>
                       ) : (() => {
                         const all = articles[alert.id] || [];
@@ -477,7 +477,7 @@ export default function AlertsPage() {
                                 onClick={() => setVisibleCount((p) => ({ ...p, [alert.id]: shown + PAGE }))}
                                 className="lf-btn lf-btn-outline w-full !py-2.5 text-[13px] font-semibold"
                               >
-                                הצג עוד {Math.min(PAGE, all.length - shown)} כתבות · נותרו {all.length - shown} מתוך {all.length}
+                                הצג עוד {Math.min(PAGE, all.length - shown)} באזים · נותרו {all.length - shown} מתוך {all.length}
                               </button>
                             )}
                           </>

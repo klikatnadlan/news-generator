@@ -110,14 +110,14 @@ export default function DashboardPage() {
                   <span
                     className="text-[10px] text-white font-bold rounded-full w-4 h-4 inline-flex items-center justify-center cursor-help"
                     style={{ background: "#9ca3af" }}
-                    title="ציון 0–100 שמסכם את הטון של כתבות הנדל״ן השבוע. 75+ = אופטימי, 55–74 = חיובי, 40–54 = מעורב, 25–39 = סוער, 0–24 = חששות. עדכון יומי."
+                    title="ציון 0–100 שמסכם את הטון של באזי הנדל״ן השבוע. 75+ = אופטימי, 55–74 = חיובי, 40–54 = מעורב, 25–39 = סוער, 0–24 = חששות. עדכון יומי."
                   >?</span>
                 </div>
                 <p className="text-[12px] leading-[1.5] mb-1" style={{ color: "#6b7280" }}>{marketIndex.summary}</p>
                 {marketIndex.range && (
                   <p className="text-[11px]" style={{ color: "#9ca3af" }}>טווח שבועי: {marketIndex.range.min}–{marketIndex.range.max}</p>
                 )}
-                <p className="text-[10px] mt-1" style={{ color: "#d1d5db" }}>מבוסס ניתוח NLP על כתבות השבוע · לא המלצת השקעה</p>
+                <p className="text-[10px] mt-1" style={{ color: "#d1d5db" }}>מבוסס ניתוח NLP על באזי השבוע · לא המלצת השקעה</p>
               </div>
               <div className="text-center mr-4">
                 <div className="text-[36px] font-extrabold leading-none" style={{ color: verbal.color, fontFamily: "DM Sans, system-ui" }}>

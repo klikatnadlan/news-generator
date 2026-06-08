@@ -63,7 +63,7 @@ export function ScanStatus({
         setScanResult("הסריקה רצה — לא הופיעו ידיעות חדשות. בדוק שוב בעוד שעה.");
       } else if ((data.scored ?? 0) === 0) {
         // All articles were duplicates (already in DB) — but maybe never scored
-        setScanResult(`✓ ${data.scanned} ידיעות סורקו, אבל כולן כבר קיימות מ-RSS. ייתכן שיש כתבות ישנות שלא דורגו.`);
+        setScanResult(`✓ ${data.scanned} ידיעות סורקו, אבל כולן כבר קיימות מ-RSS. ייתכן שיש באזים ישנים שלא דורגו.`);
         setNeedsRescore(true);
       } else {
         setScanResult(`✓ ${data.scanned} ידיעות סורקו, ${data.scored} דורגו על ידי Claude.`);
@@ -78,7 +78,7 @@ export function ScanStatus({
 
   const handleRescore = async () => {
     setRescoring(true);
-    setScanResult("מדרג כתבות מהארכיון שטרם דורגו…");
+    setScanResult("מדרג באזים מהארכיון שטרם דורגו…");
     try {
       const res = await fetch("/api/admin/rescore?days=7", {
         headers: { "x-manual-scan": "true" },
@@ -87,9 +87,9 @@ export function ScanStatus({
       if (data.error) {
         setScanResult(`Rescore נכשל: ${data.error}`);
       } else if (data.scored === 0) {
-        setScanResult(data.message || "אין כתבות לדרג מחדש.");
+        setScanResult(data.message || "אין באזים לדרג מחדש.");
       } else {
-        setScanResult(`✓ דורגו ${data.scored}/${data.unscored} כתבות מהשבוע. רענן את הדף.`);
+        setScanResult(`✓ דורגו ${data.scored}/${data.unscored} באזים מהשבוע. רענן את הדף.`);
         setNeedsRescore(false);
       }
       onScanComplete();

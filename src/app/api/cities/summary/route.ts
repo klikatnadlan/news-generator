@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rows = (data || []) as any[];
   if (rows.length === 0) {
-    return NextResponse.json({ summary: `לא נמצאו כתבות על ${city.name} בטווח הזה. נסה להרחיב את הטווח, או להוסיף מקורות מקומיים.`, cached: false });
+    return NextResponse.json({ summary: `לא נמצאו באזים על ${city.name} בטווח הזה. נסה להרחיב את הטווח, או להוסיף מקורות מקומיים.`, cached: false });
   }
   const list = rows
     .map((r) => `- ${(r.title || "").replace(/<[^>]*>/g, "")}${r.summary ? ` — ${(r.summary || "").replace(/<[^>]*>/g, "").slice(0, 160)}` : ""}`)

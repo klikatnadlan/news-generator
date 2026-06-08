@@ -198,7 +198,7 @@ export default function CitiesPage() {
         <div className="mb-3">
           <h1 className="text-[20px] font-extrabold" style={{ color: "#0f1419" }}>🏙️ ערים</h1>
           <p className="text-[12px] mt-0.5 leading-[1.5]" style={{ color: "#6b7280" }}>
-            בוחרים עיר ומקבלים עליה הכול במקום אחד: כל הכתבות, נתוני העיר, וחיפושים ממוקדים — בלי לצאת לגוגל.
+            בוחרים עיר ומקבלים עליה הכול במקום אחד: כל הבאזים, נתוני העיר, וחיפושים ממוקדים — בלי לצאת לגוגל.
           </p>
         </div>
 
@@ -231,7 +231,7 @@ export default function CitiesPage() {
           <div className="text-center py-12 space-y-2">
             <div className="text-4xl">🏙️</div>
             <p className="text-[14px] font-bold" style={{ color: "#0f1419" }}>בחר עיר כדי לראות את "אווטאר העיר"</p>
-            <p className="text-[12px]" style={{ color: "#9ca3af" }}>כתבות · אוכלוסייה · ראש העיר · מחירים · קישור לפרויקטור · תדריך AI</p>
+            <p className="text-[12px]" style={{ color: "#9ca3af" }}>באזים · אוכלוסייה · ראש העיר · מחירים · קישור לפרויקטור · תדריך AI</p>
           </div>
         )}
 
@@ -252,7 +252,7 @@ export default function CitiesPage() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
                 <div className="text-center rounded-lg py-2" style={{ background: "#f8f9fb" }}>
                   <p className="text-[18px] font-extrabold leading-none" style={{ color: "#dc2626" }}>{loadingCity && !overview ? "…" : fmtNum(overview?.articleCount ?? 0)}</p>
-                  <p className="text-[10px] mt-1" style={{ color: "#9ca3af" }}>כתבות בלידרפיד</p>
+                  <p className="text-[10px] mt-1" style={{ color: "#9ca3af" }}>באזים בלידרפיד</p>
                 </div>
                 <div className="text-center rounded-lg py-2" style={{ background: "#f8f9fb" }}>
                   <p className="text-[18px] font-extrabold leading-none" style={{ color: "#0f1419" }}>{loadingCity && !overview ? "…" : fmtNum(overview?.population ?? null)}</p>
@@ -390,7 +390,7 @@ export default function CitiesPage() {
                             {topicMeta?.emoji} {topicMeta?.label || r.topic}
                           </span>
                           <span className="text-[12px] font-extrabold" style={{ color: r.count > 0 ? "#0369a1" : "#cbd5e1" }}>
-                            {r.count > 0 ? `${r.count} כתבות ${open ? "▲" : "▼"}` : "אין עדיין"}
+                            {r.count > 0 ? `${r.count} באזים ${open ? "▲" : "▼"}` : "אין עדיין"}
                           </span>
                         </button>
                         {open && (
@@ -428,18 +428,18 @@ export default function CitiesPage() {
             </div>
 
             <p className="text-[11px] mb-2" style={{ color: "#9ca3af" }}>
-              {total} כתבות{activeChip ? ` · ${activeChip}` : ""} על {selected}
+              {total} באזים{activeChip ? ` · ${activeChip}` : ""} על {selected}
             </p>
 
             {/* Feed */}
             {loadingFeed && articles.length === 0 ? (
               <div className="flex items-center justify-center py-12 gap-2.5 text-[13px]" style={{ color: "#6b7280" }}>
                 <div className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "#dc2626", borderTopColor: "transparent" }} />
-                טוען כתבות…
+                טוען באזים…
               </div>
             ) : articles.length === 0 ? (
               <div className="text-center py-10 text-[13px]" style={{ color: "#9ca3af" }}>
-                לא נמצאו כתבות{activeChip ? ` בנושא "${activeChip}"` : ""} על {selected} עדיין.
+                לא נמצאו באזים{activeChip ? ` בנושא "${activeChip}"` : ""} על {selected} עדיין.
                 <br />ערים קטנות מקבלות מעט סיקור ארצי — נוסיף מקורות מקומיים כדי להעשיר.
               </div>
             ) : (

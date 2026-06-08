@@ -64,7 +64,7 @@ const TAB_TOOLTIPS: Record<string, string> = {
   'נדל"ן': 'כל הכותרות שעוסקות בנדל״ן — מחירים, משכנתאות, פינוי-בינוי, רגולציה.',
   "כלכלה": "כותרות מקרו: דולר, אינפלציה, בנק ישראל, בורסה, אבטלה.",
   "הייטק": "סטארטאפים, גיוסים, אקזיטים, AI, חברות ישראליות במכירה.",
-  "נרטיב": "AI מזהה סיפורים שחוזרים על עצמם בשבוע/חודש האחרון. דוגמה: '12 כתבות על פינוי-בינוי בגוש דן'. בוחרים קטגוריה + טווח זמן ומקבלים סיכום של נרטיבים מובילים + chips של נושאים חמים (פיטורים/גיוסים/אקזיט וכו').",
+  "נרטיב": "AI מזהה סיפורים שחוזרים על עצמם בשבוע/חודש האחרון. דוגמה: '12 באזים על פינוי-בינוי בגוש דן'. בוחרים קטגוריה + טווח זמן ומקבלים סיכום של נרטיבים מובילים + chips של נושאים חמים (פיטורים/גיוסים/אקזיט וכו').",
 };
 
 // Preset topics per category — clicking a chip narrows narrative analysis
@@ -326,7 +326,7 @@ export default function HeadlinesPage() {
   };
 
   const copyNarratives = async () => {
-    await navigator.clipboard.writeText(narratives.map(n => `📌 ${n.title} (${n.count} כתבות)\n${n.summary}\nמקורות: ${n.sources.join(", ")}`).join("\n\n"));
+    await navigator.clipboard.writeText(narratives.map(n => `📌 ${n.title} (${n.count} באזים)\n${n.summary}\nמקורות: ${n.sources.join(", ")}`).join("\n\n"));
     setNarrativesCopyLabel("✓ הועתק");
     setTimeout(() => setNarrativesCopyLabel(null), 1500);
   };
@@ -578,7 +578,7 @@ export default function HeadlinesPage() {
                   מה רץ ב{lastCategory} השבוע?
                 </p>
                 <p className="text-[13px] leading-[1.5]" style={{ color: "#6b7280" }}>
-                  Claude סורק את כל הכתבות בטווח שבחרת ומחזיר את הסיפורים שחזרו ביותר ממקור אחד — מה הנושאים החמים, כמה כתבות, ומי כיסה.
+                  Claude סורק את כל הבאזים בטווח שבחרת ומחזיר את הסיפורים שחזרו ביותר ממקור אחד — מה הנושאים החמים, כמה באזים, ומי כיסה.
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -752,7 +752,7 @@ export default function HeadlinesPage() {
                       {/* Expanded: show matching articles as regular feed */}
                       {isExpanded && (
                         <div className="mr-3 border-r-2 pr-3 mt-1 mb-3 space-y-1" style={{ borderColor: "#fecaca" }}>
-                          <p className="text-[10px] font-semibold mb-1.5" style={{ color: "#dc2626" }}>{matchingArticles.length} כתבות קשורות</p>
+                          <p className="text-[10px] font-semibold mb-1.5" style={{ color: "#dc2626" }}>{matchingArticles.length} באזים קשורים</p>
                           {matchingArticles.map(article => (
                             <HeadlineRow key={article.id} item={article} selected={selected.has(article.id)} onToggle={toggleSelect} onCopy={copySingle} getColor={getColor} accentColor="#dc2626"
                               onTrigger={() => triggerSingleAI(article)} triggerLoading={triggerLoading && triggerForId === article.id} showDate />
@@ -821,7 +821,7 @@ function HeadlineRow({ item, selected, onToggle, onCopy, getColor, accentColor, 
           {item.source_url && (
             <a href={item.source_url} target="_blank" rel="noopener noreferrer"
               className="text-[10px] font-semibold hover:underline px-1 py-0.5 rounded"
-              style={{ color: "#0071e3" }} onClick={(e) => e.stopPropagation()} title="פתח את הכתבה המקורית">
+              style={{ color: "#0071e3" }} onClick={(e) => e.stopPropagation()} title="פתח את הבאז המקורי">
               מקור ←
             </a>
           )}
@@ -838,7 +838,7 @@ function HeadlineRow({ item, selected, onToggle, onCopy, getColor, accentColor, 
       {open && (
         <div className="mt-2 mr-[30px] pr-2.5 border-r-2" style={{ borderColor: "#e5e7eb" }}>
           <p className="leading-[1.65]" style={{ color: hasSummary ? "#374151" : "#9ca3af", fontSize: "var(--lf-content-size, 12.5px)" }} dir="rtl">
-            {hasSummary ? item.summary : "אין תת-כותרת שמורה לכתבה זו — פתח את המקור לקריאה המלאה."}
+            {hasSummary ? item.summary : "אין תת-כותרת שמורה לבאז זה — פתח את המקור לקריאה המלאה."}
           </p>
         </div>
       )}

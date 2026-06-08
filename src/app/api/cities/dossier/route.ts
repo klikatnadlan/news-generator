@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
 
   if (sources.length === 0) {
     return NextResponse.json({
-      report: `אין מספיק כתבות על ${city.name} כדי לבנות תדריך. זו עיר עם סיקור ארצי דליל — נוסיף מקורות מקומיים כדי לתפוס יותר.`,
+      report: `אין מספיק באזים על ${city.name} כדי לבנות תדריך. זו עיר עם סיקור ארצי דליל — נוסיף מקורות מקומיים כדי לתפוס יותר.`,
       sources: [], facts, cached: false,
     });
   }

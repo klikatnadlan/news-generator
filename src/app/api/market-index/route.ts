@@ -34,7 +34,7 @@ export async function GET() {
         range: { min: Math.min(...values), max: Math.max(...values) },
         historyDays: values.length,
         cached: true,
-        disclaimer: "המדד מבוסס על ניתוח כתבות ונתוני ממשלה. אינו מהווה המלצת השקעה.",
+        disclaimer: "המדד מבוסס על ניתוח באזים ונתוני ממשלה. אינו מהווה המלצת השקעה.",
       });
     }
 
@@ -119,7 +119,7 @@ export async function GET() {
       movingAvg,
       range: { min: rangeMin, max: rangeMax },
       historyDays: values.length,
-      disclaimer: "המדד מבוסס על ניתוח כתבות ונתוני ממשלה. אינו מהווה המלצת השקעה.",
+      disclaimer: "המדד מבוסס על ניתוח באזים ונתוני ממשלה. אינו מהווה המלצת השקעה.",
     });
   } catch (error) {
     console.error("Market index error:", error);

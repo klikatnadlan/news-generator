@@ -203,14 +203,14 @@ export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) 
           )}
         </div>
 
-        {/* In-app reader + סכם כתבה */}
+        {/* In-app reader + סכם באז */}
         {readerOpen && (
           <div className="mt-3 rounded-lg border" style={{ borderColor: "#e0f2fe", background: "#f8fcff" }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: "#e0f2fe" }}>
               <span className="text-[11px] font-bold" style={{ color: "#0369a1" }}>📖 קריאה בתוך האתר</span>
               <div className="flex items-center gap-1.5">
                 <button onClick={summarizeArticle} disabled={artSummaryLoading} className="text-[11px] font-semibold h-7 px-2.5 rounded-md text-white disabled:opacity-50" style={{ background: "#7c3aed" }}>
-                  {artSummaryLoading ? "⏳ מסכם…" : "🧠 סכם כתבה"}
+                  {artSummaryLoading ? "⏳ מסכם…" : "🧠 סכם באז"}
                 </button>
                 {news.source_url && <a href={news.source_url} target="_blank" rel="noopener noreferrer" className="text-[10px] font-semibold" style={{ color: "#9ca3af" }}>מקור ←</a>}
               </div>
@@ -233,7 +233,7 @@ export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) 
                   <div className="whitespace-pre-wrap text-[13px] leading-[1.75]" style={{ color: "#1f2937" }} dir="rtl">{readerText}</div>
                 </>
               ) : (
-                <p className="text-[12px] py-3" style={{ color: "#9ca3af" }} dir="rtl">לא הצלחנו לשלוף את גוף הכתבה (אתר בתשלום או חוסם). אפשר לפתוח במקור, או לסכם מהכותרת.</p>
+                <p className="text-[12px] py-3" style={{ color: "#9ca3af" }} dir="rtl">לא הצלחנו לשלוף את גוף הבאז (אתר בתשלום או חוסם). אפשר לפתוח במקור, או לסכם מהכותרת.</p>
               )}
             </div>
           </div>
