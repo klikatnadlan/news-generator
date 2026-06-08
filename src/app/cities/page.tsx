@@ -25,6 +25,25 @@ const CITY_CHIPS = [
   { emoji: "🏚️", label: "פינוי בינוי", term: "פינוי בינוי" },
 ];
 
+// "ללמוד אזור" — compose a multi-dimensional study (RE + civic). Each runs a
+// search "<city> <term>". Pick what matters, then "בצע מחקר".
+const RESEARCH_TOPICS = [
+  { emoji: "🆕", label: "פרויקטים חדשים", term: "פרויקט" },
+  { emoji: "🏠", label: "דירות חדשות", term: "דירות" },
+  { emoji: "🏗️", label: "התחדשות עירונית", term: "התחדשות" },
+  { emoji: "📈", label: "מחירים", term: "מחירים" },
+  { emoji: "🏘️", label: "מחיר למשתכן", term: "מחיר למשתכן" },
+  { emoji: "🪧", label: "מכרזי קרקע", term: "מכרז" },
+  { emoji: "🎓", label: "חינוך", term: "חינוך" },
+  { emoji: "🚨", label: "אלימות ופשיעה", term: "אלימות" },
+  { emoji: "💼", label: "תעסוקה", term: "תעסוקה" },
+  { emoji: "🛣️", label: "כבישים ותחבורה", term: "כביש" },
+  { emoji: "🚆", label: "רכבת", term: "רכבת" },
+  { emoji: "🏥", label: "בריאות", term: "בריאות" },
+  { emoji: "🌳", label: "סביבה", term: "סביבה" },
+  { emoji: "🏖️", label: "תיירות", term: "תיירות" },
+];
+
 function fmtNum(n: number | null) {
   if (n == null) return "—";
   return n.toLocaleString("he-IL");
@@ -45,6 +64,12 @@ export default function CitiesPage() {
   const [summary, setSummary] = useState("");
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryCopied, setSummaryCopied] = useState(false);
+
+  // "ללמוד אזור / בצע מחקר" — compose research dimensions, run them all at once.
+  const [researchTopics, setResearchTopics] = useState<Set<string>>(new Set());
+  const [research, setResearch] = useState<{ topic: string; count: number; items: { id: string; title: string; source: string; url: string; date: string | null }[] }[] | null>(null);
+  const [researchLoading, setResearchLoading] = useState(false);
+  const [openResearchTopic, setOpenResearchTopic] = useState<string | null>(null);
 
   const suggestions = useMemo(() => {
     const q = query.trim();
@@ -84,6 +109,9 @@ export default function CitiesPage() {
     setSummary("");
     setOverview(null);
     setArticles([]);
+    setResearch(null);
+    setResearchTopics(new Set());
+    setOpenResearchTopic(null);
     setLoadingCity(true);
     // Feed first (fast), overview in parallel
     loadFeed(cityName, null, 1);
@@ -113,6 +141,24 @@ export default function CitiesPage() {
       setSummary("לא הצלחנו לייצר את התדריך כרגע. נסה שוב.");
     } finally {
       setSummaryLoading(false);
+    }
+  };
+
+  const toggleResearchTopic = (term: string) => {
+    setResearchTopics((prev) => { const n = new Set(prev); n.has(term) ? n.delete(term) : n.add(term); return n; });
+  };
+  const runResearch = async () => {
+    if (!selected || researchTopics.size === 0) return;
+    setResearchLoading(true);
+    setOpenResearchTopic(null);
+    try {
+      const res = await fetch(`/api/cities/research?city=${encodeURIComponent(selected)}&topics=${encodeURIComponent(Array.from(researchTopics).join("|"))}`);
+      const data = await res.json();
+      setResearch(data.results || []);
+    } catch {
+      setResearch([]);
+    } finally {
+      setResearchLoading(false);
     }
   };
 
@@ -211,6 +257,62 @@ export default function CitiesPage() {
                   <div className="whitespace-pre-wrap text-[13px] leading-[1.7]" style={{ color: "#374151" }} dir="rtl">{summary}</div>
                   <button onClick={async () => { await navigator.clipboard.writeText(summary); setSummaryCopied(true); setTimeout(() => setSummaryCopied(false), 1500); }}
                     className="lf-btn lf-btn-outline text-[11px] !py-1 !px-2 mt-2.5">{summaryCopied ? "✓ הועתק" : "📋 העתק"}</button>
+                </div>
+              )}
+            </div>
+
+            {/* 🔬 ללמוד אזור / בצע מחקר — compose research dimensions, run all */}
+            <div className="lf-card p-4 mb-3" style={{ borderRight: "3px solid #0ea5e9" }}>
+              <p className="text-[14px] font-extrabold" style={{ color: "#0369a1" }}>🔬 ללמוד את {selected}</p>
+              <p className="text-[11px] mb-2.5" style={{ color: "#9ca3af" }}>סמן מה חשוב לך באזור (נדל"ן + חיים בעיר), ולחץ "בצע מחקר" — תקבל את כל מה שיש לנו, מקובץ לפי נושא. 0 טוקנים.</p>
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                {RESEARCH_TOPICS.map((t) => {
+                  const on = researchTopics.has(t.term);
+                  return (
+                    <button key={t.label} onClick={() => toggleResearchTopic(t.term)}
+                      className="px-2.5 py-1 text-[11px] rounded-full font-medium transition-colors whitespace-nowrap"
+                      style={{ background: on ? "#0ea5e9" : "#fff", color: on ? "#fff" : "#6b7280", border: `1px solid ${on ? "#0ea5e9" : "#e5e7eb"}` }}>
+                      {t.emoji} {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <button onClick={runResearch} disabled={researchTopics.size === 0 || researchLoading}
+                className="lf-btn text-[12px] !py-2 !px-4 text-white disabled:opacity-40" style={{ background: "#0369a1" }}>
+                {researchLoading ? "⏳ חוקר…" : `🔬 בצע מחקר${researchTopics.size ? ` (${researchTopics.size})` : ""}`}
+              </button>
+
+              {research && (
+                <div className="mt-3 pt-3 border-t space-y-1.5" style={{ borderColor: "#e0f2fe" }}>
+                  {research.map((r) => {
+                    const topicMeta = RESEARCH_TOPICS.find((t) => t.term === r.topic);
+                    const open = openResearchTopic === r.topic;
+                    return (
+                      <div key={r.topic}>
+                        <button onClick={() => r.count > 0 && setOpenResearchTopic(open ? null : r.topic)}
+                          className="w-full flex items-center justify-between py-1.5 px-2 rounded-lg" style={{ background: r.count > 0 ? "#f0f9ff" : "transparent", cursor: r.count > 0 ? "pointer" : "default" }}>
+                          <span className="text-[12px] font-semibold" style={{ color: r.count > 0 ? "#0f1419" : "#cbd5e1" }}>
+                            {topicMeta?.emoji} {topicMeta?.label || r.topic}
+                          </span>
+                          <span className="text-[12px] font-extrabold" style={{ color: r.count > 0 ? "#0369a1" : "#cbd5e1" }}>
+                            {r.count > 0 ? `${r.count} כתבות ${open ? "▲" : "▼"}` : "אין עדיין"}
+                          </span>
+                        </button>
+                        {open && (
+                          <div className="px-2 pt-1 pb-2 space-y-1">
+                            {r.items.map((it) => (
+                              <div key={it.id} className="text-[12px] leading-[1.5]" style={{ color: "#374151" }} dir="rtl">
+                                <span style={{ color: "#9ca3af" }}>•</span> {it.title}
+                                <span className="text-[10px] mr-1" style={{ color: "#9ca3af" }}> ({it.source}{it.date ? ` · ${it.date}` : ""})</span>
+                                {it.url && <a href={it.url} target="_blank" rel="noopener noreferrer" className="text-[10px] font-semibold mr-1" style={{ color: "#0071e3" }}>מקור ←</a>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <p className="text-[10px] pt-1" style={{ color: "#9ca3af" }}>נושאים עם "אין עדיין" = פערי כיסוי (כדאי להוסיף מקורות מקומיים/כלליים כדי לתפוס אותם).</p>
                 </div>
               )}
             </div>
