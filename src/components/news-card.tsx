@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { ScoredNews } from "@/lib/types";
@@ -61,6 +61,37 @@ export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) 
   // Click the title (or subtitle) to reveal the full subtitle (it's clamped to
   // 2 lines by default so long decks don't get cut off with no way to read them).
   const [expanded, setExpanded] = useState(false);
+  // In-app reader + article summary
+  const [readerOpen, setReaderOpen] = useState(false);
+  const [readerText, setReaderText] = useState<string | null>(null);
+  const [readerFull, setReaderFull] = useState(false);
+  const [readerLoading, setReaderLoading] = useState(false);
+  const [artSummary, setArtSummary] = useState<string | null>(null);
+  const [artSummaryLoading, setArtSummaryLoading] = useState(false);
+  const [artSummaryCopied, setArtSummaryCopied] = useState(false);
+
+  const openReader = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!news.source_url) return;
+    setReaderOpen((o) => !o);
+    if (readerText !== null) return; // already fetched
+    setReaderLoading(true);
+    try {
+      const res = await fetch(`/api/article-read?url=${encodeURIComponent(news.source_url)}`);
+      const d = await res.json();
+      setReaderText(d.text || "");
+      setReaderFull(!!d.full);
+    } catch { setReaderText(""); } finally { setReaderLoading(false); }
+  };
+  const summarizeArticle = async () => {
+    setArtSummaryLoading(true);
+    try {
+      const u = `/api/article-summary?url=${encodeURIComponent(news.source_url || "")}&title=${encodeURIComponent(news.title || "")}&summary=${encodeURIComponent(news.summary || "")}`;
+      const res = await fetch(u);
+      const d = await res.json();
+      setArtSummary(d.summary || d.error || "שגיאה");
+    } catch { setArtSummary("לא הצלחנו לסכם כרגע."); } finally { setArtSummaryLoading(false); }
+  };
 
   const src = getSource(news.source);
   const scoreColor = news.score >= 80 ? "#059669" : news.score >= 60 ? "#d97706" : "#dc2626";
@@ -162,10 +193,51 @@ export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) 
               <button onClick={(e) => generate("article", e)} disabled={generating !== null} className="text-[11px] font-semibold h-[30px] px-3.5 rounded-md border disabled:opacity-40 transition-colors" style={{ borderColor: "#dc2626", color: "#dc2626", background: "#fff" }}>{generating === "article" ? "⏳ מייצר..." : "📰 צור כתבה"}</button>
             </>
           )}
+          {news.source_url && (
+            <button onClick={openReader} className="text-[11px] font-semibold h-[30px] px-3 rounded-md border transition-colors" style={{ borderColor: "#0ea5e9", color: "#0369a1", background: "#fff" }}>
+              {readerOpen ? "▲ סגור" : "📖 קרא כאן"}
+            </button>
+          )}
           {isPaywalled && (
-            <span className="text-[10px] px-2 py-1 rounded" style={{ color: "#9ca3af", background: "#f3f4f6" }}>🔒 אתר בתשלום — כותרת בלבד</span>
+            <span className="text-[10px] px-2 py-1 rounded" style={{ color: "#9ca3af", background: "#f3f4f6" }}>🔒 אתר בתשלום</span>
           )}
         </div>
+
+        {/* In-app reader + סכם כתבה */}
+        {readerOpen && (
+          <div className="mt-3 rounded-lg border" style={{ borderColor: "#e0f2fe", background: "#f8fcff" }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: "#e0f2fe" }}>
+              <span className="text-[11px] font-bold" style={{ color: "#0369a1" }}>📖 קריאה בתוך האתר</span>
+              <div className="flex items-center gap-1.5">
+                <button onClick={summarizeArticle} disabled={artSummaryLoading} className="text-[11px] font-semibold h-7 px-2.5 rounded-md text-white disabled:opacity-50" style={{ background: "#7c3aed" }}>
+                  {artSummaryLoading ? "⏳ מסכם…" : "🧠 סכם כתבה"}
+                </button>
+                {news.source_url && <a href={news.source_url} target="_blank" rel="noopener noreferrer" className="text-[10px] font-semibold" style={{ color: "#9ca3af" }}>מקור ←</a>}
+              </div>
+            </div>
+            {artSummary && (
+              <div className="px-3 py-2.5 border-b" style={{ borderColor: "#ede9fe", background: "#faf8ff" }}>
+                <p className="text-[10px] font-bold mb-1" style={{ color: "#7c3aed" }}>🧠 סיכום</p>
+                <div className="whitespace-pre-wrap text-[12.5px] leading-[1.6]" style={{ color: "#374151" }} dir="rtl">{artSummary}</div>
+                <button onClick={async () => { await navigator.clipboard.writeText(artSummary); setArtSummaryCopied(true); setTimeout(() => setArtSummaryCopied(false), 1500); }} className="text-[10px] font-medium mt-1.5 underline" style={{ color: "#9ca3af" }}>{artSummaryCopied ? "✓ הועתק" : "העתק סיכום"}</button>
+              </div>
+            )}
+            <div className="px-3 py-2.5 max-h-[320px] overflow-y-auto">
+              {readerLoading ? (
+                <div className="flex items-center gap-2 text-[12px] py-4" style={{ color: "#6b7280" }}>
+                  <div className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "#0ea5e9", borderTopColor: "transparent" }} />טוען את המאמר…
+                </div>
+              ) : readerText ? (
+                <>
+                  {!readerFull && <p className="text-[10px] mb-1.5" style={{ color: "#d97706" }}>🔒 אתר בתשלום — מוצג תקציר בלבד (לא ניתן לקרוא את המאמר המלא).</p>}
+                  <div className="whitespace-pre-wrap text-[13px] leading-[1.75]" style={{ color: "#1f2937" }} dir="rtl">{readerText}</div>
+                </>
+              ) : (
+                <p className="text-[12px] py-3" style={{ color: "#9ca3af" }} dir="rtl">לא הצלחנו לשלוף את גוף הכתבה (אתר בתשלום או חוסם). אפשר לפתוח במקור, או לסכם מהכותרת.</p>
+              )}
+            </div>
+          </div>
+        )}
       </div>
       {generatedText && (
         <div style={{ borderTop: "1px solid #e5e7eb" }} onClick={(e) => e.stopPropagation()}>
