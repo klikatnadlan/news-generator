@@ -32,13 +32,15 @@ export async function GET(request: NextRequest) {
   const city = findCity(cityName);
   if (!city) return NextResponse.json({ error: "עיר לא נמצאה" }, { status: 404 });
 
+  const from = sp.get("from") || null;
+  const to = sp.get("to") || null;
   const topics = topicsRaw.split("|").map((t) => t.trim()).filter(Boolean).slice(0, 14);
   if (topics.length === 0) return NextResponse.json({ results: [], totalHits: 0 });
 
   const results = await Promise.all(
     topics.map(async (topic) => {
       try {
-        const { data } = await supabase.rpc("search_news", { p_query: `${city.name} ${topic}`, p_limit: 5, p_offset: 0 });
+        const { data } = await supabase.rpc("search_news", { p_query: `${city.name} ${topic}`, p_from: from, p_to: to, p_limit: 5, p_offset: 0 });
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rows = (data || []) as any[];
         const count = rows.length ? Number(rows[0].total) || 0 : 0;

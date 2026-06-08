@@ -83,6 +83,7 @@ const PRESET_TOPICS: Record<string, { emoji: string; label: string }[]> = {
     { emoji: "🏷️", label: "פריסייל" },
     { emoji: "🎉", label: "מבצע בפרויקט" },
     { emoji: "🏗️", label: "פינוי בינוי" },
+    { emoji: "🌆", label: "התחדשות עירונית" },
     { emoji: "💸", label: "משכנתאות" },
     { emoji: "🏘️", label: "מחיר למשתכן" },
     { emoji: "📊", label: "מחירי דירות" },
@@ -107,6 +108,7 @@ const TOPIC_KEYWORDS: Record<string, string[]> = {
   "AI": ["AI", "בינה מלאכותית", "GPT", "OpenAI", "Anthropic", "צ'אטבוט", "מודל שפה", "LLM", "אינטל", "אנבידיה", "nvidia", "שבב", "צ'יפ"],
   "הנפקה": ["הנפק", "IPO", "תשקיף", "הנפיק"],
   "פינוי בינוי": ["פינוי בינוי", "פינוי-בינוי", "התחדשות עירונית", "תמ\"א", "פינוי-בינוי"],
+  "התחדשות עירונית": ["התחדשות עירונית", "התחדשות", "פינוי בינוי", "פינוי-בינוי", "תמ\"א", "עיבוי", "מתחם מתחדש"],
   "משכנתאות": ["משכנתא", "ריבית", "זכאות", "תמהיל", "מחזור משכנתא", "הלוואת"],
   "מחיר למשתכן": ["מחיר למשתכן", "מחיר מטרה", "דירה בהנחה", "הגרל", "זכאי", "סבסוד"],
   "מחירי דירות": ["מחירי דירות", "מדד מחירי", "מחיר דירה", "המחירים", "עסקת", "נמכר", "התייקר", "ירידת מחיר", "עליית מחיר"],
@@ -165,6 +167,8 @@ export default function HeadlinesPage() {
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   // Topic filter for the HEADLINE LIST (separate from the narrative one above)
   const [headlineTopic, setHeadlineTopic] = useState<string | null>(null);
+  // Custom topics the user added with "+" (filtered by the literal term).
+  const [customTopics, setCustomTopics] = useState<string[]>([]);
 
   const triggerRef = useRef<HTMLDivElement>(null);
 
@@ -242,9 +246,10 @@ export default function HeadlinesPage() {
     if (selectedDay === "היום") { if (item.scan_date !== todayStr) return false; }
     else if (selectedDay !== "הכל") { if (item.scan_date !== selectedDay) return false; }
     // Topic filter (keyword match on title) — only when a chip is selected
-    if (headlineTopic && TOPIC_KEYWORDS[headlineTopic]) {
+    if (headlineTopic) {
+      const kws = TOPIC_KEYWORDS[headlineTopic] || [headlineTopic]; // custom → literal
       const t = (item.title || "").toLowerCase();
-      const hit = TOPIC_KEYWORDS[headlineTopic].some((k) => t.includes(k.toLowerCase()));
+      const hit = kws.some((k) => t.includes(k.toLowerCase()));
       if (!hit) return false;
     }
     return true;
@@ -413,18 +418,30 @@ export default function HeadlinesPage() {
                     onClick={() => { setHeadlineTopic(active ? null : t.label); setSelected(new Set()); }}
                     className="px-2.5 py-1 text-[11px] rounded-full transition-colors whitespace-nowrap shrink-0 font-medium"
                     style={{ background: active ? tabConfig.color : "#fff", color: active ? "#fff" : "#6b7280", border: `1px solid ${active ? tabConfig.color : "#e5e7eb"}` }}>
-                    {t.emoji} {t.label}
+                    {t.emoji} {t.label}{active ? "  ✕" : ""}
                   </button>
                 );
               })}
-              {headlineTopic && (
-                <button
-                  onClick={() => { setHeadlineTopic(null); setSelected(new Set()); }}
-                  className="text-[11px] px-2 py-1 rounded-lg hover:bg-gray-100 whitespace-nowrap shrink-0"
-                  style={{ color: "#9ca3af" }}>
-                  ✕ נקה
-                </button>
-              )}
+              {/* Custom topics added with "+" */}
+              {customTopics.map((ct) => {
+                const active = headlineTopic === ct;
+                return (
+                  <span key={ct} className="inline-flex items-center rounded-full whitespace-nowrap shrink-0 font-medium overflow-hidden"
+                    style={{ background: active ? tabConfig.color : "#fff", color: active ? "#fff" : "#6b7280", border: `1px solid ${active ? tabConfig.color : "#e5e7eb"}` }}>
+                    <button onClick={() => { setHeadlineTopic(active ? null : ct); setSelected(new Set()); }} className="px-2.5 py-1 text-[11px]">
+                      🔎 {ct}{active ? "  ✕" : ""}
+                    </button>
+                    <button onClick={() => { setCustomTopics((p) => p.filter((x) => x !== ct)); if (headlineTopic === ct) setHeadlineTopic(null); }}
+                      title="הסר נושא" className="px-1.5 py-1 text-[10px] hover:bg-black/10" style={{ opacity: 0.65 }}>🗑</button>
+                  </span>
+                );
+              })}
+              {/* + add a custom topic */}
+              <button
+                onClick={() => { const v = window.prompt("הוסף נושא לחיפוש (למשל: מגרש, מלונאות, דאטה סנטר):"); const term = (v || "").trim(); if (term) { setCustomTopics((p) => (p.includes(term) ? p : [...p, term])); setHeadlineTopic(term); setSelected(new Set()); } }}
+                className="px-2.5 py-1 text-[12px] rounded-full whitespace-nowrap shrink-0 font-bold"
+                style={{ background: "#fff", color: tabConfig.color, border: `1px dashed ${tabConfig.color}` }}
+                title="הוסף נושא חדש">＋ נושא</button>
             </div>
           )}
 

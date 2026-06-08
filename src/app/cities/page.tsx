@@ -67,6 +67,8 @@ export default function CitiesPage() {
 
   // "ללמוד אזור / בצע מחקר" — compose research dimensions, run them all at once.
   const [researchTopics, setResearchTopics] = useState<Set<string>>(new Set());
+  const [customCubes, setCustomCubes] = useState<string[]>([]);
+  const [researchFrom, setResearchFrom] = useState<string>(""); // "" = all time
   const [research, setResearch] = useState<{ topic: string; count: number; items: { id: string; title: string; source: string; url: string; date: string | null }[] }[] | null>(null);
   const [researchLoading, setResearchLoading] = useState(false);
   const [openResearchTopic, setOpenResearchTopic] = useState<string | null>(null);
@@ -111,6 +113,8 @@ export default function CitiesPage() {
     setArticles([]);
     setResearch(null);
     setResearchTopics(new Set());
+    setCustomCubes([]);
+    setResearchFrom("");
     setOpenResearchTopic(null);
     setLoadingCity(true);
     // Feed first (fast), overview in parallel
@@ -152,7 +156,8 @@ export default function CitiesPage() {
     setResearchLoading(true);
     setOpenResearchTopic(null);
     try {
-      const res = await fetch(`/api/cities/research?city=${encodeURIComponent(selected)}&topics=${encodeURIComponent(Array.from(researchTopics).join("|"))}`);
+      const fromQ = researchFrom ? `&from=${researchFrom}` : "";
+      const res = await fetch(`/api/cities/research?city=${encodeURIComponent(selected)}&topics=${encodeURIComponent(Array.from(researchTopics).join("|"))}${fromQ}`);
       const data = await res.json();
       setResearch(data.results || []);
     } catch {
@@ -272,8 +277,41 @@ export default function CitiesPage() {
                     <button key={t.label} onClick={() => toggleResearchTopic(t.term)}
                       className="px-2.5 py-1 text-[11px] rounded-full font-medium transition-colors whitespace-nowrap"
                       style={{ background: on ? "#0ea5e9" : "#fff", color: on ? "#fff" : "#6b7280", border: `1px solid ${on ? "#0ea5e9" : "#e5e7eb"}` }}>
-                      {t.emoji} {t.label}
+                      {t.emoji} {t.label}{on ? "  ✕" : ""}
                     </button>
+                  );
+                })}
+                {/* Custom research cubes */}
+                {customCubes.map((cb) => {
+                  const on = researchTopics.has(cb);
+                  return (
+                    <span key={cb} className="inline-flex items-center rounded-full whitespace-nowrap font-medium overflow-hidden"
+                      style={{ background: on ? "#0ea5e9" : "#fff", color: on ? "#fff" : "#6b7280", border: `1px solid ${on ? "#0ea5e9" : "#e5e7eb"}` }}>
+                      <button onClick={() => toggleResearchTopic(cb)} className="px-2.5 py-1 text-[11px]">🔎 {cb}{on ? "  ✕" : ""}</button>
+                      <button onClick={() => { setCustomCubes((p) => p.filter((x) => x !== cb)); setResearchTopics((p) => { const n = new Set(p); n.delete(cb); return n; }); }}
+                        title="הסר קובייה" className="px-1.5 py-1 text-[10px] hover:bg-black/10" style={{ opacity: 0.65 }}>🗑</button>
+                    </span>
+                  );
+                })}
+                {/* + add a custom cube */}
+                <button onClick={() => { const v = window.prompt("הוסף קוביית מחקר (למשל: שמאות, רכבת קלה, אינווידיה, עירייה):"); const term = (v || "").trim(); if (term) { setCustomCubes((p) => (p.includes(term) ? p : [...p, term])); setResearchTopics((p) => new Set(p).add(term)); } }}
+                  className="px-2.5 py-1 text-[12px] rounded-full whitespace-nowrap font-bold"
+                  style={{ background: "#fff", color: "#0369a1", border: "1px dashed #0ea5e9" }}>＋ קובייה</button>
+              </div>
+              {/* Date range for the research */}
+              <div className="flex items-center flex-wrap gap-1.5 mb-3">
+                <span className="text-[10px] shrink-0" style={{ color: "#9ca3af" }}>טווח:</span>
+                {[
+                  { label: "שנה", days: 365 },
+                  { label: "שנתיים", days: 730 },
+                  { label: "הכל", days: 0 },
+                ].map((rng) => {
+                  const fromVal = rng.days ? new Date(Date.now() - rng.days * 86400000).toISOString().split("T")[0] : "";
+                  const on = researchFrom === fromVal;
+                  return (
+                    <button key={rng.label} onClick={() => setResearchFrom(fromVal)}
+                      className="px-2.5 py-1 text-[11px] rounded-full font-medium"
+                      style={{ background: on ? "#0369a1" : "#fff", color: on ? "#fff" : "#6b7280", border: "1px solid #e5e7eb" }}>{rng.label}</button>
                   );
                 })}
               </div>
