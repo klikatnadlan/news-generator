@@ -33,10 +33,12 @@ export async function GET(request: NextRequest) {
   } catch { /* default window */ }
 
   // Cost ≈ pages × resultsLimit × $2/1000 (the actor pulls resultsLimit posts
-  // per page every run, regardless of how many are new). 49 × 5 ≈ $0.49/run.
+  // per page every run, regardless of how many are new). 49 × 8 ≈ $0.78/run;
+  // run WEEKLY (see vercel.json) → ~$3.4/mo, inside the free $5 credit. 8/page
+  // so a busy week isn't truncated between weekly runs.
   const input = {
     startUrls: FB_MUNICIPALITY_PAGES.map((p) => ({ url: p.url })),
-    resultsLimit: 5,
+    resultsLimit: 8,
     onlyPostsNewerThan: since,
   };
 
