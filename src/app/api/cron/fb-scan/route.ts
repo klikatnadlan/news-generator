@@ -32,9 +32,11 @@ export async function GET(request: NextRequest) {
     if (data?.narratives?.date) since = data.narratives.date;
   } catch { /* default window */ }
 
+  // Cost ≈ pages × resultsLimit × $2/1000 (the actor pulls resultsLimit posts
+  // per page every run, regardless of how many are new). 49 × 5 ≈ $0.49/run.
   const input = {
     startUrls: FB_MUNICIPALITY_PAGES.map((p) => ({ url: p.url })),
-    resultsLimit: 8, // posts per page — frugal, keeps us within the free credit
+    resultsLimit: 5,
     onlyPostsNewerThan: since,
   };
 
