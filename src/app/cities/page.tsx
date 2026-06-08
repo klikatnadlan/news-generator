@@ -73,6 +73,12 @@ export default function CitiesPage() {
   const [researchLoading, setResearchLoading] = useState(false);
   const [openResearchTopic, setOpenResearchTopic] = useState<string | null>(null);
 
+  // "תדריך אזור" — structured AI report (click only, sources are real articles).
+  type Dossier = { report: string; sources: { title: string; source: string; url: string; date: string | null }[]; wikipediaUrl?: string };
+  const [dossier, setDossier] = useState<Dossier | null>(null);
+  const [dossierLoading, setDossierLoading] = useState(false);
+  const [dossierCopied, setDossierCopied] = useState(false);
+
   const suggestions = useMemo(() => {
     const q = query.trim();
     if (!q || q === selected) return [];
@@ -116,6 +122,7 @@ export default function CitiesPage() {
     setCustomCubes([]);
     setResearchFrom("");
     setOpenResearchTopic(null);
+    setDossier(null);
     setLoadingCity(true);
     // Feed first (fast), overview in parallel
     loadFeed(cityName, null, 1);
@@ -145,6 +152,23 @@ export default function CitiesPage() {
       setSummary("לא הצלחנו לייצר את התדריך כרגע. נסה שוב.");
     } finally {
       setSummaryLoading(false);
+    }
+  };
+
+  const fetchDossier = async (refresh: boolean) => {
+    if (!selected) return;
+    setDossierLoading(true);
+    try {
+      const topicsQ = researchTopics.size ? `&topics=${encodeURIComponent(Array.from(researchTopics).join("|"))}` : "";
+      const fromQ = researchFrom ? `&from=${researchFrom}` : "";
+      const res = await fetch(`/api/cities/dossier?city=${encodeURIComponent(selected)}${topicsQ}${fromQ}${refresh ? "&refresh=1" : ""}`);
+      const data = await res.json();
+      if (data.error) { setDossier({ report: data.error, sources: [] }); }
+      else setDossier(data);
+    } catch {
+      setDossier({ report: "לא הצלחנו לבנות את התדריך כרגע. נסה שוב.", sources: [] });
+    } finally {
+      setDossierLoading(false);
     }
   };
 
@@ -315,10 +339,43 @@ export default function CitiesPage() {
                   );
                 })}
               </div>
-              <button onClick={runResearch} disabled={researchTopics.size === 0 || researchLoading}
-                className="lf-btn text-[12px] !py-2 !px-4 text-white disabled:opacity-40" style={{ background: "#0369a1" }}>
-                {researchLoading ? "⏳ חוקר…" : `🔬 בצע מחקר${researchTopics.size ? ` (${researchTopics.size})` : ""}`}
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={runResearch} disabled={researchTopics.size === 0 || researchLoading}
+                  className="lf-btn text-[12px] !py-2 !px-4 text-white disabled:opacity-40" style={{ background: "#0369a1" }}>
+                  {researchLoading ? "⏳ חוקר…" : `🔬 בצע מחקר${researchTopics.size ? ` (${researchTopics.size})` : ""}`}
+                </button>
+                <button onClick={() => fetchDossier(!!dossier)} disabled={dossierLoading}
+                  className="lf-btn text-[12px] !py-2 !px-4 text-white disabled:opacity-50" style={{ background: "#7c3aed" }}
+                  title="דוח מובנה: איך האזור מתוקשר החוצה, עם מקורות מקושרים">
+                  {dossierLoading ? "⏳ מנתח…" : dossier ? "🔄 רענן תדריך" : "🧠 תדריך אזור"}
+                </button>
+              </div>
+
+              {/* 🧠 Structured area dossier — report + real linked sources */}
+              {dossier && (
+                <div className="mt-3 pt-3 border-t" style={{ borderColor: "#ede9fe" }}>
+                  <div className="whitespace-pre-wrap text-[13px] leading-[1.7]" style={{ color: "#374151" }} dir="rtl">{dossier.report}</div>
+                  <button onClick={async () => { await navigator.clipboard.writeText(dossier.report); setDossierCopied(true); setTimeout(() => setDossierCopied(false), 1500); }}
+                    className="lf-btn lf-btn-outline text-[11px] !py-1 !px-2 mt-2.5">{dossierCopied ? "✓ הועתק" : "📋 העתק תדריך"}</button>
+                  {dossier.sources.length > 0 && (
+                    <div className="mt-3 pt-2 border-t" style={{ borderColor: "#f1f3f5" }}>
+                      <p className="text-[11px] font-bold mb-1" style={{ color: "#6b7280" }}>מקורות ({dossier.sources.length}):</p>
+                      <div className="space-y-1">
+                        {dossier.sources.map((s, i) => (
+                          <div key={i} className="text-[11px] leading-[1.5]" style={{ color: "#4b5563" }} dir="rtl">
+                            <span style={{ color: "#9ca3af" }}>{i + 1}.</span> {s.title}
+                            <span className="text-[10px] mr-1" style={{ color: "#9ca3af" }}> ({s.source}{s.date ? ` · ${s.date}` : ""})</span>
+                            {s.url && <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-[10px] font-semibold mr-1" style={{ color: "#0071e3" }}>קישור ←</a>}
+                          </div>
+                        ))}
+                      </div>
+                      {dossier.wikipediaUrl && (
+                        <a href={dossier.wikipediaUrl} target="_blank" rel="noopener noreferrer" className="text-[11px] font-semibold inline-block mt-1.5" style={{ color: "#0071e3" }}>📖 ויקיפדיה — {selected} ←</a>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {research && (
                 <div className="mt-3 pt-3 border-t space-y-1.5" style={{ borderColor: "#e0f2fe" }}>
