@@ -55,4 +55,8 @@ export interface RSSFeedConfig {
   name: string;
   url: string;
   category: string;
+  // Broad feeds (general/local): ingested into the corpus for search/city
+  // research, but NOT scored by Claude (zero tokens). They never reach the
+  // curated home/headlines feeds, which read only scored items.
+  ingestOnly?: boolean;
 }

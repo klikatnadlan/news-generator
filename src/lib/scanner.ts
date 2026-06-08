@@ -38,8 +38,13 @@ export async function runScan(): Promise<ScanResult> {
     throw insertError;
   }
 
-  // Step 3: Score with Claude (only if there are new articles to score)
-  const toScore = (insertedNews || []).map((n) => ({
+  // Step 3: Score with Claude — but ONLY the non-ingest-only items. Broad feeds
+  // (general/local, marked ingestOnly) are stored for search/city research but
+  // never scored (zero tokens) and never reach the curated home/headlines.
+  const ingestOnlyUrls = new Set(articles.filter((a) => a.ingestOnly).map((a) => a.link));
+  const scorable = (insertedNews || []).filter((n) => !ingestOnlyUrls.has(n.source_url));
+
+  const toScore = scorable.map((n) => ({
     title: n.title,
     summary: n.summary || "",
     source: n.source,
@@ -75,7 +80,7 @@ export async function runScan(): Promise<ScanResult> {
   const today = new Date().toISOString().split("T")[0];
   const scoreInserts = scores
     .map((s) => {
-      const newsItem = (insertedNews || [])[s.index];
+      const newsItem = scorable[s.index];
       if (!newsItem) return null;
       return {
         news_item_id: newsItem.id,

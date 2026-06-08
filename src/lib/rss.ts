@@ -14,6 +14,7 @@ export interface FeedArticle {
   pubDate: string | undefined;
   contentSnippet: string | undefined;
   source: string;
+  ingestOnly: boolean;
 }
 
 // Detect real source from article URL (for aggregated feeds like rss.app)
@@ -58,6 +59,7 @@ export async function fetchAllFeeds(): Promise<FeedArticle[]> {
             pubDate: item.pubDate,
             contentSnippet: item.contentSnippet?.slice(0, 500),
             source: detectSourceFromUrl(item.link || "") || feed.name,
+            ingestOnly: !!feed.ingestOnly,
           }));
       } catch (err) {
         console.error(`Failed to fetch ${feed.name}:`, err);

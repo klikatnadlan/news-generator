@@ -51,4 +51,14 @@ export const RSS_FEEDS: RSSFeedConfig[] = [
     url: "https://rss.walla.co.il/feed/6",
     category: "כלכלה",
   },
+
+  // ─── Broad feeds (ingest-only, NOT scored — zero tokens) ───
+  // General national news so cities/areas get civic coverage (employment,
+  // education, security, transport, big employers like Nvidia). These enrich
+  // search / city research only; they never reach the curated home/headlines.
+  { name: "ynet בארץ", url: "https://www.ynet.co.il/Integration/StoryRss2.xml", category: "כללי", ingestOnly: true },
+  { name: "וואלה חדשות", url: "https://rss.walla.co.il/feed/1", category: "כללי", ingestOnly: true },
+  { name: "מעריב חדשות", url: "https://www.maariv.co.il/Rss/RssChadashot", category: "כללי", ingestOnly: true },
+  { name: "גלובס חדשות", url: "https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederNode?iID=1725", category: "כללי", ingestOnly: true },
+  { name: "דבר", url: "https://www.davar1.co.il/feed/", category: "כללי", ingestOnly: true },
 ];
