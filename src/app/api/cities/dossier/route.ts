@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
   await Promise.all(
     useTopics.map(async (topic) => {
       try {
-        const { data } = await supabase.rpc("search_news", { p_query: `${city.name} ${topic}`, p_from: from, p_to: null, p_limit: 6, p_offset: 0 });
+        const { data } = await supabase.rpc("city_news", { p_city: city.name, p_aliases: city.aliases || [], p_strict: !!city.commonWord, p_chip: topic, p_from: from, p_to: null, p_limit: 6, p_offset: 0 });
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         for (const r of (data || []) as any[]) {
           const key = clean(r.title).slice(0, 90);

@@ -97,8 +97,8 @@ export default function CitiesPage() {
   const loadFeed = async (cityName: string, chipTerm: string | null, pageN: number) => {
     setLoadingFeed(true);
     try {
-      const q = chipTerm ? `${cityName} ${chipTerm}` : cityName;
-      const res = await fetch(`/api/archive?q=${encodeURIComponent(q)}&page=${pageN}`);
+      const chipQ = chipTerm ? `&chip=${encodeURIComponent(chipTerm)}` : "";
+      const res = await fetch(`/api/cities/feed?city=${encodeURIComponent(cityName)}${chipQ}&page=${pageN}`);
       const data = await res.json();
       const items = (data.items || []).map(mapItem);
       if (pageN === 1) setArticles(items);

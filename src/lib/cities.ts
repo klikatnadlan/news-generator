@@ -6,6 +6,8 @@ export interface City {
   name: string;       // canonical display + Wikipedia title
   district: string;   // מחוז
   aliases?: string[]; // extra search terms (e.g. short form)
+  commonWord?: boolean; // name is also a common Hebrew word (streets/tower/…) →
+                        // match the city only in the TITLE to avoid false hits
 }
 
 export const CITIES: City[] = [
@@ -32,7 +34,7 @@ export const CITIES: City[] = [
   { name: "קריית ביאליק", district: "חיפה" },
   { name: "קריית מוצקין", district: "חיפה" },
   { name: "קריית ים", district: "חיפה" },
-  { name: "נשר", district: "חיפה" },
+  { name: "נשר", district: "חיפה", commonWord: true },
   { name: "טירת כרמל", district: "חיפה" },
   { name: "אום אל פחם", district: "חיפה" },
   { name: "אור עקיבא", district: "חיפה" },
@@ -42,19 +44,19 @@ export const CITIES: City[] = [
   { name: "פתח תקווה", district: "מרכז", aliases: ["פ\"ת"] },
   { name: "ראשון לציון", district: "מרכז" },
   { name: "נתניה", district: "מרכז" },
-  { name: "רחובות", district: "מרכז" },
+  { name: "רחובות", district: "מרכז", commonWord: true },
   { name: "כפר סבא", district: "מרכז" },
   { name: "הרצליה", district: "מרכז" },
   { name: "רעננה", district: "מרכז" },
   { name: "הוד השרון", district: "מרכז" },
   { name: "ראש העין", district: "מרכז" },
-  { name: "יבנה", district: "מרכז" },
+  { name: "יבנה", district: "מרכז", commonWord: true },
   { name: "נס ציונה", district: "מרכז" },
-  { name: "לוד", district: "מרכז" },
+  { name: "לוד", district: "מרכז", commonWord: true },
   { name: "רמלה", district: "מרכז" },
-  { name: "מודיעין", district: "מרכז", aliases: ["מודיעין מכבים רעות"] },
+  { name: "מודיעין", district: "מרכז", aliases: ["מודיעין מכבים רעות"], commonWord: true },
   { name: "כפר יונה", district: "מרכז" },
-  { name: "גדרה", district: "מרכז" },
+  { name: "גדרה", district: "מרכז", commonWord: true },
   { name: "אבן יהודה", district: "מרכז" },
   { name: "קדימה צורן", district: "מרכז" },
   // תל אביב
@@ -82,16 +84,16 @@ export const CITIES: City[] = [
   { name: "אילת", district: "דרום" },
   { name: "קריית גת", district: "דרום" },
   { name: "דימונה", district: "דרום" },
-  { name: "נתיבות", district: "דרום" },
-  { name: "שדרות", district: "דרום" },
-  { name: "אופקים", district: "דרום" },
+  { name: "נתיבות", district: "דרום", commonWord: true },
+  { name: "שדרות", district: "דרום", commonWord: true },
+  { name: "אופקים", district: "דרום", commonWord: true },
   { name: "ערד", district: "דרום" },
   { name: "קריית מלאכי", district: "דרום" },
   { name: "רהט", district: "דרום" },
   { name: "מצפה רמון", district: "דרום" },
   { name: "ירוחם", district: "דרום" },
   // יו"ש
-  { name: "אריאל", district: "יו\"ש" },
+  { name: "אריאל", district: "יו\"ש", commonWord: true },
   { name: "מודיעין עילית", district: "יו\"ש" },
 ];
 
