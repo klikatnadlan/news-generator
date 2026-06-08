@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { FB_MUNICIPALITY_PAGES } from "@/lib/fb-pages";
+import { FB_MUNICIPALITY_PAGES, type FbPage } from "@/lib/fb-pages";
 import { supabase } from "@/lib/supabase";
 
 export const maxDuration = 60;
@@ -34,17 +34,26 @@ export async function POST(request: NextRequest) {
   const items: any[] = await res.json().catch(() => []);
   if (!Array.isArray(items)) return NextResponse.json({ error: "bad dataset" }, { status: 502 });
 
-  // page url → city
-  const pageByUrl = new Map<string, string>();
-  for (const p of FB_MUNICIPALITY_PAGES) pageByUrl.set(p.url.replace(/\/+$/, "").toLowerCase(), p.city);
+  // Robust page matching: extract an identity key (numeric id or handle) from a
+  // FB url, so the post maps back to the right page (muni vs mayor) regardless
+  // of url format (/handle, /profile.php?id=, /<numericId>/).
+  const fbKey = (url: string): string => {
+    const u = String(url || "").toLowerCase();
+    const idm = u.match(/(?:id=|\/)(\d{8,})/);
+    if (idm) return idm[1];
+    const hm = u.match(/facebook\.com\/([^/?#]+)/);
+    return hm ? hm[1].replace(/\/+$/, "") : u;
+  };
+  const pageByKey = new Map<string, FbPage>();
+  for (const p of FB_MUNICIPALITY_PAGES) pageByKey.set(fbKey(p.url), p);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const cityFor = (it: any): string => {
-    const cands = [it.facebookUrl, it.pageUrl, it.inputUrl, it.pageAdUrl, it.user?.url, it.pageName, it.user?.name].filter(Boolean);
+  const labelFor = (it: any): string => {
+    const cands = [it.inputUrl, it.facebookUrl, it.pageUrl, it.url, it.user?.url, it.pageName].filter(Boolean);
     for (const c of cands) {
-      const norm = String(c).replace(/\/+$/, "").toLowerCase();
-      for (const [u, city] of pageByUrl) if (norm.includes(u) || u.includes(norm)) return city;
+      const pg = pageByKey.get(fbKey(String(c)));
+      if (pg) return pg.kind === "ראש העיר" ? `פייסבוק · ${pg.city} (ראש העיר)` : `פייסבוק · ${pg.city}`;
     }
-    return it.pageName || it.user?.name || "עירייה";
+    return `פייסבוק · ${it.pageName || it.user?.name || "עירייה"}`;
   };
 
   const rows = [];
@@ -52,11 +61,10 @@ export async function POST(request: NextRequest) {
     const text = String(it.text || it.message || it.postText || it.content || "").trim();
     const url = it.url || it.postUrl || it.permalink || it.link || it.topLevelUrl;
     if (!text || !url) continue;
-    const city = cityFor(it);
     const title = (text.split("\n")[0] || text).slice(0, 140);
     rows.push({
       title,
-      source: `פייסבוק · ${city}`,
+      source: labelFor(it),
       source_url: String(url),
       summary: text.slice(0, 1500),
       published_at: safeDate(it.time || it.timestamp || it.date || it.publishedTime),
