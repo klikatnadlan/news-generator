@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { runScan } from "@/lib/scanner";
 import { sendWatchDigest } from "@/lib/email";
 
+// ~105 feeds (RE + ingest-only local/national) fetched concurrently, then
+// scoring of only the (few) new RE items. Give it room so the daily cron
+// never times out mid-ingest.
+export const maxDuration = 60;
+
 export async function GET(request: NextRequest) {
   // Verify cron secret (Vercel sends this automatically)
   // Manual scans from frontend send x-manual-scan header (same-origin only)

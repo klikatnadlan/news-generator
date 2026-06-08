@@ -67,11 +67,41 @@ function metaDescription(html: string): string {
   return m ? decodeEntities(m[1].replace(/\s+/g, " ").trim()) : "";
 }
 
+// Common server-rendered article-body containers (WordPress / Drupal / CMS).
+// Many Israeli RE sites (מגדילים, מרכז הנדל"ן, davar…) put the full body here
+// even when there's no <article> tag or JSON-LD articleBody.
+const CONTENT_CONTAINERS = [
+  "entry-content", "article-body", "articleBody", "post-content", "td-post-content",
+  "single-content", "field--name-body", "article__content", "post__content",
+  "elementor-widget-theme-post-content", "the-content", "wpb_text_column",
+];
+
+/** Extract <p> body text from a known content container, if present. */
+function containerBody(html: string): string {
+  for (const cls of CONTENT_CONTAINERS) {
+    const idx = html.indexOf(cls);
+    if (idx < 0) continue;
+    const seg = html
+      .slice(idx, idx + 24000)
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ");
+    const paras = seg.match(/<p[\s\S]*?<\/p>/gi) || [];
+    const text = paras
+      .map((p) => decodeEntities(p.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()))
+      .filter((t) => t.length >= 45)
+      .join("\n")
+      .trim();
+    if (text.length >= 200 && !looksLikeNav(text)) return text;
+  }
+  return "";
+}
+
 /**
  * Extract readable body text. Order of preference:
  *   1. JSON-LD articleBody (full text, works on most news sites incl. ynet)
- *   2. <article>/<p> text — but only if it isn't navigation junk
- *   3. og:description (clean summary, better than the RSS snippet)
+ *   2. content-container <p> (WordPress/CMS: entry-content etc.)
+ *   3. <article>/<p> text — but only if it isn't navigation junk
+ *   4. og:description (clean summary, better than the RSS snippet)
  */
 function extractText(html: string): string {
   // 1. JSON-LD — best
@@ -80,7 +110,10 @@ function extractText(html: string): string {
 
   const meta = metaDescription(html);
 
-  // 2. <p> extraction (skip script/style/comments first)
+  // 2. content-container <p> (server-rendered CMS body)
+  const container = containerBody(html);
+
+  // 3. <article>/<p> extraction (skip script/style/comments first)
   const h = html
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
@@ -94,12 +127,14 @@ function extractText(html: string): string {
     .filter((t) => t.length >= 40)
     .join("\n")
     .trim();
+  const pClean = pText.length >= 200 && !looksLikeNav(pText) ? pText : "";
 
-  const pIsClean = pText.length >= 200 && !looksLikeNav(pText);
+  // Pick the longest clean body candidate (container vs <article>).
+  const body = container.length >= pClean.length ? container : pClean;
 
-  // 3. Choose the best clean candidate. Prepend the meta summary when we have
+  // 4. Choose the best clean candidate. Prepend the meta summary when we have
   // real body text; otherwise the meta alone still beats the RSS snippet.
-  if (pIsClean) return meta ? `${meta}\n${pText}` : pText;
+  if (body) return meta ? `${meta}\n${body}` : body;
   if (meta.length >= 80) return meta;
   return ""; // nothing usable → caller falls back to title + summary
 }
