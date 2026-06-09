@@ -230,11 +230,14 @@ export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) 
                 </div>
               ) : readerText ? (
                 <>
-                  {!readerFull && <p className="text-[10px] mb-1.5" style={{ color: "#d97706" }}>🔒 אתר בתשלום — מוצג תקציר בלבד (לא ניתן לקרוא את המאמר המלא).</p>}
+                  {!readerFull && (isPaywalled
+                    ? <p className="text-[10px] mb-1.5" style={{ color: "#d97706" }}>🔒 אתר בתשלום — מוצג תקציר בלבד.</p>
+                    : <p className="text-[10px] mb-1.5" style={{ color: "#9ca3af" }}>📄 תצוגה מקוצרת — הכתבה נטענת דינמית ולא נשלף הגוף המלא. אפשר לפתוח במקור ↑</p>
+                  )}
                   <div className="whitespace-pre-wrap text-[13px] leading-[1.75]" style={{ color: "#1f2937" }} dir="rtl">{readerText}</div>
                 </>
               ) : (
-                <p className="text-[12px] py-3" style={{ color: "#9ca3af" }} dir="rtl">לא הצלחנו לשלוף את גוף הבאז (אתר בתשלום או חוסם). אפשר לפתוח במקור, או לסכם מהכותרת.</p>
+                <p className="text-[12px] py-3" style={{ color: "#9ca3af" }} dir="rtl">{isPaywalled ? "לא ניתן לשלוף את גוף הבאז — אתר בתשלום." : "לא הצלחנו לשלוף את גוף הבאז (נטען דינמית או חוסם)."} אפשר לפתוח במקור, או לסכם מהכותרת.</p>
               )}
             </div>
           </div>
