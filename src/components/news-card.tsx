@@ -69,6 +69,7 @@ export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) 
   const [artSummary, setArtSummary] = useState<string | null>(null);
   const [artSummaryLoading, setArtSummaryLoading] = useState(false);
   const [artSummaryCopied, setArtSummaryCopied] = useState(false);
+  const [frameOpen, setFrameOpen] = useState(false); // 🌐 iframe view
 
   const openReader = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -199,6 +200,11 @@ export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) 
               {readerOpen ? "▲ סגור" : "📖 קרא כאן"}
             </button>
           )}
+          {news.source_url && (
+            <button onClick={(e) => { e.stopPropagation(); setFrameOpen((o) => !o); }} className="text-[11px] font-semibold h-[30px] px-3 rounded-md border transition-colors" style={{ borderColor: "#7c3aed", color: "#6d28d9", background: "#fff" }}>
+              {frameOpen ? "▲ סגור אתר" : "🌐 פתח כאתר"}
+            </button>
+          )}
           {isPaywalled && (
             <span className="text-[10px] px-2 py-1 rounded" style={{ color: "#9ca3af", background: "#f3f4f6" }}>🔒 אתר בתשלום</span>
           )}
@@ -240,6 +246,21 @@ export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) 
                 <p className="text-[12px] py-3" style={{ color: "#9ca3af" }} dir="rtl">{isPaywalled ? "לא ניתן לשלוף את גוף הבאז — אתר בתשלום." : "לא הצלחנו לשלוף את גוף הבאז (נטען דינמית או חוסם)."} אפשר לפתוח במקור, או לסכם מהכותרת.</p>
               )}
             </div>
+          </div>
+        )}
+
+        {/* 🌐 Open the real article as an iframe (graceful fallback if blocked) */}
+        {frameOpen && news.source_url && (
+          <div className="mt-3 rounded-lg border overflow-hidden" style={{ borderColor: "#ede9fe" }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: "#ede9fe", background: "#faf8ff" }}>
+              <span className="text-[11px] font-bold" style={{ color: "#6d28d9" }}>🌐 גלישה באתר</span>
+              <div className="flex items-center gap-2.5">
+                <button onClick={openReader} className="text-[10px] font-semibold" style={{ color: "#0369a1" }}>📖 קרא כאן</button>
+                <a href={news.source_url} target="_blank" rel="noopener noreferrer" className="text-[10px] font-semibold" style={{ color: "#9ca3af" }}>מקור ↗</a>
+              </div>
+            </div>
+            <p className="text-[10px] px-3 py-1.5" style={{ color: "#9ca3af", background: "#fafafa" }} dir="rtl">אם העמוד נשאר ריק — האתר חוסם הצגה מוטמעת (כמו ynet/ביזפורטל). אז לחץ &quot;📖 קרא כאן&quot; או &quot;מקור&quot;.</p>
+            <iframe src={news.source_url} title={news.title.replace(/<[^>]*>/g, "")} loading="lazy" referrerPolicy="no-referrer" className="w-full bg-white" style={{ height: "78vh", border: 0 }} />
           </div>
         )}
       </div>
