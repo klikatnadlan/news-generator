@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type MouseEvent } from "react";
+import { useState, useRef, type MouseEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { ScoredNews } from "@/lib/types";
@@ -70,6 +70,20 @@ export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) 
   const [artSummaryLoading, setArtSummaryLoading] = useState(false);
   const [artSummaryCopied, setArtSummaryCopied] = useState(false);
   const [frameOpen, setFrameOpen] = useState(false); // 🌐 iframe view
+  const cardRef = useRef<HTMLElement>(null);
+  // Close the iframe and scroll back to the card (so the user lands on the
+  // card's buttons, not stranded at the bottom of a tall frame).
+  const closeFrame = () => { setFrameOpen(false); cardRef.current?.scrollIntoView({ block: "start", behavior: "smooth" }); };
+  // Resize ONLY the small text (summaries + subtitles) via the shared
+  // --lf-content-size var — does NOT touch the global app zoom (which reflows
+  // the whole layout). Persisted so it sticks across pages.
+  const bumpContentSize = (delta: number) => {
+    const root = document.documentElement;
+    const cur = parseFloat(getComputedStyle(root).getPropertyValue("--lf-content-size")) || 12.5;
+    const next = Math.min(22, Math.max(11, Math.round((cur + delta) * 10) / 10));
+    root.style.setProperty("--lf-content-size", `${next}px`);
+    try { localStorage.setItem("lf-content-size", String(next)); } catch { /* ignore */ }
+  };
 
   const openReader = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -160,7 +174,7 @@ export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) 
   const wc = generatedText ? generatedText.trim().split(/\s+/).filter(Boolean).length : 0;
 
   return (
-    <article className={`lf-card overflow-hidden cursor-pointer ${selected ? "lf-card-selected" : ""}`} onClick={() => onSelect(news.id, !selected)}>
+    <article ref={cardRef} className={`lf-card overflow-hidden cursor-pointer ${selected ? "lf-card-selected" : ""}`} onClick={() => onSelect(news.id, !selected)}>
       <div className="p-4 sm:p-5">
         <div className="flex items-center gap-2.5 mb-3">
           <button className="w-[22px] h-[22px] rounded-md border-2 flex items-center justify-center shrink-0 transition-all" style={{ borderColor: selected ? "#0f1419" : "#d1d5db", background: selected ? "#0f1419" : "#fff" }} onClick={(e) => { e.stopPropagation(); onSelect(news.id, !selected); }}>
@@ -224,8 +238,15 @@ export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) 
             </div>
             {artSummary && (
               <div className="px-3 py-2.5 border-b" style={{ borderColor: "#ede9fe", background: "#faf8ff" }}>
-                <p className="text-[10px] font-bold mb-1" style={{ color: "#7c3aed" }}>🧠 סיכום</p>
-                <div className="whitespace-pre-wrap text-[12.5px] leading-[1.6]" style={{ color: "#374151" }} dir="rtl">{artSummary}</div>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-[10px] font-bold" style={{ color: "#7c3aed" }}>🧠 סיכום</p>
+                  <div className="flex items-center gap-1" title="גודל טקסט הסיכום ותתי-הכותרות (לא משנה את כל המסך)">
+                    <span className="text-[9px]" style={{ color: "#9ca3af" }}>גודל טקסט</span>
+                    <button onClick={() => bumpContentSize(-1)} className="h-5 px-1.5 rounded border text-[11px] leading-none font-bold" style={{ borderColor: "#ddd6fe", color: "#6d28d9", background: "#fff" }}>א−</button>
+                    <button onClick={() => bumpContentSize(1)} className="h-5 px-1.5 rounded border text-[11px] leading-none font-bold" style={{ borderColor: "#ddd6fe", color: "#6d28d9", background: "#fff" }}>א+</button>
+                  </div>
+                </div>
+                <div className="whitespace-pre-wrap leading-[1.6]" style={{ color: "#374151", fontSize: "var(--lf-content-size, 12.5px)" }} dir="rtl">{artSummary}</div>
                 <button onClick={async () => { await navigator.clipboard.writeText(artSummary); setArtSummaryCopied(true); setTimeout(() => setArtSummaryCopied(false), 1500); }} className="text-[10px] font-medium mt-1.5 underline" style={{ color: "#9ca3af" }}>{artSummaryCopied ? "✓ הועתק" : "העתק סיכום"}</button>
               </div>
             )}
@@ -257,6 +278,7 @@ export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) 
               <div className="flex items-center gap-2.5">
                 <button onClick={openReader} className="text-[10px] font-semibold" style={{ color: "#0369a1" }}>📖 קרא כאן</button>
                 <a href={news.source_url} target="_blank" rel="noopener noreferrer" className="text-[10px] font-semibold" style={{ color: "#9ca3af" }}>מקור ↗</a>
+                <button onClick={closeFrame} className="text-[10px] font-bold h-6 px-2 rounded" style={{ color: "#fff", background: "#6d28d9" }}>✕ סגור</button>
               </div>
             </div>
             <p className="text-[10px] px-3 py-1.5" style={{ color: "#9ca3af", background: "#fafafa" }} dir="rtl">אם העמוד נשאר ריק — האתר חוסם הצגה מוטמעת (כמו ynet/ביזפורטל). אז לחץ &quot;📖 קרא כאן&quot; או &quot;מקור&quot;.</p>
