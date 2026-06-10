@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { VoicePlayButton } from "@/components/voice-play-button";
 import { SiteNav } from "@/components/site-nav";
+import { NewsCard } from "@/components/news-card";
+import type { ScoredNews } from "@/lib/types";
 import Link from "next/link";
 
 interface ArchiveItem {
@@ -64,6 +66,21 @@ export default function ArchivePage() {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [archiveArticle, setArchiveArticle] = useState("");
   const [articleLoading, setArticleLoading] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Render search results with the full NewsCard (same card as the home feed):
+  // expandable subtitle, העתק תכלס, צור הודעה/כתבה, 📖 קרא כאן, 🌐 פתח כאתר, 🧠 סכם באז.
+  const toScored = (it: ArchiveItem): ScoredNews => ({
+    ...it,
+    source_url: it.url || "",
+    published_at: it.scan_date || it.created_at || null,
+    score: it.score ?? null,
+    reasoning: "",
+  } as unknown as ScoredNews);
+
+  const toggleSelect = (id: string, sel: boolean) => {
+    setSelectedIds((prev) => { const n = new Set(prev); if (sel) n.add(id); else n.delete(id); return n; });
+  };
 
   const search = useCallback(async (page = 1, qOverride?: string) => {
     const q = qOverride ?? query;
@@ -196,37 +213,9 @@ export default function ArchivePage() {
             <p className="text-[12px] mb-2" style={{ color: "#9ca3af" }}>
               {results.total} תוצאות · עמוד {results.page}/{results.totalPages}
             </p>
-            {results.items.map((item) => {
-              const srcName = getSourceName(item.source);
-              const srcColor = getSourceColor(item.source);
-              return (
-                <div key={item.id} className="lf-card p-3.5">
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <span className="text-[10px] font-semibold px-1.5 py-[1px] rounded" style={{ color: srcColor, background: srcColor + "12" }}>
-                      {srcName}
-                    </span>
-                    <span className="text-[10px]" style={{ color: "#9ca3af" }}>
-                      {item.created_at ? new Date(item.created_at).toLocaleDateString("he-IL") : ""}
-                    </span>
-                    {item.score && (
-                      <span className="text-[11px] font-bold" style={{ color: item.score >= 70 ? "#059669" : item.score >= 40 ? "#d97706" : "#9ca3af", fontFamily: "DM Sans" }}>
-                        {item.score}
-                      </span>
-                    )}
-                    {item.url && (
-                      <a href={item.url} target="_blank" rel="noopener noreferrer"
-                        className="text-[10px] mr-auto hover:underline" style={{ color: "#9ca3af" }}>
-                        מקור ←
-                      </a>
-                    )}
-                  </div>
-                  <h3 className="text-[14px] font-bold leading-[1.4] mb-1" style={{ color: "#0f1419" }}>{item.title}</h3>
-                  {item.summary && (
-                    <p className="text-[12px] leading-[1.5] line-clamp-2" style={{ color: "#6b7280" }}>{item.summary}</p>
-                  )}
-                </div>
-              );
-            })}
+            {results.items.map((item) => (
+              <NewsCard key={item.id} news={toScored(item)} selected={selectedIds.has(item.id)} onSelect={toggleSelect} showDate />
+            ))}
 
             {results.totalPages > 1 && (
               <div className="flex gap-2 justify-center pt-3">
