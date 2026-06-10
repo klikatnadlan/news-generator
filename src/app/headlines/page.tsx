@@ -169,6 +169,10 @@ export default function HeadlinesPage() {
   const [headlineTopic, setHeadlineTopic] = useState<string | null>(null);
   // Custom topics the user added with "+" (filtered by the literal term).
   const [customTopics, setCustomTopics] = useState<string[]>([]);
+  // Manual arrangement of the headline cards (like the tenders board in the
+  // projector): move up/down + hide. Copy order follows the arrangement.
+  const [customOrder, setCustomOrder] = useState<string[]>([]);
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
 
   const triggerRef = useRef<HTMLDivElement>(null);
 
@@ -255,6 +259,33 @@ export default function HeadlinesPage() {
     return true;
   });
 
+  // Apply the user's manual arrangement: drop hidden cards, then order by the
+  // stored arrangement (untouched cards keep their natural relative order —
+  // Array.sort is stable).
+  const arrangedNews = (() => {
+    const visible = filteredNews.filter((n) => !hiddenIds.has(n.id));
+    if (customOrder.length === 0) return visible;
+    const pos = new Map(customOrder.map((id, i) => [id, i]));
+    return [...visible].sort((a, b) => (pos.get(a.id) ?? Infinity) - (pos.get(b.id) ?? Infinity));
+  })();
+
+  const moveItem = (id: string, dir: -1 | 1) => {
+    const arr = [...arrangedNews];
+    const i = arr.findIndex((n) => n.id === id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= arr.length) return;
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+    setCustomOrder(arr.map((n) => n.id));
+  };
+
+  const hideItem = (id: string) => {
+    setHiddenIds((prev) => new Set(prev).add(id));
+    setSelected((prev) => { const n = new Set(prev); n.delete(id); return n; });
+  };
+
+  const hiddenCount = filteredNews.length - arrangedNews.length;
+  const resetArrangement = () => { setCustomOrder([]); setHiddenIds(new Set()); };
+
   const categoryCounts = {
     'נדל"ן': allNews.filter(n => n.category === 'נדל"ן').length,
     "כלכלה": allNews.filter(n => n.category === "כלכלה").length,
@@ -266,7 +297,7 @@ export default function HeadlinesPage() {
   };
 
   const selectAll = () => {
-    selected.size === filteredNews.length ? setSelected(new Set()) : setSelected(new Set(filteredNews.map(n => n.id)));
+    selected.size === arrangedNews.length ? setSelected(new Set()) : setSelected(new Set(arrangedNews.map(n => n.id)));
   };
 
   // Shared copy formatter — title alone, or title + subtitle (default).
@@ -277,7 +308,7 @@ export default function HeadlinesPage() {
   };
 
   const copySelected = async () => {
-    const items = filteredNews.filter(n => selected.has(n.id));
+    const items = arrangedNews.filter(n => selected.has(n.id));
     const sep = copyWithSubtitle ? "\n\n" : "\n";
     await navigator.clipboard.writeText(items.map(n => formatForCopy(n, copyWithSubtitle)).join(sep));
     setCopyLabel("✓ הועתק");
@@ -309,7 +340,7 @@ export default function HeadlinesPage() {
 
   // Trigger AI on selected headlines
   const triggerMultiAI = async () => {
-    const items = filteredNews.filter(n => selected.has(n.id));
+    const items = arrangedNews.filter(n => selected.has(n.id));
     if (items.length === 0) return;
     setTriggerForId("multi");
     setTriggerLoading(true);
@@ -331,7 +362,7 @@ export default function HeadlinesPage() {
     setTimeout(() => setNarrativesCopyLabel(null), 1500);
   };
 
-  const groupedByDate = filteredNews.reduce<Record<string, HeadlineItem[]>>((acc, item) => {
+  const groupedByDate = arrangedNews.reduce<Record<string, HeadlineItem[]>>((acc, item) => {
     if (!item.scan_date) return acc;
     if (!acc[item.scan_date]) acc[item.scan_date] = [];
     acc[item.scan_date].push(item);
@@ -402,7 +433,7 @@ export default function HeadlinesPage() {
               הכל
             </button>
             <button onClick={selectAll} className="text-[11px] font-medium px-2.5 py-1 rounded-lg hover:bg-gray-100 whitespace-nowrap shrink-0 mr-auto" style={{ color: "#6b7280" }}>
-              {selected.size === filteredNews.length && filteredNews.length > 0 ? "בטל הכל" : "בחר הכל"}
+              {selected.size === arrangedNews.length && arrangedNews.length > 0 ? "בטל הכל" : "בחר הכל"}
             </button>
           </div>
 
@@ -447,7 +478,12 @@ export default function HeadlinesPage() {
 
           <div className="flex items-center justify-between gap-2 mb-3">
             <p className="text-[11px]" style={{ color: "#9ca3af" }}>
-              {filteredNews.length} כותרות {tab}
+              {arrangedNews.length} כותרות {tab}
+              {hiddenCount > 0 && (
+                <button className="font-semibold underline mr-1" style={{ color: "#d97706" }} onClick={resetArrangement} title="שחזר את הכותרות שהוסתרו ואת הסדר המקורי">
+                  · {hiddenCount} הוסתרו — שחזר
+                </button>
+              )}
               {headlineTopic && <span className="font-semibold" style={{ color: tabConfig.color }}> · {headlineTopic}</span>}
               {selectedDay === "היום"
                 ? " להיום"
@@ -492,7 +528,7 @@ export default function HeadlinesPage() {
                     { type: "header" as const, iso, day: DAYS[new Date(iso + "T12:00:00").getDay()], count: groupedByDate[iso].length },
                     ...groupedByDate[iso].map(item => ({ type: "item" as const, item })),
                   ])
-                : filteredNews.map(item => ({ type: "item" as const, item }))
+                : arrangedNews.map(item => ({ type: "item" as const, item }))
               ).map((entry, idx) => {
                 if (entry.type === "header") {
                   return (
@@ -508,7 +544,9 @@ export default function HeadlinesPage() {
                 return (
                   <div key={item.id}>
                     <HeadlineRow item={item} selected={selected.has(item.id)} onToggle={toggleSelect} onCopy={copySingle} getColor={getColor} accentColor={tabConfig.color}
-                      onTrigger={() => triggerSingleAI(item)} triggerLoading={triggerLoading && isThisTrigger} />
+                      onTrigger={() => triggerSingleAI(item)} triggerLoading={triggerLoading && isThisTrigger}
+                      onMoveUp={() => moveItem(item.id, -1)} onMoveDown={() => moveItem(item.id, 1)} onHide={() => hideItem(item.id)}
+                      isFirst={arrangedNews[0]?.id === item.id} isLast={arrangedNews[arrangedNews.length - 1]?.id === item.id} />
                     {/* Trigger result appears RIGHT BELOW this headline */}
                     {isThisTrigger && triggerText && (
                       <div ref={triggerRef} className="lf-card p-3 mb-1 lf-animate" style={{ borderRight: `3px solid ${tabConfig.color}`, marginTop: "-1px" }}>
@@ -525,7 +563,7 @@ export default function HeadlinesPage() {
                   </div>
                 );
               })}
-              {filteredNews.length === 0 && (
+              {arrangedNews.length === 0 && (
                 <div className="text-center py-12" style={{ color: "#9ca3af" }}>
                   <p className="text-[13px]">
                     אין כותרות {tab} {selectedDay === "היום"
@@ -779,7 +817,7 @@ function formatItemDate(item: HeadlineItem): string {
   return d.toLocaleDateString("he-IL", { day: "numeric", month: "numeric" });
 }
 
-function HeadlineRow({ item, selected, onToggle, onCopy, getColor, accentColor, onTrigger, triggerLoading, showDate }: {
+function HeadlineRow({ item, selected, onToggle, onCopy, getColor, accentColor, onTrigger, triggerLoading, showDate, onMoveUp, onMoveDown, onHide, isFirst, isLast }: {
   item: HeadlineItem;
   selected: boolean;
   onToggle: (id: string) => void;
@@ -789,6 +827,11 @@ function HeadlineRow({ item, selected, onToggle, onCopy, getColor, accentColor, 
   onTrigger?: () => void;
   triggerLoading?: boolean;
   showDate?: boolean;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  onHide?: () => void;
+  isFirst?: boolean;
+  isLast?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const srcColor = getColor(item.source);
@@ -833,6 +876,22 @@ function HeadlineRow({ item, selected, onToggle, onCopy, getColor, accentColor, 
           )}
           <button className="text-[10px] hover:bg-gray-100 rounded px-1 py-0.5" style={{ color: "#9ca3af" }}
             onClick={(e) => onCopy(item, e)} title="העתק">📋</button>
+          {(onMoveUp || onMoveDown || onHide) && (
+            <span className="flex items-center gap-0.5 mr-0.5 pr-1 border-r" style={{ borderColor: "#e5e7eb" }}>
+              {onMoveUp && (
+                <button className="text-[10px] hover:bg-gray-100 rounded px-1 py-0.5 disabled:opacity-25" style={{ color: "#6b7280" }} disabled={isFirst}
+                  onClick={(e) => { e.stopPropagation(); onMoveUp(); }} title="הזז למעלה">↑</button>
+              )}
+              {onMoveDown && (
+                <button className="text-[10px] hover:bg-gray-100 rounded px-1 py-0.5 disabled:opacity-25" style={{ color: "#6b7280" }} disabled={isLast}
+                  onClick={(e) => { e.stopPropagation(); onMoveDown(); }} title="הזז למטה">↓</button>
+              )}
+              {onHide && (
+                <button className="text-[10px] hover:bg-red-50 rounded px-1 py-0.5" style={{ color: "#dc2626" }}
+                  onClick={(e) => { e.stopPropagation(); onHide(); }} title="הסתר כותרת (שחזור בכפתור למעלה)">🗑</button>
+              )}
+            </span>
+          )}
         </div>
       </div>
       {open && (
