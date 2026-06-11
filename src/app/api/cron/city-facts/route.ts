@@ -18,28 +18,42 @@ export async function GET(request: NextRequest) {
 
   let refreshed = 0;
   let withPopulation = 0;
-  const failures: string[] = [];
+  let failures: string[] = [];
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-  // Small batches to be polite to the Wikipedia API.
-  const BATCH = 8;
+  const refreshOne = async (name: string): Promise<boolean> => {
+    try {
+      const facts = await fetchCityFacts(name);
+      if (!facts.population && !facts.mayor) return false;
+      await supabase.from("narrative_cache").upsert(
+        { cache_key: `city_facts|${name}`, narratives: facts, count: 0, created_at: new Date().toISOString() },
+        { onConflict: "cache_key" }
+      );
+      refreshed++;
+      if (facts.population) withPopulation++;
+      return true;
+    } catch { return false; }
+  };
+
+  // Low concurrency + pauses — Wikipedia rate-limits rapid parse calls from
+  // datacenter IPs (first run: 8-concurrent got throttled after ~10 cities).
+  const BATCH = 4;
   for (let i = 0; i < CITIES.length; i += BATCH) {
     const slice = CITIES.slice(i, i + BATCH);
-    await Promise.all(
-      slice.map(async (c) => {
-        try {
-          const facts = await fetchCityFacts(c.name);
-          if (!facts.population && !facts.mayor) { failures.push(c.name); return; }
-          await supabase.from("narrative_cache").upsert(
-            { cache_key: `city_facts|${c.name}`, narratives: facts, count: 0, created_at: new Date().toISOString() },
-            { onConflict: "cache_key" }
-          );
-          refreshed++;
-          if (facts.population) withPopulation++;
-        } catch {
-          failures.push(c.name);
-        }
-      })
-    );
+    const ok = await Promise.all(slice.map((c) => refreshOne(c.name)));
+    slice.forEach((c, j) => { if (!ok[j]) failures.push(c.name); });
+    await sleep(500);
+  }
+
+  // One retry pass for throttled cities (sequential, gentle).
+  if (failures.length) {
+    await sleep(1500);
+    const still: string[] = [];
+    for (const name of failures) {
+      if (!(await refreshOne(name))) still.push(name);
+      await sleep(350);
+    }
+    failures = still;
   }
 
   return NextResponse.json({ cities: CITIES.length, refreshed, withPopulation, failures });
