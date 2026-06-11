@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     }
   } catch { /* ignore */ }
   if (!facts) {
-    facts = await fetchCityFacts(city.name);
+    facts = await fetchCityFacts(city.name, city.wikiPage);
     if (facts.population || facts.mayor) {
       try {
         await supabase.from("narrative_cache").upsert({ cache_key: cacheKey, narratives: facts, count: 0, created_at: new Date().toISOString() }, { onConflict: "cache_key" });

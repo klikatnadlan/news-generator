@@ -18,9 +18,12 @@ export function parseMayor(wt: string): string | null {
   return v || null;
 }
 
-export async function fetchCityFacts(cityName: string): Promise<CityFacts> {
+export async function fetchCityFacts(cityName: string, wikiPage?: string): Promise<CityFacts> {
   try {
-    const wpUrl = `https://he.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(cityName)}&prop=text|wikitext|properties&format=json&redirects=1`;
+    // section=0 = lead + infobox only — ~20x lighter, so huge city pages
+    // (תל אביב/חיפה) parse in ~2s instead of timing out / getting throttled.
+    const page = wikiPage || cityName;
+    const wpUrl = `https://he.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(page)}&prop=text|wikitext|properties&section=0&format=json&redirects=1`;
     const wpRes = await fetch(wpUrl, { headers: { "User-Agent": "leaderfeed/1.0 (klikatnadlan)" } });
     const wp = await wpRes.json();
     const wt: string = wp?.parse?.wikitext?.["*"] || "";

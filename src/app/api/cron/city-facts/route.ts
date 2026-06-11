@@ -24,12 +24,12 @@ export async function GET(request: NextRequest) {
   let failures: string[] = [];
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-  const refreshOne = async (name: string): Promise<boolean> => {
+  const refreshOne = async (city: { name: string; wikiPage?: string }): Promise<boolean> => {
     try {
-      const facts = await fetchCityFacts(name);
+      const facts = await fetchCityFacts(city.name, city.wikiPage);
       if (!facts.population && !facts.mayor) return false;
       await supabase.from("narrative_cache").upsert(
-        { cache_key: `city_facts|${name}`, narratives: facts, count: 0, created_at: new Date().toISOString() },
+        { cache_key: `city_facts|${city.name}`, narratives: facts, count: 0, created_at: new Date().toISOString() },
         { onConflict: "cache_key" }
       );
       refreshed++;
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
   // Sequential + gentle pacing — Wikipedia hard-throttles bursts from
   // datacenter IPs (8-concurrent died after ~10 cities).
   for (const c of todo) {
-    if (!(await refreshOne(c.name))) failures.push(c.name);
+    if (!(await refreshOne(c))) failures.push(c.name);
     await sleep(800);
   }
 

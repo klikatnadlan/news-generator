@@ -8,6 +8,7 @@ export interface City {
   aliases?: string[]; // extra search terms (e.g. short form)
   commonWord?: boolean; // name is also a common Hebrew word (streets/tower/…) →
                         // match the city only in the TITLE to avoid false hits
+  wikiPage?: string;  // he-wiki article title when it differs from name
 }
 
 export const CITIES: City[] = [
@@ -24,7 +25,7 @@ export const CITIES: City[] = [
   { name: "נוף הגליל", district: "צפון", aliases: ["נצרת עילית"] },
   { name: "בית שאן", district: "צפון" },
   { name: "מגדל העמק", district: "צפון" },
-  { name: "יקנעם", district: "צפון", aliases: ["יקנעם עילית"] },
+  { name: "יקנעם", district: "צפון", aliases: ["יקנעם עילית"], wikiPage: "יקנעם עילית" },
   { name: "שלומי", district: "צפון" },
   { name: "מעלה אדומים", district: "יו\"ש" },
   // חיפה
@@ -39,7 +40,7 @@ export const CITIES: City[] = [
   { name: "אום אל פחם", district: "חיפה" },
   { name: "אור עקיבא", district: "חיפה" },
   { name: "זכרון יעקב", district: "חיפה" },
-  { name: "פרדס חנה כרכור", district: "חיפה" },
+  { name: "פרדס חנה כרכור", district: "חיפה", wikiPage: "פרדס חנה-כרכור" },
   // מרכז
   { name: "פתח תקווה", district: "מרכז", aliases: ["פ\"ת"] },
   { name: "ראשון לציון", district: "מרכז" },
@@ -54,7 +55,7 @@ export const CITIES: City[] = [
   { name: "נס ציונה", district: "מרכז" },
   { name: "לוד", district: "מרכז", commonWord: true },
   { name: "רמלה", district: "מרכז" },
-  { name: "מודיעין", district: "מרכז", aliases: ["מודיעין מכבים רעות"], commonWord: true },
+  { name: "מודיעין", district: "מרכז", aliases: ["מודיעין מכבים רעות"], commonWord: true, wikiPage: "מודיעין-מכבים-רעות" },
   { name: "כפר יונה", district: "מרכז" },
   { name: "גדרה", district: "מרכז", commonWord: true },
   { name: "אבן יהודה", district: "מרכז" },
