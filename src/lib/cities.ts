@@ -35,7 +35,7 @@ export const CITIES: City[] = [
   { name: "קריית ביאליק", district: "חיפה" },
   { name: "קריית מוצקין", district: "חיפה" },
   { name: "קריית ים", district: "חיפה" },
-  { name: "נשר", district: "חיפה", commonWord: true },
+  { name: "נשר", district: "חיפה", commonWord: true, wikiPage: "נשר (עיר)" },
   { name: "טירת כרמל", district: "חיפה" },
   { name: "אום אל פחם", district: "חיפה" },
   { name: "אור עקיבא", district: "חיפה" },
