@@ -9,6 +9,7 @@ import type { ScoredNews } from "@/lib/types";
 interface Overview {
   city: { name: string; district: string };
   population: number | null;
+  populationAsOf: string | null; // למ"ס estimate date, e.g. "אפריל 2026"
   mayor: string | null;
   metric: { avgRent: number; annualChange: number | null } | null;
   articleCount: number;
@@ -256,7 +257,7 @@ export default function CitiesPage() {
                 </div>
                 <div className="text-center rounded-lg py-2" style={{ background: "#f8f9fb" }}>
                   <p className="text-[18px] font-extrabold leading-none" style={{ color: "#0f1419" }}>{loadingCity && !overview ? "…" : fmtNum(overview?.population ?? null)}</p>
-                  <p className="text-[10px] mt-1" style={{ color: "#9ca3af" }}>תושבים</p>
+                  <p className="text-[10px] mt-1" style={{ color: "#9ca3af" }}>תושבים{overview?.populationAsOf ? ` · נכון ל${overview.populationAsOf}` : ""}</p>
                 </div>
                 <div className="text-center rounded-lg py-2" style={{ background: "#f8f9fb" }}>
                   <p className="text-[13px] font-bold leading-tight pt-1" style={{ color: "#0f1419" }}>{loadingCity && !overview ? "…" : (overview?.mayor || "—")}</p>
