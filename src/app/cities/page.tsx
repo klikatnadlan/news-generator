@@ -14,6 +14,10 @@ interface Overview {
   metric: { avgRent: number; annualChange: number | null } | null;
   nationalRent: number | null;  // national avg rent (latest month, all cities)
   rentDiffPct: number | null;   // city vs national, %
+  avgWage: number | null;       // CBS avg employee wage — the city-strength box
+  wageDiffPct: number | null;
+  nationalWage: number | null;
+  wageAsOf: string | null;
   articleCount: number;
   projectorUrl: string;
 }
@@ -323,16 +327,16 @@ export default function CitiesPage() {
                 </div>
                 <div className="text-center rounded-lg py-2" style={{ background: "#f8f9fb" }}>
                   <p className="text-[15px] font-extrabold leading-none pt-1" style={{ color: "#0f1419" }}>
-                    {overview?.metric ? `₪${fmtNum(overview.metric.avgRent)}` : "—"}
-                    {overview?.metric && overview?.rentDiffPct != null && (
-                      <span className="text-[11px] font-bold mr-1" style={{ color: overview.rentDiffPct > 0 ? "#dc2626" : "#059669" }}>
-                        <bdi dir="ltr">{overview.rentDiffPct > 0 ? "+" : ""}{overview.rentDiffPct}%</bdi>
+                    {overview?.avgWage ? `₪${fmtNum(overview.avgWage)}` : "—"}
+                    {overview?.avgWage && overview?.wageDiffPct != null && (
+                      <span className="text-[11px] font-bold mr-1" style={{ color: overview.wageDiffPct >= 0 ? "#059669" : "#dc2626" }}>
+                        <bdi dir="ltr">{overview.wageDiffPct > 0 ? "+" : ""}{overview.wageDiffPct}%</bdi>
                       </span>
                     )}
                   </p>
-                  <p className="text-[10px] mt-1" style={{ color: "#9ca3af" }}>שכ"ד ממוצע</p>
-                  {overview?.nationalRent && (
-                    <p className="text-[9px] mt-0.5" style={{ color: "#b8bec7" }}>* ארצי: ₪{fmtNum(overview.nationalRent)}{overview?.metric && overview?.rentDiffPct != null ? " · ההפרש מול ארצי" : ""}</p>
+                  <p className="text-[10px] mt-1" style={{ color: "#9ca3af" }}>שכר ממוצע{overview?.wageAsOf ? ` · ${overview.wageAsOf}` : ""}</p>
+                  {overview?.nationalWage && (
+                    <p className="text-[9px] mt-0.5" style={{ color: "#b8bec7" }}>* ארצי: ₪{fmtNum(overview.nationalWage)} · ההפרש מול ארצי</p>
                   )}
                 </div>
               </div>

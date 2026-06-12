@@ -17,6 +17,7 @@ const PULSE_URL = "https://zkirtoefpwugcyybebed.supabase.co";
 const PULSE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpraXJ0b2VmcHd1Z2N5eWJlYmVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMTMyNTQsImV4cCI6MjA4NTc4OTI1NH0.Fwwi0HNS4HxQNDCUFmK5XwPRWaaVVSeaqVQIuA66Ems";
 
 import { fetchCityFacts, type CityFacts } from "@/lib/city-facts";
+import { CITY_WAGES, NATIONAL_AVG_WAGE, WAGE_AS_OF } from "@/lib/city-wages";
 
 export async function GET(request: NextRequest) {
   const cityName = new URL(request.url).searchParams.get("city") || "";
@@ -91,6 +92,11 @@ export async function GET(request: NextRequest) {
     metric,
     nationalRent,
     rentDiffPct,
+    // Average employee wage (CBS, per Ben — a fast read on a city's strength)
+    avgWage: CITY_WAGES[city.name] ?? null,
+    wageDiffPct: CITY_WAGES[city.name] ? Math.round(((CITY_WAGES[city.name] - NATIONAL_AVG_WAGE) / NATIONAL_AVG_WAGE) * 100) : null,
+    nationalWage: NATIONAL_AVG_WAGE,
+    wageAsOf: WAGE_AS_OF,
     articleCount,
     projectorUrl: `https://tenders-app-nu.vercel.app/city/${encodeURIComponent(city.name)}`,
   });
