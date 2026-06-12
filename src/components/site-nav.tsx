@@ -150,7 +150,7 @@ export function SiteNav() {
                 <span className="text-[13px] font-semibold">התחברות</span>
                 <span className="mr-auto text-[9px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(220,38,38,0.2)", color: "#fca5a5" }}>בקרוב</span>
               </button>
-              <p className="text-[10px] text-center mt-2" style={{ color: "rgba(255,255,255,0.3)" }}>לידרפיד — גוגל לעסקים · by ben solomon</p>
+              <p className="text-[10px] text-center mt-2" style={{ color: "rgba(255,255,255,0.3)" }}>לידרפיד — כל הבאזז, במקום אחד · by ben solomon</p>
             </div>
           </aside>
         </div>
