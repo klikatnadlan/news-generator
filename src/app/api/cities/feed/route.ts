@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
   const sp = new URL(request.url).searchParams;
   const cityName = sp.get("city") || "";
   const chip = sp.get("chip") || "";
+  const from = sp.get("from") || null; // yyyy-mm-dd; default handled client-side (last quarter)
   const page = parseInt(sp.get("page") || "1", 10);
   const limit = 20;
   const offset = (page - 1) * limit;
@@ -40,6 +41,7 @@ export async function GET(request: NextRequest) {
     p_aliases: city.aliases || [],
     p_strict: !!city.commonWord,
     p_chip: chip,
+    p_from: from,
     p_limit: limit,
     p_offset: offset,
   });

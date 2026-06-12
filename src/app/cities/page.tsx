@@ -61,6 +61,23 @@ export default function CitiesPage() {
   const [page, setPage] = useState(1);
   const [loadingFeed, setLoadingFeed] = useState(false);
   const [activeChip, setActiveChip] = useState<string | null>(null);
+  // Feed time range — default: last quarter (the most relevant; this replaces
+  // Google, and fresh results are what matter). Expandable to all-time.
+  type FeedRange = "quarter" | "half" | "year" | "all";
+  const [feedRange, setFeedRange] = useState<FeedRange>("quarter");
+  const FEED_RANGES: { key: FeedRange; label: string; months: number | null }[] = [
+    { key: "quarter", label: "רבעון אחרון", months: 3 },
+    { key: "half", label: "חצי שנה", months: 6 },
+    { key: "year", label: "שנה", months: 12 },
+    { key: "all", label: "הכל", months: null },
+  ];
+  const rangeFrom = (r: FeedRange): string => {
+    const m = FEED_RANGES.find((x) => x.key === r)?.months;
+    if (!m) return "";
+    const d = new Date();
+    d.setMonth(d.getMonth() - m);
+    return d.toISOString().slice(0, 10);
+  };
 
   const [summary, setSummary] = useState("");
   const [summaryLoading, setSummaryLoading] = useState(false);
@@ -95,11 +112,13 @@ export default function CitiesPage() {
     reasoning: it.reasoning || "",
   });
 
-  const loadFeed = async (cityName: string, chipTerm: string | null, pageN: number) => {
+  const loadFeed = async (cityName: string, chipTerm: string | null, pageN: number, range?: FeedRange) => {
     setLoadingFeed(true);
     try {
       const chipQ = chipTerm ? `&chip=${encodeURIComponent(chipTerm)}` : "";
-      const res = await fetch(`/api/cities/feed?city=${encodeURIComponent(cityName)}${chipQ}&page=${pageN}`);
+      const from = rangeFrom(range ?? feedRange);
+      const fromQ = from ? `&from=${from}` : "";
+      const res = await fetch(`/api/cities/feed?city=${encodeURIComponent(cityName)}${chipQ}${fromQ}&page=${pageN}`);
       const data = await res.json();
       const items = (data.items || []).map(mapItem);
       if (pageN === 1) setArticles(items);
@@ -124,9 +143,10 @@ export default function CitiesPage() {
     setResearchFrom("");
     setOpenResearchTopic(null);
     setDossier(null);
+    setFeedRange("quarter"); // default: last quarter = most relevant
     setLoadingCity(true);
     // Feed first (fast), overview in parallel
-    loadFeed(cityName, null, 1);
+    loadFeed(cityName, null, 1, "quarter");
     try {
       const res = await fetch(`/api/cities/overview?city=${encodeURIComponent(cityName)}`);
       const data = await res.json();
@@ -140,6 +160,12 @@ export default function CitiesPage() {
     if (!selected) return;
     setActiveChip(label);
     loadFeed(selected, term, 1);
+  };
+
+  const applyRange = (r: FeedRange) => {
+    if (!selected) return;
+    setFeedRange(r);
+    loadFeed(selected, CITY_CHIPS.find((c) => c.label === activeChip)?.term || null, 1, r);
   };
 
   const fetchSummary = async (refresh: boolean) => {
@@ -428,8 +454,20 @@ export default function CitiesPage() {
               ))}
             </div>
 
+            {/* Feed time range — default: last quarter (most relevant) */}
+            <div className="flex items-center flex-wrap gap-1.5 mb-3">
+              <span className="text-[10px] shrink-0 ml-1" style={{ color: "#9ca3af" }}>🗓️ טווח:</span>
+              {FEED_RANGES.map((r) => (
+                <button key={r.key} onClick={() => applyRange(r.key)}
+                  className="px-2.5 py-1 text-[11px] rounded-full font-medium transition-colors whitespace-nowrap"
+                  style={{ background: feedRange === r.key ? "#dc2626" : "#fff", color: feedRange === r.key ? "#fff" : "#6b7280", border: "1px solid #e5e7eb" }}>
+                  {r.label}
+                </button>
+              ))}
+            </div>
+
             <p className="text-[11px] mb-2" style={{ color: "#9ca3af" }}>
-              {total} באזים{activeChip ? ` · ${activeChip}` : ""} על {selected}
+              {total} באזים{activeChip ? ` · ${activeChip}` : ""} על {selected} · {FEED_RANGES.find((r) => r.key === feedRange)?.label}
             </p>
 
             {/* Feed */}
@@ -440,8 +478,13 @@ export default function CitiesPage() {
               </div>
             ) : articles.length === 0 ? (
               <div className="text-center py-10 text-[13px]" style={{ color: "#9ca3af" }}>
-                לא נמצאו באזים{activeChip ? ` בנושא "${activeChip}"` : ""} על {selected} עדיין.
-                <br />ערים קטנות מקבלות מעט סיקור ארצי — נוסיף מקורות מקומיים כדי להעשיר.
+                לא נמצאו באזים{activeChip ? ` בנושא "${activeChip}"` : ""} על {selected} {feedRange !== "all" ? `ב${FEED_RANGES.find((r) => r.key === feedRange)?.label}` : "עדיין"}.
+                {feedRange !== "all" && (
+                  <>
+                    <br />
+                    <button onClick={() => applyRange("all")} className="font-semibold underline mt-1" style={{ color: "#dc2626" }}>הרחב לכל הזמנים ←</button>
+                  </>
+                )}
               </div>
             ) : (
               <div className="space-y-2.5">
