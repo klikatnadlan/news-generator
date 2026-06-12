@@ -98,9 +98,13 @@ export default function CitiesPage() {
   const [researchTopics, setResearchTopics] = useState<Set<string>>(new Set());
   const [customCubes, setCustomCubes] = useState<string[]>([]);
   const [researchFrom, setResearchFrom] = useState<string>(""); // "" = all time
-  const [research, setResearch] = useState<{ topic: string; count: number; items: { id: string; title: string; source: string; url: string; date: string | null }[] }[] | null>(null);
+  const [research, setResearch] = useState<{ topic: string; count: number; items: { id: string; title: string; summary?: string; source: string; url: string; date: string | null }[] }[] | null>(null);
   const [researchLoading, setResearchLoading] = useState(false);
   const [openResearchTopic, setOpenResearchTopic] = useState<string | null>(null);
+  // "קרא באז" inside research results — opens the full content cube (NewsCard)
+  // INSIDE LeaderFeed instead of throwing the user to the external site.
+  const [openBuzzIds, setOpenBuzzIds] = useState<Set<string>>(new Set());
+  const toggleBuzz = (id: string) => setOpenBuzzIds((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   // "תדריך אזור" — structured AI report (click only, sources are real articles).
   type Dossier = { report: string; sources: { title: string; source: string; url: string; date: string | null }[]; wikipediaUrl?: string };
@@ -153,6 +157,7 @@ export default function CitiesPage() {
     setCustomCubes([]);
     setResearchFrom("");
     setOpenResearchTopic(null);
+    setOpenBuzzIds(new Set());
     setDossier(null);
     setFeedRange("quarter"); // default: last quarter = most relevant
     setLoadingCity(true);
@@ -217,6 +222,7 @@ export default function CitiesPage() {
     if (!selected || researchTopics.size === 0) return;
     setResearchLoading(true);
     setOpenResearchTopic(null);
+    setOpenBuzzIds(new Set());
     try {
       const fromQ = researchFrom ? `&from=${researchFrom}` : "";
       const res = await fetch(`/api/cities/research?city=${encodeURIComponent(selected)}&topics=${encodeURIComponent(Array.from(researchTopics).join("|"))}${fromQ}`);
@@ -442,14 +448,31 @@ export default function CitiesPage() {
                           </span>
                         </button>
                         {open && (
-                          <div className="px-2 pt-1 pb-2 space-y-1">
-                            {r.items.map((it) => (
-                              <div key={it.id} className="text-[12px] leading-[1.5]" style={{ color: "#374151" }} dir="rtl">
-                                <span style={{ color: "#9ca3af" }}>•</span> {it.title}
-                                <span className="text-[10px] mr-1" style={{ color: "#9ca3af" }}> ({it.source}{it.date ? ` · ${it.date}` : ""})</span>
-                                {it.url && <a href={it.url} target="_blank" rel="noopener noreferrer" className="text-[10px] font-semibold mr-1" style={{ color: "#0071e3" }}>מקור ←</a>}
-                              </div>
-                            ))}
+                          <div className="px-2 pt-1 pb-2 space-y-1.5">
+                            {r.items.map((it, i) => {
+                              const buzzOpen = openBuzzIds.has(it.id);
+                              return (
+                                <div key={it.id}>
+                                  <div className="text-[12px] leading-[1.5]" style={{ color: "#374151" }} dir="rtl">
+                                    <span className="font-bold" style={{ color: "#0369a1" }}>{i + 1}.</span> {it.title}
+                                    <span className="text-[10px] mr-1" style={{ color: "#9ca3af" }}> ({it.source}{it.date ? ` · ${it.date}` : ""})</span>
+                                    <button onClick={() => toggleBuzz(it.id)}
+                                      className="text-[10px] font-bold mr-1.5 px-1.5 py-0.5 rounded border align-middle"
+                                      style={{ borderColor: "#0ea5e9", color: "#0369a1", background: buzzOpen ? "#e0f2fe" : "#fff" }}>
+                                      {buzzOpen ? "▲ סגור" : "📖 קרא באז"}
+                                    </button>
+                                  </div>
+                                  {buzzOpen && (
+                                    <div className="mt-1.5 mb-2">
+                                      <NewsCard news={{ ...it, source_url: it.url || "", published_at: it.date || null, score: null, reasoning: "" } as unknown as ScoredNews} selected={false} onSelect={() => {}} showDate />
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                            {r.count > r.items.length && (
+                              <p className="text-[10px] pt-0.5" style={{ color: "#9ca3af" }}>מציג את {r.items.length} העדכניים מתוך {r.count}.</p>
+                            )}
                           </div>
                         )}
                       </div>
