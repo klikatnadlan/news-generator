@@ -63,22 +63,30 @@ export default function CitiesPage() {
   const [page, setPage] = useState(1);
   const [loadingFeed, setLoadingFeed] = useState(false);
   const [activeChip, setActiveChip] = useState<string | null>(null);
-  // Feed time range — default: last quarter (the most relevant; this replaces
-  // Google, and fresh results are what matter). Expandable to all-time.
-  type FeedRange = "quarter" | "half" | "year" | "all";
+  // Feed time range — EXCLUSIVE buckets (Ben: clicking a different chip must
+  // show DIFFERENT content, no overlap): רבעון = 0-3 חודשים אחורה, חצי שנה =
+  // 3-6, שנה = 6-12. "🎚️ סנן" opens a custom from/to (incl. כל הזמנים) — for
+  // e.g. learning a neighborhood since it was built.
+  type FeedRange = "quarter" | "half" | "year" | "custom";
   const [feedRange, setFeedRange] = useState<FeedRange>("quarter");
-  const FEED_RANGES: { key: FeedRange; label: string; months: number | null }[] = [
-    { key: "quarter", label: "רבעון אחרון", months: 3 },
-    { key: "half", label: "חצי שנה", months: 6 },
-    { key: "year", label: "שנה", months: 12 },
-    { key: "all", label: "הכל", months: null },
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const FEED_RANGES: { key: FeedRange; label: string }[] = [
+    { key: "quarter", label: "רבעון אחרון" },
+    { key: "half", label: "חצי שנה" },
+    { key: "year", label: "שנה" },
   ];
-  const rangeFrom = (r: FeedRange): string => {
-    const m = FEED_RANGES.find((x) => x.key === r)?.months;
-    if (!m) return "";
-    const d = new Date();
-    d.setMonth(d.getMonth() - m);
-    return d.toISOString().slice(0, 10);
+  const monthsAgoIso = (m: number) => { const d = new Date(); d.setMonth(d.getMonth() - m); return d.toISOString().slice(0, 10); };
+  const rangeWindow = (r: FeedRange): { from: string; to: string } => {
+    if (r === "quarter") return { from: monthsAgoIso(3), to: "" };
+    if (r === "half") return { from: monthsAgoIso(6), to: monthsAgoIso(3) };
+    if (r === "year") return { from: monthsAgoIso(12), to: monthsAgoIso(6) };
+    return { from: customFrom, to: customTo }; // custom; both empty = כל הזמנים
+  };
+  const rangeLabel = (r: FeedRange): string => {
+    if (r === "custom") return customFrom || customTo ? `${customFrom || "…"} ← ${customTo || "היום"}` : "כל הזמנים";
+    return FEED_RANGES.find((x) => x.key === r)?.label || "";
   };
 
   // Subtitle text size for the feed cards (shared --lf-content-size, persisted).
@@ -127,13 +135,14 @@ export default function CitiesPage() {
     reasoning: it.reasoning || "",
   });
 
-  const loadFeed = async (cityName: string, chipTerm: string | null, pageN: number, range?: FeedRange) => {
+  const loadFeed = async (cityName: string, chipTerm: string | null, pageN: number, range?: FeedRange, winOverride?: { from: string; to: string }) => {
     setLoadingFeed(true);
     try {
       const chipQ = chipTerm ? `&chip=${encodeURIComponent(chipTerm)}` : "";
-      const from = rangeFrom(range ?? feedRange);
-      const fromQ = from ? `&from=${from}` : "";
-      const res = await fetch(`/api/cities/feed?city=${encodeURIComponent(cityName)}${chipQ}${fromQ}&page=${pageN}`);
+      const win = winOverride ?? rangeWindow(range ?? feedRange);
+      const fromQ = win.from ? `&from=${win.from}` : "";
+      const toQ = win.to ? `&to=${win.to}` : "";
+      const res = await fetch(`/api/cities/feed?city=${encodeURIComponent(cityName)}${chipQ}${fromQ}${toQ}&page=${pageN}`);
       const data = await res.json();
       const items = (data.items || []).map(mapItem);
       if (pageN === 1) setArticles(items);
@@ -181,7 +190,13 @@ export default function CitiesPage() {
   const applyRange = (r: FeedRange) => {
     if (!selected) return;
     setFeedRange(r);
+    if (r !== "custom") setFilterOpen(false);
     loadFeed(selected, CITY_CHIPS.find((c) => c.label === activeChip)?.term || null, 1, r);
+  };
+  const applyAllTime = () => {
+    setCustomFrom(""); setCustomTo("");
+    setFeedRange("custom"); setFilterOpen(false);
+    if (selected) loadFeed(selected, CITY_CHIPS.find((c) => c.label === activeChip)?.term || null, 1, "custom", { from: "", to: "" });
   };
 
   const fetchSummary = async (refresh: boolean) => {
@@ -498,7 +513,7 @@ export default function CitiesPage() {
               ))}
             </div>
 
-            {/* Feed time range — default: last quarter (most relevant) */}
+            {/* Feed time range — exclusive buckets + custom filter */}
             <div className="flex items-center flex-wrap gap-1.5 mb-3">
               <span className="text-[10px] shrink-0 ml-1" style={{ color: "#9ca3af" }}>🗓️ טווח:</span>
               {FEED_RANGES.map((r) => (
@@ -508,11 +523,27 @@ export default function CitiesPage() {
                   {r.label}
                 </button>
               ))}
+              <button onClick={() => setFilterOpen((o) => !o)}
+                className="px-2.5 py-1 text-[11px] rounded-full font-semibold transition-colors whitespace-nowrap"
+                style={{ background: feedRange === "custom" ? "#dc2626" : "#fff", color: feedRange === "custom" ? "#fff" : "#6b7280", border: "1px solid #e5e7eb" }}
+                title="טווח מותאם אישית — כולל כל הזמנים">
+                🎚️ סנן{feedRange === "custom" ? ` · ${rangeLabel("custom")}` : ""}
+              </button>
             </div>
+            {filterOpen && (
+              <div className="lf-card p-3 mb-3 flex flex-wrap items-center gap-2 text-[12px]">
+                <span style={{ color: "#6b7280" }}>מתאריך:</span>
+                <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="h-8 px-2 text-[12px] border rounded-md" style={{ borderColor: "#e5e7eb" }} />
+                <span style={{ color: "#6b7280" }}>עד:</span>
+                <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="h-8 px-2 text-[12px] border rounded-md" style={{ borderColor: "#e5e7eb" }} />
+                <button onClick={() => applyRange("custom")} className="lf-btn lf-btn-dark text-[11px] !py-1.5 !px-3">החל טווח</button>
+                <button onClick={applyAllTime} className="lf-btn lf-btn-outline text-[11px] !py-1.5 !px-3">∞ כל הזמנים</button>
+              </div>
+            )}
 
             <div className="flex items-center justify-between mb-2">
               <p className="text-[11px]" style={{ color: "#9ca3af" }}>
-                {total} באזים{activeChip ? ` · ${activeChip}` : ""} על {selected} · {FEED_RANGES.find((r) => r.key === feedRange)?.label}
+                {total} באזים{activeChip ? ` · ${activeChip}` : ""} על {selected} · {rangeLabel(feedRange)}
               </p>
               <div className="flex items-center gap-1 shrink-0" title="גודל טקסט תתי-הכותרות בפיד">
                 <span className="text-[9px]" style={{ color: "#b8bec7" }}>גודל טקסט</span>
@@ -529,13 +560,9 @@ export default function CitiesPage() {
               </div>
             ) : articles.length === 0 ? (
               <div className="text-center py-10 text-[13px]" style={{ color: "#9ca3af" }}>
-                לא נמצאו באזים{activeChip ? ` בנושא "${activeChip}"` : ""} על {selected} {feedRange !== "all" ? `ב${FEED_RANGES.find((r) => r.key === feedRange)?.label}` : "עדיין"}.
-                {feedRange !== "all" && (
-                  <>
-                    <br />
-                    <button onClick={() => applyRange("all")} className="font-semibold underline mt-1" style={{ color: "#dc2626" }}>הרחב לכל הזמנים ←</button>
-                  </>
-                )}
+                לא נמצאו באזים{activeChip ? ` בנושא "${activeChip}"` : ""} על {selected} ({rangeLabel(feedRange)}).
+                <br />
+                <button onClick={applyAllTime} className="font-semibold underline mt-1" style={{ color: "#dc2626" }}>הרחב לכל הזמנים ←</button>
               </div>
             ) : (
               <div className="space-y-2.5">

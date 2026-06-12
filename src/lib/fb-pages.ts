@@ -66,4 +66,8 @@ export const FB_MUNICIPALITY_PAGES: FbPage[] = [
   { city: "בית שאן", url: "https://www.facebook.com/100010005789305/", region: "עמקים", kind: "ראש העיר", name: "נועם ג'ומעה" },
   { city: "מגדל", url: "https://www.facebook.com/100034967678001/", region: "כנרת", kind: "ראש העיר", name: "נתנאל אלפסי" },
   { city: "קרית טבעון", url: "https://www.facebook.com/IdoGrinblum4Tivon/", region: "עמקים", kind: "ראש העיר", name: "עידו גרינבלום" },
+
+  // מרכז (בקשת בן: לוד — העירייה + ראש העיר, המקור העדכני ביותר לחדשות העיר)
+  { city: "לוד", url: "https://www.facebook.com/LodMunicipality/", region: "מרכז" },
+  { city: "לוד", url: "https://www.facebook.com/revivoy/", region: "מרכז", kind: "ראש העיר", name: "יאיר רביבו" },
 ];

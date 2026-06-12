@@ -70,6 +70,8 @@ export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) 
   const [artSummaryLoading, setArtSummaryLoading] = useState(false);
   const [artSummaryCopied, setArtSummaryCopied] = useState(false);
   const [frameOpen, setFrameOpen] = useState(false); // 🌐 iframe view
+  const [actionsOpen, setActionsOpen] = useState(false); // ⋮ kebab — clean card by default
+  const [readerCopied, setReaderCopied] = useState(false);
   const cardRef = useRef<HTMLElement>(null);
   // Close the iframe and scroll back to the card (so the user lands on the
   // card's buttons, not stranded at the bottom of a tall frame).
@@ -182,6 +184,12 @@ export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) 
           <div className="flex items-center gap-1 mr-auto">
             {news.score != null && <span className="text-[20px] font-extrabold leading-none" style={{ color: scoreColor, fontFamily: "DM Sans, system-ui" }}>{news.score}</span>}
             {news.source_url && <a href={news.source_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[10px] hover:underline mr-2" style={{ color: "#9ca3af" }}>מקור ←</a>}
+            {/* ⋮ — actions live behind a kebab so the card stays clean for
+                client-facing screenshots (Ben). */}
+            <button onClick={(e) => { e.stopPropagation(); setActionsOpen((o) => !o); }} aria-label="פעולות"
+              className="w-7 h-7 flex items-center justify-center rounded-lg border transition-colors"
+              style={actionsOpen ? { borderColor: "#0f1419", background: "#0f1419", color: "#fff" } : { borderColor: "#e5e7eb", color: "#6b7280", background: "#fff" }}
+              title="פעולות על הבאז">⋮</button>
           </div>
         </div>
         <h3 className="text-[16px] font-bold leading-[1.45] mb-1.5 cursor-pointer hover:opacity-70 transition-opacity" style={{ color: "#0f1419" }}
@@ -196,6 +204,7 @@ export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) 
           </p>
         )}
         {news.reasoning && !/^[a-zA-Z]/.test(news.reasoning) && <p className="text-[11px] leading-[1.4] mb-3 px-2 py-1 rounded-md inline-block" style={{ color: "#92400e", background: "#fffbeb" }}>{news.reasoning}</p>}
+        {actionsOpen && (
         <div className="flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
           <button onClick={async (e) => { e.stopPropagation(); await navigator.clipboard.writeText(`${news.title}${news.summary ? `\n${news.summary}` : ""}`); setCopyLabel("✓"); setTimeout(() => setCopyLabel(null), 1500); }} className="text-[11px] font-medium h-[30px] px-3 rounded-md border transition-colors" style={copyLabel ? { background: "#f0fdf4", borderColor: "#059669", color: "#059669" } : { borderColor: "#e5e7eb", color: "#6b7280", background: "#fff" }}>{copyLabel || "📋 העתק תכלס"}</button>
           {!isPaywalled && (
@@ -218,6 +227,7 @@ export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) 
             <span className="text-[10px] px-2 py-1 rounded" style={{ color: "#9ca3af", background: "#f3f4f6" }}>🔒 אתר בתשלום</span>
           )}
         </div>
+        )}
 
         {/* In-app reader + סכם באז */}
         {readerOpen && (
@@ -228,6 +238,11 @@ export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) 
                 <button onClick={summarizeArticle} disabled={artSummaryLoading} className="text-[11px] font-semibold h-7 px-2.5 rounded-md text-white disabled:opacity-50" style={{ background: "#7c3aed" }}>
                   {artSummaryLoading ? "⏳ מסכם…" : "🧠 סכם באז"}
                 </button>
+                {readerText && (
+                  <button onClick={async () => { await navigator.clipboard.writeText(readerText); setReaderCopied(true); setTimeout(() => setReaderCopied(false), 1500); }}
+                    className="text-[10px] font-bold h-6 px-2 rounded border" style={readerCopied ? { borderColor: "#059669", color: "#059669", background: "#f0fdf4" } : { borderColor: "#bae6fd", color: "#0369a1", background: "#fff" }}
+                    title="העתק את כל הטקסט">{readerCopied ? "✓ הועתק" : "📋 העתק"}</button>
+                )}
                 {news.source_url && <a href={news.source_url} target="_blank" rel="noopener noreferrer" className="text-[10px] font-semibold" style={{ color: "#9ca3af" }}>מקור ←</a>}
                 <button onClick={closeReader} className="text-[10px] font-bold h-6 px-2 rounded" style={{ color: "#fff", background: "#0369a1" }} title="סגור את הבאז">✕ סגור</button>
               </div>

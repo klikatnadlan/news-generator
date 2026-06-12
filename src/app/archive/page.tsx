@@ -82,24 +82,54 @@ export default function ArchivePage() {
     setSelectedIds((prev) => { const n = new Set(prev); if (sel) n.add(id); else n.delete(id); return n; });
   };
 
-  const search = useCallback(async (page = 1, qOverride?: string) => {
+  // Exclusive time buckets (like the cities feed): רבעון = 0-3 חודשים,
+  // חצי שנה = 3-6, שנה = 6-12; the date inputs are the custom סנן (כל הזמנים =
+  // both empty). Default: last quarter — freshest = most relevant.
+  type ArchRange = "quarter" | "half" | "year" | "custom";
+  const [archRange, setArchRange] = useState<ArchRange>("quarter");
+  const monthsAgoIso = (m: number) => { const d = new Date(); d.setMonth(d.getMonth() - m); return d.toISOString().slice(0, 10); };
+  const rangeWindow = (r: ArchRange): { from: string; to: string } => {
+    if (r === "quarter") return { from: monthsAgoIso(3), to: "" };
+    if (r === "half") return { from: monthsAgoIso(6), to: monthsAgoIso(3) };
+    if (r === "year") return { from: monthsAgoIso(12), to: monthsAgoIso(6) };
+    return { from: fromDate, to: toDate };
+  };
+
+  const search = useCallback(async (page = 1, qOverride?: string, fromOverride?: string, toOverride?: string) => {
     const q = qOverride ?? query;
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (q) params.set("q", q);
-      if (fromDate) params.set("from", fromDate);
-      if (toDate) params.set("to", toDate);
+      const f = fromOverride ?? fromDate;
+      const t = toOverride ?? toDate;
+      if (f) params.set("from", f);
+      if (t) params.set("to", t);
       params.set("page", page.toString());
       const res = await fetch(`/api/archive?${params}`);
       setResults(await res.json());
     } finally { setLoading(false); }
   }, [query, fromDate, toDate]);
 
+  const applyArchRange = (r: ArchRange) => {
+    setArchRange(r);
+    const win = rangeWindow(r);
+    setFromDate(win.from); setToDate(win.to);
+    search(1, undefined, win.from, win.to);
+  };
+  const applyArchAllTime = () => {
+    setArchRange("custom");
+    setFromDate(""); setToDate("");
+    search(1, undefined, "", "");
+  };
+
   // Auto-run a search when arriving from the home search bar (/archive?q=...)
+  // Default window: last quarter.
   useEffect(() => {
+    const q3 = monthsAgoIso(3);
+    setFromDate(q3);
     const q = new URLSearchParams(window.location.search).get("q");
-    if (q) { setQuery(q); search(1, q); }
+    if (q) { setQuery(q); search(1, q, q3, ""); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -128,6 +158,18 @@ export default function ArchivePage() {
       <SiteNav />
 
       <div className="max-w-3xl mx-auto px-4 py-6">
+        {/* deep-feed hero — premium, in the home page's dark language */}
+        <div className="rounded-2xl px-6 py-7 mb-4 text-center relative overflow-hidden" style={{ background: "linear-gradient(165deg, #0f1419 0%, #161e2b 55%, #1a2335 100%)" }}>
+          <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(circle at 75% 20%, rgba(220,38,38,0.14), transparent 45%)" }} />
+          <h1 className="relative text-[30px] font-extrabold text-white leading-none tracking-tight" style={{ fontFamily: "DM Sans, system-ui" }}>
+            דיפפיד <span className="text-[16px] font-bold align-middle" style={{ color: "#dc2626", letterSpacing: "0.04em" }}>deep-feed</span>
+          </h1>
+          <p className="relative text-[15px] font-bold text-white mt-2">מחקר חוצה גבולות בקליק</p>
+          <p className="relative text-[12.5px] mt-1.5" style={{ color: "rgba(255,255,255,0.55)" }}>
+            כשמנוע החיפוש החזק בעולם בא לתת עבודה<span className="inline-block w-2 h-2 rounded-full bg-red-500 mr-1.5 align-middle shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
+          </p>
+        </div>
+
         {/* Search */}
         <div className="lf-card p-4 mb-4">
           <div className="flex gap-2 mb-3">
@@ -145,12 +187,28 @@ export default function ArchivePage() {
               {loading ? "⏳" : "חפש"}
             </button>
           </div>
-          <div className="flex gap-2 items-center text-[12px]">
-            <span style={{ color: "#9ca3af" }}>מתאריך:</span>
-            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)}
+          {/* Exclusive time buckets — default last quarter */}
+          <div className="flex items-center flex-wrap gap-1.5 mb-3">
+            <span className="text-[10px] shrink-0 ml-1" style={{ color: "#9ca3af" }}>🗓️ טווח:</span>
+            {([["quarter", "רבעון אחרון"], ["half", "חצי שנה"], ["year", "שנה"]] as [ArchRange, string][]).map(([key, label]) => (
+              <button key={key} onClick={() => applyArchRange(key)}
+                className="px-2.5 py-1 text-[11px] rounded-full font-medium transition-colors whitespace-nowrap"
+                style={{ background: archRange === key ? "#dc2626" : "#fff", color: archRange === key ? "#fff" : "#6b7280", border: "1px solid #e5e7eb" }}>
+                {label}
+              </button>
+            ))}
+            <button onClick={applyArchAllTime}
+              className="px-2.5 py-1 text-[11px] rounded-full font-medium transition-colors whitespace-nowrap"
+              style={{ background: archRange === "custom" && !fromDate && !toDate ? "#dc2626" : "#fff", color: archRange === "custom" && !fromDate && !toDate ? "#fff" : "#6b7280", border: "1px solid #e5e7eb" }}>
+              ∞ כל הזמנים
+            </button>
+          </div>
+          <div className="flex gap-2 items-center text-[12px] flex-wrap">
+            <span style={{ color: "#9ca3af" }}>🎚️ סנן מותאם:</span>
+            <input type="date" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setArchRange("custom"); }}
               className="h-8 px-2 text-[12px] border rounded-md w-36" style={{ borderColor: "#e5e7eb" }} />
             <span style={{ color: "#9ca3af" }}>עד:</span>
-            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)}
+            <input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setArchRange("custom"); }}
               className="h-8 px-2 text-[12px] border rounded-md w-36" style={{ borderColor: "#e5e7eb" }} />
           </div>
         </div>
@@ -211,7 +269,7 @@ export default function ArchivePage() {
         {results && Array.isArray(results.items) && (
           <div className="space-y-2">
             <p className="text-[12px] mb-2" style={{ color: "#9ca3af" }}>
-              {results.total} תוצאות · עמוד {results.page}/{results.totalPages}
+              {results.total} באזים · עמוד {results.page}/{results.totalPages}
             </p>
             {results.items.map((item) => (
               <NewsCard key={item.id} news={toScored(item)} selected={selectedIds.has(item.id)} onSelect={toggleSelect} showDate />
