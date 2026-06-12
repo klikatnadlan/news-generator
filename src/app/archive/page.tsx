@@ -237,6 +237,15 @@ export default function ArchivePage() {
             <div className="text-3xl">🔍</div>
             <p className="text-[14px] font-bold" style={{ color: "#0f1419" }}>לא נמצאו באזים{query ? ` עבור “${query}”` : ""}</p>
             <p className="text-[12px]" style={{ color: "#6b7280" }}>נסו מילה אחרת, או הרחיבו את טווח התאריכים.</p>
+            {query && (
+              <div className="pt-2 space-y-1.5">
+                <a href={`https://www.google.com/search?q=${encodeURIComponent(query)}`} target="_blank" rel="noopener noreferrer"
+                  className="inline-block lf-btn lf-btn-outline text-[12px] !py-2 !px-4 font-semibold">
+                  🌐 בינתיים — חפש בגוגל ←
+                </a>
+                <p className="text-[10px]" style={{ color: "#b8bec7" }}>רשמנו את הפער — ככה לידרפיד לומד לכסות גם את זה. 📈</p>
+              </div>
+            )}
           </div>
         )}
 

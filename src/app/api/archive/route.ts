@@ -54,6 +54,12 @@ export async function GET(request: NextRequest) {
   const rows = (data || []) as any[];
   const total = rows.length > 0 ? Number(rows[0].total) || 0 : 0;
 
+  // "גוגל פנימי": a search that finds nothing is a coverage gap — log it so we
+  // can close it (new source / keywords). Fire-and-forget, never blocks.
+  if (query && total === 0 && page === 1) {
+    supabase.from("search_gaps").insert({ query: query.slice(0, 200), results: 0, page: "archive" }).then(() => {}, () => {});
+  }
+
   const items = rows.map((r) => {
     const dateIso = (r.published_at || r.fetched_at || "") as string;
     return {
