@@ -48,9 +48,10 @@ function sourceBreakdown(items: { source?: string }[]): { source: string; count:
       if (s === r || s.includes(r)) { counts.set(r, (counts.get(r) || 0) + 1); break; }
     }
   }
+  // Only sources that actually have articles (Ben: a 0 entry is noise).
   return SOURCE_ORDER
     .map((r) => ({ source: r, count: counts.get(r) || 0 }))
-    .filter((x) => x.count > 0 || x.source === 'קליקת הנדל"ן');
+    .filter((x) => x.count > 0);
 }
 
 export default function AlertsPage() {
@@ -405,7 +406,7 @@ export default function AlertsPage() {
                           <span className="text-[11px] font-semibold shrink-0" style={{ color: "#6b7280" }} title="כמה באזים מכל מקור — עוזר להבחין בין סיקור מערכתי ליחצ״נות (למשל ICE = הרבה יח״צ, גלובס/כלכליסט = יותר מערכתי)">📊 מקורות:</span>
                           {sourceBreakdown(articles[alert.id] || []).map((b) => (
                             <span key={b.source} className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ color: srcColor(b.source), background: srcColor(b.source) + "14", border: `1px solid ${srcColor(b.source)}28` }}>
-                              {b.source} {b.count}
+                              {b.source}: {b.count}
                             </span>
                           ))}
                         </div>

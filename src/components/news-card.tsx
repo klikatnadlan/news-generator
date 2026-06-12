@@ -74,6 +74,7 @@ export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) 
   // Close the iframe and scroll back to the card (so the user lands on the
   // card's buttons, not stranded at the bottom of a tall frame).
   const closeFrame = () => { setFrameOpen(false); cardRef.current?.scrollIntoView({ block: "start", behavior: "smooth" }); };
+  const closeReader = () => { setReaderOpen(false); cardRef.current?.scrollIntoView({ block: "start", behavior: "smooth" }); };
   // Resize ONLY this card's summary box (Ben: the global var grew text all over
   // the site — he wants just the cube he's reading).
   const [summarySize, setSummarySize] = useState(12.5);
@@ -228,6 +229,7 @@ export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) 
                   {artSummaryLoading ? "⏳ מסכם…" : "🧠 סכם באז"}
                 </button>
                 {news.source_url && <a href={news.source_url} target="_blank" rel="noopener noreferrer" className="text-[10px] font-semibold" style={{ color: "#9ca3af" }}>מקור ←</a>}
+                <button onClick={closeReader} className="text-[10px] font-bold h-6 px-2 rounded" style={{ color: "#fff", background: "#0369a1" }} title="סגור את הבאז">✕ סגור</button>
               </div>
             </div>
             {artSummary && (
@@ -264,6 +266,10 @@ export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) 
               ) : (
                 <p className="text-[12px] py-3" style={{ color: "#9ca3af" }} dir="rtl">{isPaywalled ? "לא ניתן לשלוף את גוף הבאז — אתר בתשלום." : "לא הצלחנו לשלוף את גוף הבאז (נטען דינמית או חוסם)."} אפשר לפתוח במקור, או לסכם מהכותרת.</p>
               )}
+            </div>
+            {/* Bottom close — finished reading at the bottom, close from there */}
+            <div className="flex items-center justify-center py-2 border-t" style={{ borderColor: "#e0f2fe", background: "#f8fcff" }}>
+              <button onClick={closeReader} className="text-[12px] font-bold h-8 px-4 rounded-md text-white" style={{ background: "#0369a1" }}>▲ סגור באז</button>
             </div>
           </div>
         )}

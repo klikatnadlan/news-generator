@@ -855,44 +855,46 @@ function HeadlineRow({ item, selected, onToggle, onCopy, getColor, accentColor, 
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1 shrink-0">
-          <span className="text-[9px] font-semibold px-1.5 py-[1px] rounded" style={{ color: srcColor, background: srcColor + "12" }}>{item.source}</span>
-          <button className="text-[11px] leading-none hover:bg-gray-100 rounded px-1 py-1" style={{ color: hasSummary ? "#6b7280" : "#d1d5db" }}
-            onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }} title={open ? "סגור תת-כותרת" : "פתח תת-כותרת"}>
-            <span className="inline-block transition-transform" style={{ transform: open ? "rotate(180deg)" : "none" }}>▾</span>
+        <span className="text-[9px] font-semibold px-1.5 py-[1px] rounded shrink-0" style={{ color: srcColor, background: srcColor + "12" }}>{item.source}</span>
+      </div>
+      {/* Actions on their OWN row — a long button cluster was squeezing the
+          title into one-word-per-line on mobile. */}
+      <div className="flex items-center gap-1 flex-wrap mt-1.5 mr-[30px]">
+        <button className="text-[11px] leading-none hover:bg-gray-100 rounded px-1 py-1" style={{ color: hasSummary ? "#6b7280" : "#d1d5db" }}
+          onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }} title={open ? "סגור תת-כותרת" : "פתח תת-כותרת"}>
+          <span className="inline-block transition-transform" style={{ transform: open ? "rotate(180deg)" : "none" }}>▾</span>
+        </button>
+        {item.source_url && (
+          <a href={item.source_url} target="_blank" rel="noopener noreferrer"
+            className="text-[10px] font-semibold hover:underline px-1 py-0.5 rounded"
+            style={{ color: "#0071e3" }} onClick={(e) => e.stopPropagation()} title="פתח את הבאז המקורי">
+            מקור ←
+          </a>
+        )}
+        {onTrigger && (
+          <button className="text-[10px] hover:bg-red-50 rounded px-1 py-0.5 font-semibold" style={{ color: "#dc2626" }}
+            onClick={(e) => { e.stopPropagation(); onTrigger(); }} disabled={triggerLoading} title="צור מסגרת מהכותרת">
+            {triggerLoading ? "⏳" : "⚡"}
           </button>
-          {item.source_url && (
-            <a href={item.source_url} target="_blank" rel="noopener noreferrer"
-              className="text-[10px] font-semibold hover:underline px-1 py-0.5 rounded"
-              style={{ color: "#0071e3" }} onClick={(e) => e.stopPropagation()} title="פתח את הבאז המקורי">
-              מקור ←
-            </a>
-          )}
-          {onTrigger && (
-            <button className="text-[10px] hover:bg-red-50 rounded px-1 py-0.5 font-semibold" style={{ color: "#dc2626" }}
-              onClick={(e) => { e.stopPropagation(); onTrigger(); }} disabled={triggerLoading} title="צור מסגרת מהכותרת">
-              {triggerLoading ? "⏳" : "⚡"}
-            </button>
-          )}
-          <button className="text-[10px] hover:bg-gray-100 rounded px-1 py-0.5" style={{ color: "#9ca3af" }}
-            onClick={(e) => onCopy(item, e)} title="העתק">📋</button>
-          {(onMoveUp || onMoveDown || onHide) && (
-            <span className="flex items-center gap-0.5 mr-0.5 pr-1 border-r" style={{ borderColor: "#e5e7eb" }}>
-              {onMoveUp && (
-                <button className="text-[10px] hover:bg-gray-100 rounded px-1 py-0.5 disabled:opacity-25" style={{ color: "#6b7280" }} disabled={isFirst}
-                  onClick={(e) => { e.stopPropagation(); onMoveUp(); }} title="הזז למעלה">↑</button>
-              )}
-              {onMoveDown && (
-                <button className="text-[10px] hover:bg-gray-100 rounded px-1 py-0.5 disabled:opacity-25" style={{ color: "#6b7280" }} disabled={isLast}
-                  onClick={(e) => { e.stopPropagation(); onMoveDown(); }} title="הזז למטה">↓</button>
-              )}
-              {onHide && (
-                <button className="text-[10px] hover:bg-red-50 rounded px-1 py-0.5" style={{ color: "#dc2626" }}
-                  onClick={(e) => { e.stopPropagation(); onHide(); }} title="הסתר כותרת (שחזור בכפתור למעלה)">🗑</button>
-              )}
-            </span>
-          )}
-        </div>
+        )}
+        <button className="text-[10px] hover:bg-gray-100 rounded px-1 py-0.5" style={{ color: "#9ca3af" }}
+          onClick={(e) => onCopy(item, e)} title="העתק">📋</button>
+        {(onMoveUp || onMoveDown || onHide) && (
+          <span className="flex items-center gap-0.5 mr-auto pr-1">
+            {onMoveUp && (
+              <button className="text-[10px] hover:bg-gray-100 rounded px-1 py-0.5 disabled:opacity-25" style={{ color: "#6b7280" }} disabled={isFirst}
+                onClick={(e) => { e.stopPropagation(); onMoveUp(); }} title="הזז למעלה">↑</button>
+            )}
+            {onMoveDown && (
+              <button className="text-[10px] hover:bg-gray-100 rounded px-1 py-0.5 disabled:opacity-25" style={{ color: "#6b7280" }} disabled={isLast}
+                onClick={(e) => { e.stopPropagation(); onMoveDown(); }} title="הזז למטה">↓</button>
+            )}
+            {onHide && (
+              <button className="text-[10px] hover:bg-red-50 rounded px-1 py-0.5" style={{ color: "#dc2626" }}
+                onClick={(e) => { e.stopPropagation(); onHide(); }} title="הסתר כותרת (שחזור בכפתור למעלה)">🗑</button>
+            )}
+          </span>
+        )}
       </div>
       {open && (
         <div className="mt-2 mr-[30px] pr-2.5 border-r-2" style={{ borderColor: "#e5e7eb" }}>
