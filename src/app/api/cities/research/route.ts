@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { findCity } from "@/lib/cities";
+import { findCity, RESEARCH_TOPIC_KEYWORDS } from "@/lib/cities";
 
 export const maxDuration = 30;
 
@@ -40,7 +40,10 @@ export async function GET(request: NextRequest) {
   const results = await Promise.all(
     topics.map(async (topic) => {
       try {
-        const { data } = await supabase.rpc("city_news", { p_city: city.name, p_aliases: city.aliases || [], p_strict: !!city.commonWord, p_chip: topic, p_from: from, p_to: to, p_limit: 5, p_offset: 0 });
+        // Curated keywords (OR) when we know the cube; custom cubes fall back
+        // to the literal term. Title-hits rank first (relevance).
+        const keywords = RESEARCH_TOPIC_KEYWORDS[topic] || [topic];
+        const { data } = await supabase.rpc("city_news", { p_city: city.name, p_aliases: city.aliases || [], p_strict: !!city.commonWord, p_chip: "", p_chip_any: keywords, p_from: from, p_to: to, p_limit: 5, p_offset: 0 });
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rows = (data || []) as any[];
         const count = rows.length ? Number(rows[0].total) || 0 : 0;

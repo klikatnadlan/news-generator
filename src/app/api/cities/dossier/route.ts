@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "@/lib/supabase";
-import { findCity } from "@/lib/cities";
+import { findCity, RESEARCH_TOPIC_KEYWORDS } from "@/lib/cities";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
   await Promise.all(
     useTopics.map(async (topic) => {
       try {
-        const { data } = await supabase.rpc("city_news", { p_city: city.name, p_aliases: city.aliases || [], p_strict: !!city.commonWord, p_chip: topic, p_from: from, p_to: null, p_limit: 6, p_offset: 0 });
+        const { data } = await supabase.rpc("city_news", { p_city: city.name, p_aliases: city.aliases || [], p_strict: !!city.commonWord, p_chip: "", p_chip_any: RESEARCH_TOPIC_KEYWORDS[topic] || [topic], p_from: from, p_to: null, p_limit: 6, p_offset: 0 });
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         for (const r of (data || []) as any[]) {
           const key = clean(r.title).slice(0, 90);

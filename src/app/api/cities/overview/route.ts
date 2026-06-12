@@ -61,12 +61,36 @@ export async function GET(request: NextRequest) {
     }
   } catch { /* ignore */ }
 
+  // ─── National rent benchmark (avg of latest month across cities, cached 7d) ───
+  let nationalRent: number | null = null;
+  try {
+    const { data: nc } = await supabase.from("narrative_cache").select("narratives, created_at").eq("cache_key", "rent_national").maybeSingle();
+    if (nc?.narratives?.avg && Date.now() - new Date(nc.created_at).getTime() < 7 * 24 * 3600 * 1000) {
+      nationalRent = nc.narratives.avg;
+    } else {
+      const r = await fetch(`${PULSE_URL}/rest/v1/rental_by_city?select=city,avg_rent,year,month&order=year.desc,month.desc&limit=300`, { headers: { apikey: PULSE_KEY, Authorization: `Bearer ${PULSE_KEY}` } });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rows: any[] = await r.json();
+      if (Array.isArray(rows) && rows.length) {
+        const ym = `${rows[0].year}-${rows[0].month}`;
+        const latest = rows.filter((x) => `${x.year}-${x.month}` === ym && x.avg_rent);
+        if (latest.length) {
+          nationalRent = Math.round(latest.reduce((s, x) => s + Number(x.avg_rent), 0) / latest.length);
+          await supabase.from("narrative_cache").upsert({ cache_key: "rent_national", narratives: { avg: nationalRent }, count: latest.length, created_at: new Date().toISOString() }, { onConflict: "cache_key" });
+        }
+      }
+    }
+  } catch { /* ignore */ }
+  const rentDiffPct = metric?.avgRent && nationalRent ? Math.round(((metric.avgRent - nationalRent) / nationalRent) * 100) : null;
+
   return NextResponse.json({
     city: { name: city.name, district: city.district },
     population: facts.population,
     populationAsOf: facts.populationAsOf || null,
     mayor: facts.mayor,
     metric,
+    nationalRent,
+    rentDiffPct,
     articleCount,
     projectorUrl: `https://tenders-app-nu.vercel.app/city/${encodeURIComponent(city.name)}`,
   });

@@ -74,16 +74,10 @@ export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) 
   // Close the iframe and scroll back to the card (so the user lands on the
   // card's buttons, not stranded at the bottom of a tall frame).
   const closeFrame = () => { setFrameOpen(false); cardRef.current?.scrollIntoView({ block: "start", behavior: "smooth" }); };
-  // Resize ONLY the small text (summaries + subtitles) via the shared
-  // --lf-content-size var — does NOT touch the global app zoom (which reflows
-  // the whole layout). Persisted so it sticks across pages.
-  const bumpContentSize = (delta: number) => {
-    const root = document.documentElement;
-    const cur = parseFloat(getComputedStyle(root).getPropertyValue("--lf-content-size")) || 12.5;
-    const next = Math.min(22, Math.max(11, Math.round((cur + delta) * 10) / 10));
-    root.style.setProperty("--lf-content-size", `${next}px`);
-    try { localStorage.setItem("lf-content-size", String(next)); } catch { /* ignore */ }
-  };
+  // Resize ONLY this card's summary box (Ben: the global var grew text all over
+  // the site — he wants just the cube he's reading).
+  const [summarySize, setSummarySize] = useState(12.5);
+  const bumpSummarySize = (delta: number) => setSummarySize((s) => Math.min(24, Math.max(11, s + delta)));
 
   const openReader = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -240,14 +234,18 @@ export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) 
               <div className="px-3 py-2.5 border-b" style={{ borderColor: "#ede9fe", background: "#faf8ff" }}>
                 <div className="flex items-center justify-between mb-1">
                   <p className="text-[10px] font-bold" style={{ color: "#7c3aed" }}>🧠 סיכום</p>
-                  <div className="flex items-center gap-1" title="גודל טקסט הסיכום ותתי-הכותרות (לא משנה את כל המסך)">
-                    <span className="text-[9px]" style={{ color: "#9ca3af" }}>גודל טקסט</span>
-                    <button onClick={() => bumpContentSize(-1)} className="h-5 px-1.5 rounded border text-[11px] leading-none font-bold" style={{ borderColor: "#ddd6fe", color: "#6d28d9", background: "#fff" }}>א−</button>
-                    <button onClick={() => bumpContentSize(1)} className="h-5 px-1.5 rounded border text-[11px] leading-none font-bold" style={{ borderColor: "#ddd6fe", color: "#6d28d9", background: "#fff" }}>א+</button>
+                  <div className="flex items-center gap-1" title="גודל הטקסט של הסיכום הזה בלבד">
+                    <button onClick={() => bumpSummarySize(-1)} className="h-5 px-1.5 rounded border text-[11px] leading-none font-bold" style={{ borderColor: "#ddd6fe", color: "#6d28d9", background: "#fff" }}>א−</button>
+                    <button onClick={() => bumpSummarySize(1)} className="h-5 px-1.5 rounded border text-[11px] leading-none font-bold" style={{ borderColor: "#ddd6fe", color: "#6d28d9", background: "#fff" }}>א+</button>
                   </div>
                 </div>
-                <div className="whitespace-pre-wrap leading-[1.6]" style={{ color: "#374151", fontSize: "var(--lf-content-size, 12.5px)" }} dir="rtl">{artSummary}</div>
-                <button onClick={async () => { await navigator.clipboard.writeText(artSummary); setArtSummaryCopied(true); setTimeout(() => setArtSummaryCopied(false), 1500); }} className="text-[10px] font-medium mt-1.5 underline" style={{ color: "#9ca3af" }}>{artSummaryCopied ? "✓ הועתק" : "העתק סיכום"}</button>
+                <div className="whitespace-pre-wrap leading-[1.6]" style={{ color: "#374151", fontSize: `${summarySize}px` }} dir="rtl">{artSummary}</div>
+                <button onClick={async () => { await navigator.clipboard.writeText(artSummary); setArtSummaryCopied(true); setTimeout(() => setArtSummaryCopied(false), 1500); }}
+                  className="flex items-center gap-1 text-[11px] font-semibold mt-2 h-7 px-2.5 rounded-md border transition-colors"
+                  style={artSummaryCopied ? { borderColor: "#059669", color: "#059669", background: "#f0fdf4" } : { borderColor: "#ddd6fe", color: "#6d28d9", background: "#fff" }}
+                  title="העתק את הסיכום">
+                  {artSummaryCopied ? "✓ הועתק" : "📋 העתק סיכום"}
+                </button>
               </div>
             )}
             <div className="px-3 py-2.5 max-h-[320px] overflow-y-auto">
@@ -283,6 +281,10 @@ export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) 
             </div>
             <p className="text-[10px] px-3 py-1.5" style={{ color: "#9ca3af", background: "#fafafa" }} dir="rtl">אם העמוד נשאר ריק — האתר חוסם הצגה מוטמעת (כמו ynet/ביזפורטל). אז לחץ &quot;📖 קרא כאן&quot; או &quot;מקור&quot;.</p>
             <iframe src={news.source_url} title={news.title.replace(/<[^>]*>/g, "")} loading="lazy" referrerPolicy="no-referrer" className="w-full bg-white" style={{ height: "78vh", border: 0 }} />
+            {/* Bottom close — after reading you're at the bottom; no need to scroll back up */}
+            <div className="flex items-center justify-center py-2 border-t" style={{ borderColor: "#ede9fe", background: "#faf8ff" }}>
+              <button onClick={closeFrame} className="text-[12px] font-bold h-8 px-4 rounded-md" style={{ color: "#fff", background: "#6d28d9" }}>✕ סגור את האתר</button>
+            </div>
           </div>
         )}
       </div>

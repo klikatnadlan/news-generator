@@ -12,6 +12,8 @@ interface Overview {
   populationAsOf: string | null; // למ"ס estimate date, e.g. "אפריל 2026"
   mayor: string | null;
   metric: { avgRent: number; annualChange: number | null } | null;
+  nationalRent: number | null;  // national avg rent (latest month, all cities)
+  rentDiffPct: number | null;   // city vs national, %
   articleCount: number;
   projectorUrl: string;
 }
@@ -77,6 +79,15 @@ export default function CitiesPage() {
     const d = new Date();
     d.setMonth(d.getMonth() - m);
     return d.toISOString().slice(0, 10);
+  };
+
+  // Subtitle text size for the feed cards (shared --lf-content-size, persisted).
+  const bumpFeedTextSize = (delta: number) => {
+    const root = document.documentElement;
+    const cur = parseFloat(getComputedStyle(root).getPropertyValue("--lf-content-size")) || 13;
+    const next = Math.min(22, Math.max(11, Math.round((cur + delta) * 10) / 10));
+    root.style.setProperty("--lf-content-size", `${next}px`);
+    try { localStorage.setItem("lf-content-size", String(next)); } catch { /* ignore */ }
   };
 
   const [summary, setSummary] = useState("");
@@ -290,8 +301,18 @@ export default function CitiesPage() {
                   <p className="text-[10px] mt-1" style={{ color: "#9ca3af" }}>ראש העיר</p>
                 </div>
                 <div className="text-center rounded-lg py-2" style={{ background: "#f8f9fb" }}>
-                  <p className="text-[15px] font-extrabold leading-none pt-1" style={{ color: "#0f1419" }}>{overview?.metric ? `₪${fmtNum(overview.metric.avgRent)}` : "—"}</p>
-                  <p className="text-[10px] mt-1" style={{ color: "#9ca3af" }}>שכ"ד ממוצע{overview?.metric?.annualChange != null ? ` (${overview.metric.annualChange > 0 ? "+" : ""}${overview.metric.annualChange}%)` : ""}</p>
+                  <p className="text-[15px] font-extrabold leading-none pt-1" style={{ color: "#0f1419" }}>
+                    {overview?.metric ? `₪${fmtNum(overview.metric.avgRent)}` : "—"}
+                    {overview?.metric && overview?.rentDiffPct != null && (
+                      <span className="text-[11px] font-bold mr-1" style={{ color: overview.rentDiffPct > 0 ? "#dc2626" : "#059669" }}>
+                        <bdi dir="ltr">{overview.rentDiffPct > 0 ? "+" : ""}{overview.rentDiffPct}%</bdi>
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-[10px] mt-1" style={{ color: "#9ca3af" }}>שכ"ד ממוצע</p>
+                  {overview?.nationalRent && (
+                    <p className="text-[9px] mt-0.5" style={{ color: "#b8bec7" }}>* ארצי: ₪{fmtNum(overview.nationalRent)}{overview?.metric && overview?.rentDiffPct != null ? " · ההפרש מול ארצי" : ""}</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -320,7 +341,7 @@ export default function CitiesPage() {
             {/* 🔬 ללמוד אזור / בצע מחקר — compose research dimensions, run all */}
             <div className="lf-card p-4 mb-3" style={{ borderRight: "3px solid #0ea5e9" }}>
               <p className="text-[14px] font-extrabold" style={{ color: "#0369a1" }}>🔬 ללמוד את {selected}</p>
-              <p className="text-[11px] mb-2.5" style={{ color: "#9ca3af" }}>סמן מה חשוב לך באזור (נדל"ן + חיים בעיר), ולחץ "בצע מחקר" — תקבל את כל מה שיש לנו, מקובץ לפי נושא. 0 טוקנים.</p>
+              <p className="text-[11px] mb-2.5" style={{ color: "#9ca3af" }}>סמנו מה חשוב לכם וגלו את הנרטיבים המובילים, גלו את הבאזז.</p>
               <div className="flex flex-wrap gap-1.5 mb-3">
                 {RESEARCH_TOPICS.map((t) => {
                   const on = researchTopics.has(t.term);
@@ -466,9 +487,16 @@ export default function CitiesPage() {
               ))}
             </div>
 
-            <p className="text-[11px] mb-2" style={{ color: "#9ca3af" }}>
-              {total} באזים{activeChip ? ` · ${activeChip}` : ""} על {selected} · {FEED_RANGES.find((r) => r.key === feedRange)?.label}
-            </p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[11px]" style={{ color: "#9ca3af" }}>
+                {total} באזים{activeChip ? ` · ${activeChip}` : ""} על {selected} · {FEED_RANGES.find((r) => r.key === feedRange)?.label}
+              </p>
+              <div className="flex items-center gap-1 shrink-0" title="גודל טקסט תתי-הכותרות בפיד">
+                <span className="text-[9px]" style={{ color: "#b8bec7" }}>גודל טקסט</span>
+                <button onClick={() => bumpFeedTextSize(-1)} className="h-5 px-1.5 rounded border text-[11px] leading-none font-bold" style={{ borderColor: "#e5e7eb", color: "#6b7280", background: "#fff" }}>א−</button>
+                <button onClick={() => bumpFeedTextSize(1)} className="h-5 px-1.5 rounded border text-[11px] leading-none font-bold" style={{ borderColor: "#e5e7eb", color: "#6b7280", background: "#fff" }}>א+</button>
+              </div>
+            </div>
 
             {/* Feed */}
             {loadingFeed && articles.length === 0 ? (
