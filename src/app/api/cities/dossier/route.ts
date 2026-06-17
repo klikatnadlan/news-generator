@@ -102,7 +102,7 @@ ${list}
 
   let report = "";
   try {
-    const resp = await client.messages.create({ model: "claude-sonnet-4-20250514", max_tokens: 1500, messages: [{ role: "user", content: prompt }] });
+    const resp = await client.messages.create({ model: "claude-sonnet-4-6", max_tokens: 1500, messages: [{ role: "user", content: prompt }] });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     report = ((resp.content[0] as any)?.text || "").trim();
   } catch (e) {

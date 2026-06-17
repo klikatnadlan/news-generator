@@ -59,7 +59,7 @@ ${list}
   let summary = "";
   try {
     const resp = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-6",
       max_tokens: 1300,
       messages: [{ role: "user", content: prompt }],
     });

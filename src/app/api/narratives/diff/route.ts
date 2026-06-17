@@ -169,7 +169,7 @@ ${compactList(current, 35) || "(אין כותרות)"}
   let diff: any = { changed: false, summary: "לא הצלחנו לנתח את השינוי כרגע. נסה שוב.", new: [], faded: [], intensified: [], mood: "" };
   try {
     const response = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-6",
       max_tokens: 1300,
       messages: [{ role: "user", content: prompt }],
     });

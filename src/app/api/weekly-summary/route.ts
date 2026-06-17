@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
   const wordCount = type === "monthly" ? "800-1200" : "400-600";
 
   const response = await client.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model: "claude-sonnet-4-6",
     max_tokens: 2000,
     system: `אתה בן סולומון, מומחה נדל"ן עם מועדון צרכנות של 300,000+ חברים.
 כתוב סיכום ${periodLabel} בקול שלך — ישיר, חד, עם מספרים ספציפיים.

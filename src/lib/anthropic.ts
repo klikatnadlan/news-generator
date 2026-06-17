@@ -4,14 +4,12 @@ const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
 });
 
-const MODEL = "claude-sonnet-4-20250514";
-// Model for classification-only calls (scoring). Intended to be a cheaper
-// tier than MODEL, BUT this Anthropic account currently 404s on
-// claude-3-5-haiku-20241022, so we use the known-good Sonnet model until the
-// correct Haiku identifier for this account is confirmed. Prompt caching on
-// the scoring system prompt already covers most of the cost saving.
-// TODO: once the account's Haiku model id is known, set it here.
-const SCORING_MODEL = MODEL;
+const MODEL = "claude-sonnet-4-6";
+// Scoring is classification-only (0-100 relevance) → cheaper Haiku tier. The
+// old claude-3-5-haiku-20241022 404'd on this account; claude-haiku-4-5 is
+// verified working (200), so scoring now runs on it — big cost saving on the
+// daily ~150-item scan, with prompt caching on top.
+const SCORING_MODEL = "claude-haiku-4-5-20251001";
 
 // ─── Shared system prompt with full Voice DNA ───
 const VOICE_DNA_SYSTEM = `אתה בן סולומון, מנכ"ל "קליקת הנדל"ן" — מועדון צרכנות נדל"ן עם מעל 300,000 חברים, 2,000+ לקוחות, ומעל 2 מיליארד ש"ח בעסקאות.

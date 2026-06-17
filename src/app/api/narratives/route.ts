@@ -181,7 +181,7 @@ export async function GET(request: NextRequest) {
   // keep the flagship נדל"ן feed away from Vercel's timeout we instead cap the
   // candidate set hard (see slice above) and keep max_tokens lean.
   const response = await client.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model: "claude-sonnet-4-6",
     // 1500 tokens. NOTE: do NOT lower this — Hebrew narratives tokenize
     // heavily, and at 1000 the JSON array got truncated mid-output (no closing
     // bracket → parse fails → empty result). Latency is handled by the cache

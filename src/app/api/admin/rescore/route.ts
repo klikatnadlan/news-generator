@@ -59,7 +59,17 @@ export async function GET(request: NextRequest) {
     }
 
     const scoredIds = new Set((existingScores || []).map((s) => s.news_item_id));
-    const unscored = items.filter((i) => !scoredIds.has(i.id));
+    // Only score the RE/economy feeds — NEVER the ingest-only local מקומונים or
+    // Facebook (those stay 0-token and off the home page, exactly like the live
+    // scanner's `scorable` filter). Broad-national collisions (ynet/globes) may
+    // slip in but score low on RE-relevance, so they don't surface.
+    const RE_SOURCES = ["גלובס", "כלכליסט", "דה מרקר", "ynet", "מעריב", "וואלה", "ביזפורטל", "קליקת", "ICE", "מגדיל", "מרכז הנדל", "מדלן", "הומלס", "דירה"];
+    const isScorable = (s: string) => {
+      const src = s || "";
+      if (src.startsWith("פייסבוק")) return false;
+      return RE_SOURCES.some((r) => src.includes(r));
+    };
+    const unscored = items.filter((i) => !scoredIds.has(i.id) && isScorable(i.source));
 
     if (unscored.length === 0) {
       return NextResponse.json({ unscored: 0, scored: 0, message: "All items already scored" });
