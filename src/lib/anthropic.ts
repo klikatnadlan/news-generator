@@ -664,15 +664,24 @@ export async function calculateMarketConfidence(newsItems: { title: string; scor
   const list = newsItems.map(n => `- ${n.title} (ציון: ${n.score})`).join("\n");
   const response = await client.messages.create({
     model: MODEL,
-    max_tokens: 512,
+    max_tokens: 600,
     messages: [
-      { role: "user", content: `נתח את כותרות הנדל"ן הבאות וחשב מדד אמון שוק 1-100:\n\n${list}\n\nהחזר JSON בלבד:\n{ "index": 65, "trend": "עולה/יורד/יציב", "summary": "משפט אחד" }` },
+      { role: "user", content: `נתח את כותרות הנדל"ן הבאות וחשב מדד אמון שוק 1-100:\n\n${list}\n\nהחזר JSON בלבד, ללא טקסט נוסף, בלי גרשיים בתוך המשפט:\n{ "index": 65, "trend": "עולה/יורד/יציב", "summary": "משפט אחד" }` },
     ],
   });
   const rt = response.content[0].type === "text" ? response.content[0].text : "";
+  // Robust parse — Hebrew LLM JSON often has unescaped quotes (נדל"ן) that break
+  // JSON.parse, which previously dropped us to the 50/empty fallback. Try strict
+  // first, then field-by-field regex extraction (tolerates inner quotes).
   const m = rt.match(/\{[\s\S]*\}/);
-  if (!m) return { index: 50, trend: "יציב", summary: "" };
-  try { return JSON.parse(m[0]); } catch { return { index: 50, trend: "יציב", summary: "" }; }
+  if (m) { try { const p = JSON.parse(m[0]); if (typeof p?.index === "number") return p; } catch { /* fall through */ } }
+  const idxM = rt.match(/index"?\s*:?\s*(\d{1,3})/);
+  const trendM = rt.match(/(עולה|יורד|יציב)/);
+  const sumM = rt.match(/summary"?\s*:\s*"([\s\S]*?)"\s*[},]/) || rt.match(/summary"?\s*:\s*([^\n}]{4,})/);
+  const index = idxM ? Math.min(100, Math.max(1, parseInt(idxM[1], 10))) : 50;
+  const summary = (sumM?.[1] || "").replace(/^["']|["'\s}]+$/g, "").trim();
+  if (idxM || sumM) return { index, trend: trendM?.[1] || "יציב", summary };
+  return { index: 50, trend: "יציב", summary: "" };
 }
 
 // ─── Check repetition ───
