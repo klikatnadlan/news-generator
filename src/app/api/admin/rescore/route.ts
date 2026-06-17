@@ -47,8 +47,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ unscored: 0, scored: 0, message: "No items in window" });
     }
 
-    // 2) Find which of those have NO score yet (any scan_date)
-    const itemIds = items.map((i) => i.id);
+    // 2) Keep only RE/economy items — NEVER the ingest-only local מקומונים or
+    // Facebook (those stay 0-token and off the home page, like the live
+    // scanner's `scorable` filter). Filtering FIRST also keeps the next query's
+    // .in() list small (a ~900-id .in() blew the PostgREST URL length → 400).
+    const RE_SOURCES = ["גלובס", "כלכליסט", "דה מרקר", "ynet", "מעריב", "וואלה", "ביזפורטל", "קליקת", "ICE", "מגדיל", "מרכז הנדל", "מדלן", "הומלס", "דירה"];
+    const isScorable = (s: string) => {
+      const src = s || "";
+      if (src.startsWith("פייסבוק")) return false;
+      return RE_SOURCES.some((r) => src.includes(r));
+    };
+    const scorable = items.filter((i) => isScorable(i.source));
+    if (scorable.length === 0) {
+      return NextResponse.json({ unscored: 0, scored: 0, message: "No scorable RE items in window" });
+    }
+
+    // 3) Find which of those have NO score yet (any scan_date)
+    const itemIds = scorable.map((i) => i.id);
     const { data: existingScores, error: scoresErr } = await supabase
       .from("news_scores")
       .select("news_item_id")
@@ -59,17 +74,7 @@ export async function GET(request: NextRequest) {
     }
 
     const scoredIds = new Set((existingScores || []).map((s) => s.news_item_id));
-    // Only score the RE/economy feeds — NEVER the ingest-only local מקומונים or
-    // Facebook (those stay 0-token and off the home page, exactly like the live
-    // scanner's `scorable` filter). Broad-national collisions (ynet/globes) may
-    // slip in but score low on RE-relevance, so they don't surface.
-    const RE_SOURCES = ["גלובס", "כלכליסט", "דה מרקר", "ynet", "מעריב", "וואלה", "ביזפורטל", "קליקת", "ICE", "מגדיל", "מרכז הנדל", "מדלן", "הומלס", "דירה"];
-    const isScorable = (s: string) => {
-      const src = s || "";
-      if (src.startsWith("פייסבוק")) return false;
-      return RE_SOURCES.some((r) => src.includes(r));
-    };
-    const unscored = items.filter((i) => !scoredIds.has(i.id) && isScorable(i.source));
+    const unscored = scorable.filter((i) => !scoredIds.has(i.id));
 
     if (unscored.length === 0) {
       return NextResponse.json({ unscored: 0, scored: 0, message: "All items already scored" });
