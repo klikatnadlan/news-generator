@@ -35,6 +35,15 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  // Cap the batch so a single POST can't fan out into an unbounded number of
+  // paid Claude streams (the real UI only selects a handful at a time).
+  if (newsItemIds.length > 12) {
+    return new Response(JSON.stringify({ error: "Too many items (max 12)" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   const { data: newsItems, error } = await supabase
     .from("news_items")
     .select("*")
