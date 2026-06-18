@@ -11,6 +11,55 @@ const MODEL = "claude-sonnet-4-6";
 // daily ~150-item scan, with prompt caching on top.
 const SCORING_MODEL = "claude-haiku-4-5-20251001";
 
+// ─── Model resilience (so a deprecated model never silently kills AI again) ───
+// Layer 1: aiCreate() — non-streaming calls self-heal. If a model is retired
+//   (404 / not_found), it retries with the next live fallback automatically.
+// Layer 2: /api/cron/model-health pings these daily and emails on any death.
+export const MODEL_FALLBACKS: Record<string, string[]> = {
+  "claude-sonnet-4-6": ["claude-opus-4-8", "claude-haiku-4-5-20251001"],
+  "claude-haiku-4-5-20251001": ["claude-sonnet-4-6", "claude-opus-4-8"],
+};
+// The models actually used in the app + their first fallback, for the monitor.
+export const MONITORED_MODELS = [
+  { kind: "צ'אט/יצירה", model: MODEL },
+  { kind: "דירוג", model: SCORING_MODEL },
+];
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function isModelDead(e: any): boolean {
+  return e?.status === 404 || /not_found_error|unknown model|model[^.]*not[^.]*found|not_found/i.test(e?.message || "");
+}
+
+/** Non-streaming create that self-heals: on a dead-model error, retry the next
+ *  live fallback. Other errors (rate-limit/overload) bubble up unchanged. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function aiCreate(params: any): Promise<any> {
+  const chain = [params.model, ...(MODEL_FALLBACKS[params.model] || [])];
+  let lastErr: unknown;
+  for (let i = 0; i < chain.length; i++) {
+    try {
+      return await client.messages.create({ ...params, model: chain[i] });
+    } catch (e) {
+      if (!isModelDead(e)) throw e;
+      lastErr = e;
+      console.error(`[model-resilience] "${chain[i]}" looks retired${i < chain.length - 1 ? ` → trying "${chain[i + 1]}"` : " (no fallback left)"}`);
+    }
+  }
+  throw lastErr;
+}
+
+/** Tiny liveness ping for the daily monitor — 0-cost-ish (4 tokens). */
+export async function pingModel(model: string): Promise<{ model: string; alive: boolean; detail?: string }> {
+  try {
+    await client.messages.create({ model, max_tokens: 4, messages: [{ role: "user", content: "ok" }] });
+    return { model, alive: true };
+  } catch (e) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const err = e as any;
+    return { model, alive: false, detail: `${err?.status || ""} ${(err?.message || "").slice(0, 100)}`.trim() };
+  }
+}
+
 // ─── Shared system prompt with full Voice DNA ───
 const VOICE_DNA_SYSTEM = `אתה בן סולומון, מנכ"ל "קליקת הנדל"ן" — מועדון צרכנות נדל"ן עם מעל 300,000 חברים, 2,000+ לקוחות, ומעל 2 מיליארד ש"ח בעסקאות.
 
@@ -124,7 +173,7 @@ async function scoreChunk(
     .map((a, i) => `[${i}] [${a.source}] ${a.title}\n   ${(a.summary || "אין תקציר").slice(0, 220)}`)
     .join("\n\n");
 
-  const response = await client.messages.create({
+  const response = await aiCreate({
     model: SCORING_MODEL,
     max_tokens: 3000,
     system: [
@@ -323,7 +372,7 @@ export async function generateWhatsAppText(
   article: { title: string; summary: string; source: string; fullText?: string },
   style: "short" | "regular" | "commentary",
 ): Promise<string> {
-  const response = await client.messages.create({
+  const response = await aiCreate({
     model: MODEL,
     max_tokens: 2048,
     system: VOICE_DNA_SYSTEM_CACHED,
@@ -440,7 +489,7 @@ export async function* streamDailyDigest(
 export async function generateDailyDigest(
   articles: Array<{ title: string; summary: string; source: string }>
 ): Promise<string> {
-  const response = await client.messages.create({
+  const response = await aiCreate({
     model: MODEL,
     max_tokens: 4096,
     system: VOICE_DNA_SYSTEM_CACHED,
@@ -460,7 +509,7 @@ export async function generateCommentary(
   real_understanding: string;
   our_angle: string;
 }> {
-  const response = await client.messages.create({
+  const response = await aiCreate({
     model: MODEL,
     max_tokens: 4096,
     system: VOICE_DNA_SYSTEM_CACHED,
@@ -499,7 +548,7 @@ export async function generateCommentary(
 export async function checkHumanityScore(
   text: string
 ): Promise<{ score: number; flags: string[]; suggestion: string }> {
-  const response = await client.messages.create({
+  const response = await aiCreate({
     model: MODEL,
     max_tokens: 1024,
     messages: [
@@ -572,7 +621,7 @@ export async function generateArticle(
   const summary = typeof newsOrTitle === "string" ? (contextOrSummary || "") : (newsOrTitle.summary || "");
   const extra = typeof newsOrTitle === "string" ? (pulseContext || "") : (contextOrSummary || "");
 
-  const response = await client.messages.create({
+  const response = await aiCreate({
     model: MODEL,
     max_tokens: 4096,
     system: VOICE_DNA_SYSTEM_CACHED,
@@ -618,7 +667,7 @@ export function sanitizeText(text: string): string {
 
 // ─── Fact check ───
 export async function factCheck(text: string, _context?: string): Promise<{ passed: boolean; verified?: boolean; issues: string[]; score?: number }> {
-  const response = await client.messages.create({
+  const response = await aiCreate({
     model: MODEL,
     max_tokens: 1024,
     messages: [
@@ -636,7 +685,7 @@ export async function factCheck(text: string, _context?: string): Promise<{ pass
 
 // ─── Refine text with instruction ───
 export async function refineText(currentText: string, instruction: string): Promise<string> {
-  const response = await client.messages.create({
+  const response = await aiCreate({
     model: MODEL,
     max_tokens: 2048,
     messages: [
@@ -649,7 +698,7 @@ export async function refineText(currentText: string, instruction: string): Prom
 // ─── Generate merged narrative ───
 export async function generateMergedNarrative(articles: { title: string; summary?: string; text?: string; source?: string }[]): Promise<string> {
   const list = articles.map((a, i) => `${i + 1}. ${a.title}\n${a.summary || a.text || ""}`).join("\n\n");
-  const response = await client.messages.create({
+  const response = await aiCreate({
     model: MODEL,
     max_tokens: 2048,
     messages: [
@@ -662,7 +711,7 @@ export async function generateMergedNarrative(articles: { title: string; summary
 // ─── Market confidence index ───
 export async function calculateMarketConfidence(newsItems: { title: string; score: number }[], _pulseData?: unknown): Promise<{ index: number; trend: string; summary: string }> {
   const list = newsItems.map(n => `- ${n.title} (ציון: ${n.score})`).join("\n");
-  const response = await client.messages.create({
+  const response = await aiCreate({
     model: MODEL,
     max_tokens: 600,
     messages: [
@@ -688,7 +737,7 @@ export async function calculateMarketConfidence(newsItems: { title: string; scor
 export async function checkRepetition(text: string, recentTexts?: string[]): Promise<{ isRepetitive: boolean; similarity: number; suggestion: string }> {
   if (!recentTexts || recentTexts.length === 0) return { isRepetitive: false, similarity: 0, suggestion: "" };
   const recent = recentTexts.slice(0, 3).map((t, i) => `טקסט ${i + 1}:\n${t.slice(0, 200)}`).join("\n\n");
-  const response = await client.messages.create({
+  const response = await aiCreate({
     model: MODEL,
     max_tokens: 512,
     messages: [

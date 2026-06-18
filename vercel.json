@@ -1,6 +1,10 @@
 {
   "crons": [
     {
+      "path": "/api/cron/model-health",
+      "schedule": "40 3 * * *"
+    },
+    {
       "path": "/api/cron/scan",
       "schedule": "0 4 * * *"
     },
