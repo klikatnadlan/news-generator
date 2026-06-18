@@ -48,6 +48,30 @@ export async function aiCreate(params: any): Promise<any> {
   throw lastErr;
 }
 
+/** Streaming create that self-heals: if a model is retired the error surfaces
+ *  BEFORE the first chunk, so we restart the stream on the next live fallback.
+ *  Once any text has been yielded the model is clearly alive (no restart). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function* aiStream(params: any): AsyncGenerator<string, void, unknown> {
+  const chain = [params.model, ...(MODEL_FALLBACKS[params.model] || [])];
+  for (let i = 0; i < chain.length; i++) {
+    let yielded = false;
+    try {
+      const stream = client.messages.stream({ ...params, model: chain[i] });
+      for await (const chunk of stream) {
+        if (chunk.type === "content_block_delta" && chunk.delta?.type === "text_delta" && typeof chunk.delta.text === "string") {
+          yielded = true;
+          yield chunk.delta.text;
+        }
+      }
+      return; // finished cleanly
+    } catch (e) {
+      if (yielded || !isModelDead(e) || i === chain.length - 1) throw e;
+      console.error(`[model-resilience] stream "${chain[i]}" looks retired → restarting on "${chain[i + 1]}"`);
+    }
+  }
+}
+
 /** Tiny liveness ping for the daily monitor — 0-cost-ish (4 tokens). */
 export async function pingModel(model: string): Promise<{ model: string; alive: boolean; detail?: string }> {
   try {
@@ -388,22 +412,12 @@ export async function* streamWhatsAppText(
   article: { title: string; summary: string; source: string; fullText?: string },
   style: "short" | "regular" | "commentary",
 ): AsyncGenerator<string, void, unknown> {
-  const stream = client.messages.stream({
+  yield* aiStream({
     model: MODEL,
     max_tokens: 2048,
     system: VOICE_DNA_SYSTEM_CACHED,
     messages: [{ role: "user", content: buildWhatsAppPrompt(article, style) }],
   });
-
-  for await (const chunk of stream) {
-    if (
-      chunk.type === "content_block_delta" &&
-      chunk.delta?.type === "text_delta" &&
-      typeof chunk.delta.text === "string"
-    ) {
-      yield chunk.delta.text;
-    }
-  }
 }
 
 /** Build the digest prompt body. Shared between the blocking and streaming generators. */
@@ -467,23 +481,12 @@ export async function* streamDailyDigest(
   articles: Array<{ title: string; summary: string; source: string }>,
 ): AsyncGenerator<string, void, unknown> {
   const prompt = buildDigestPrompt(articles);
-
-  const stream = client.messages.stream({
+  yield* aiStream({
     model: MODEL,
     max_tokens: 4096,
     system: VOICE_DNA_SYSTEM_CACHED,
     messages: [{ role: "user", content: prompt }],
   });
-
-  for await (const chunk of stream) {
-    if (
-      chunk.type === "content_block_delta" &&
-      chunk.delta?.type === "text_delta" &&
-      typeof chunk.delta.text === "string"
-    ) {
-      yield chunk.delta.text;
-    }
-  }
 }
 
 export async function generateDailyDigest(
@@ -637,7 +640,7 @@ export async function* streamArticle(
   article: { title: string; summary: string; source?: string; fullText?: string },
   extraContext: string = "",
 ): AsyncGenerator<string, void, unknown> {
-  const stream = client.messages.stream({
+  yield* aiStream({
     model: MODEL,
     max_tokens: 4096,
     system: VOICE_DNA_SYSTEM_CACHED,
@@ -648,16 +651,6 @@ export async function* streamArticle(
       },
     ],
   });
-
-  for await (const chunk of stream) {
-    if (
-      chunk.type === "content_block_delta" &&
-      chunk.delta?.type === "text_delta" &&
-      typeof chunk.delta.text === "string"
-    ) {
-      yield chunk.delta.text;
-    }
-  }
 }
 
 // ─── Sanitize text ───
