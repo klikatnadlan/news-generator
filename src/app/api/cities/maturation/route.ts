@@ -76,10 +76,14 @@ export async function GET(request: NextRequest) {
   const sp = new URL(request.url).searchParams;
   const cityName = sp.get("city") || "";
   const entity = (sp.get("entity") || "").trim().slice(0, 80);
+  // Optional FOCUS — narrows the arc to one specific project/place (e.g. entity
+  // "רני צים" + focus "אגם מונפורט" → only that project's timeline, dropping the
+  // person's unrelated news). Empty focus = everything about the entity.
+  const focus = (sp.get("focus") || "").trim().slice(0, 80);
   const city = findCity(cityName);
   if (!city) return NextResponse.json({ error: "עיר לא נמצאה" }, { status: 404 });
 
-  const cacheKey = `maturation|${city.name}|${entity}`;
+  const cacheKey = `maturation|${city.name}|${entity}|${focus}`;
   // 24h cache (the whole assembled timeline) — repeat clicks cost nothing.
   try {
     const { data: cached } = await supabase
@@ -95,8 +99,10 @@ export async function GET(request: NextRequest) {
     }
   } catch { /* cache miss → build fresh */ }
 
-  // Disambiguate a developer/project with the city; a bare city studies its RE arc.
-  const subject = entity ? `${entity} ${city.name}` : `${city.name} פרויקט נדל"ן שכונה התחדשות`;
+  // entity (who) + focus (which project/place); city appended to disambiguate.
+  // A bare city studies its whole RE arc.
+  const subjectParts = [entity, focus].filter(Boolean);
+  const subject = subjectParts.length ? `${subjectParts.join(" ")} ${city.name}` : `${city.name} פרויקט נדל"ן שכונה התחדשות`;
 
   const passes = await Promise.all([
     firecrawlSearchV2(subject, { news: true, limit: 10 }).then((r) => ({ rows: r, fb: NOW_YEAR })),
@@ -148,7 +154,16 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const items = [...byUrl.values()];
+  // When focused, keep only items that actually mention the focus (full phrase
+  // or any distinctive word) — drops the entity's unrelated news, sharpening the
+  // single-project arc. No focus = keep everything about the entity.
+  const focusWords = focus ? focus.split(/\s+/).filter((w) => w.length >= 3) : [];
+  const matchesFocus = (it: TItem) => {
+    if (!focus) return true;
+    const blob = `${it.title} ${it.summary} ${it.url}`;
+    return blob.includes(focus) || focusWords.some((w) => blob.includes(w));
+  };
+  const items = [...byUrl.values()].filter(matchesFocus);
   // Group by year ascending (the maturation arc reads oldest → newest).
   const years = [...new Set(items.map((i) => i.year))].sort((a, b) => a - b);
   const timeline = years.map((year) => ({
@@ -161,6 +176,7 @@ export async function GET(request: NextRequest) {
   const payload = {
     city: city.name,
     entity,
+    focus,
     subject,
     firstYear,
     lastYear,

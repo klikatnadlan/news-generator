@@ -124,20 +124,23 @@ export default function CitiesPage() {
   // "📈 תהליך הבשלה" — maturation timeline of a city / project / developer.
   type MatItem = { id: string; title: string; summary?: string; source: string; url: string; date: string | null; web: boolean; year: number; conf: "exact" | "parsed" | "approx" };
   const [maturationEntity, setMaturationEntity] = useState<string>("");
-  const [maturation, setMaturation] = useState<{ city: string; entity: string; firstYear: number | null; lastYear: number | null; yearsMaturing: number | null; timeline: { year: number; items: MatItem[] }[]; totalItems: number } | null>(null);
+  const [maturationFocus, setMaturationFocus] = useState<string>(""); // ספציפי: פרויקט/מקום אחד
+  const [maturation, setMaturation] = useState<{ city: string; entity: string; focus?: string; firstYear: number | null; lastYear: number | null; yearsMaturing: number | null; timeline: { year: number; items: MatItem[] }[]; totalItems: number } | null>(null);
   const [maturationLoading, setMaturationLoading] = useState(false);
   const [maturationCopied, setMaturationCopied] = useState(false);
   const runMaturation = async () => {
     if (!selected) return;
     setMaturationLoading(true);
     setOpenBuzzIds(new Set());
+    const empty = { city: selected, entity: maturationEntity, focus: maturationFocus, firstYear: null, lastYear: null, yearsMaturing: null, timeline: [], totalItems: 0 };
     try {
       const entQ = maturationEntity.trim() ? `&entity=${encodeURIComponent(maturationEntity.trim())}` : "";
-      const res = await fetch(`/api/cities/maturation?city=${encodeURIComponent(selected)}${entQ}`);
+      const focQ = maturationFocus.trim() ? `&focus=${encodeURIComponent(maturationFocus.trim())}` : "";
+      const res = await fetch(`/api/cities/maturation?city=${encodeURIComponent(selected)}${entQ}${focQ}`);
       const data = await res.json();
-      setMaturation(data && data.timeline ? data : { city: selected, entity: maturationEntity, firstYear: null, lastYear: null, yearsMaturing: null, timeline: [], totalItems: 0 });
+      setMaturation(data && data.timeline ? data : empty);
     } catch {
-      setMaturation({ city: selected, entity: maturationEntity, firstYear: null, lastYear: null, yearsMaturing: null, timeline: [], totalItems: 0 });
+      setMaturation(empty);
     } finally {
       setMaturationLoading(false);
     }
@@ -450,16 +453,23 @@ export default function CitiesPage() {
               </div>
 
               {/* 📈 תהליך הבשלה — maturation timeline of a project / developer / the city */}
-              <div className="flex items-center flex-wrap gap-2 mt-2.5 pt-2.5 border-t" style={{ borderColor: "#f1f5f9" }}>
-                <input value={maturationEntity} onChange={(e) => setMaturationEntity(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") runMaturation(); }}
-                  placeholder="פרויקט / יזם / שכונה (אופציונלי) — למשל רני צים, נופי בן שמן"
-                  className="text-[12px] px-2.5 py-1.5 rounded-lg border flex-1 min-w-[170px]" style={{ borderColor: "#fde68a" }} dir="rtl" />
-                <button onClick={runMaturation} disabled={maturationLoading}
-                  className="lf-btn text-[12px] !py-2 !px-4 text-white disabled:opacity-50 whitespace-nowrap" style={{ background: "#f59e0b" }}
-                  title="ציר זמן: איך העיר / הפרויקט / היזם הבשילו לאורך השנים — מאז ועד היום">
-                  {maturationLoading ? "⏳ בונה ציר זמן…" : "📈 תהליך הבשלה"}
-                </button>
+              <div className="mt-2.5 pt-2.5 border-t" style={{ borderColor: "#f1f5f9" }}>
+                <div className="flex items-center flex-wrap gap-2">
+                  <input value={maturationEntity} onChange={(e) => setMaturationEntity(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") runMaturation(); }}
+                    placeholder="מי? יזם / חברה / שכונה — למשל רני צים"
+                    className="text-[12px] px-2.5 py-1.5 rounded-lg border flex-1 min-w-[150px]" style={{ borderColor: "#fde68a" }} dir="rtl" />
+                  <input value={maturationFocus} onChange={(e) => setMaturationFocus(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") runMaturation(); }}
+                    placeholder="מיקוד ספציפי (אופציונלי) — למשל אגם מונפורט"
+                    className="text-[12px] px-2.5 py-1.5 rounded-lg border flex-1 min-w-[150px]" style={{ borderColor: "#fde68a" }} dir="rtl" />
+                  <button onClick={runMaturation} disabled={maturationLoading}
+                    className="lf-btn text-[12px] !py-2 !px-4 text-white disabled:opacity-50 whitespace-nowrap" style={{ background: "#f59e0b" }}
+                    title="ציר זמן: איך הפרויקט / היזם הבשילו לאורך השנים — מההתחלה ועד היום">
+                    {maturationLoading ? "⏳ בונה ציר זמן…" : "📈 תהליך הבשלה"}
+                  </button>
+                </div>
+                <p className="text-[10px] mt-1" style={{ color: "#9ca3af" }}>מיקוד ריק = כל מה שקשור ליזם. ממולא = רק הפרויקט הספציפי הזה (פחות רעש, קשת נקייה).</p>
               </div>
 
               {/* 🧠 Structured area dossier — report + real linked sources */}
@@ -547,16 +557,29 @@ export default function CitiesPage() {
                   {maturation.timeline.length > 0 ? (
                     <>
                       <p className="text-[13px] font-extrabold" style={{ color: "#b45309" }}>
-                        📈 {maturation.entity ? `${maturation.entity} · ` : ""}{maturation.city}
+                        📈 {maturation.entity || maturation.city}{maturation.focus ? ` · ${maturation.focus}` : ""}
                         {maturation.yearsMaturing ? ` — מבשיל כבר ${maturation.yearsMaturing} שנים` : ""}
                       </p>
                       {maturation.firstYear && maturation.lastYear && (
-                        <p className="text-[11px] mb-2.5" style={{ color: "#92400e" }}>מ-{maturation.firstYear} ועד היום · {maturation.totalItems} אזכורים על ציר הזמן</p>
+                        <div className="my-2 p-2 rounded-lg" style={{ background: "#fffbeb", border: "1px solid #fde68a" }}>
+                          <div className="flex items-center justify-between gap-2 text-[11px] font-bold" style={{ color: "#92400e" }}>
+                            <span>🟢 התחלה · {maturation.firstYear}</span>
+                            <span style={{ color: "#b45309" }}>← {maturation.yearsMaturing} שנות הבשלה →</span>
+                            <span>🔴 היום · {maturation.lastYear}</span>
+                          </div>
+                          {maturation.timeline[0]?.items[0]?.title && (
+                            <p className="text-[10px] mt-1 leading-[1.4]" style={{ color: "#6b7280" }} dir="rtl"><b>מההתחלה:</b> {maturation.timeline[0].items[0].title}</p>
+                          )}
+                          {maturation.timeline[maturation.timeline.length - 1]?.items[0]?.title && (
+                            <p className="text-[10px] leading-[1.4]" style={{ color: "#6b7280" }} dir="rtl"><b>להיום:</b> {maturation.timeline[maturation.timeline.length - 1].items[0].title}</p>
+                          )}
+                          <p className="text-[10px] mt-0.5" style={{ color: "#9ca3af" }}>{maturation.totalItems} אזכורים על ציר הזמן</p>
+                        </div>
                       )}
                       <div className="space-y-2.5">
-                        {maturation.timeline.map((yr) => (
+                        {maturation.timeline.map((yr, yi) => (
                           <div key={yr.year} className="pr-3" style={{ borderRight: "2px solid #fcd34d" }}>
-                            <span className="text-[12px] font-extrabold inline-block mb-1" style={{ color: "#b45309" }}>● {yr.year}</span>
+                            <span className="text-[12px] font-extrabold inline-block mb-1" style={{ color: "#b45309" }}>{yi === 0 ? "🟢" : yi === maturation.timeline.length - 1 ? "🔴" : "●"} {yr.year}</span>
                             <div className="space-y-1.5">
                               {yr.items.map((it) => {
                                 const buzzOpen = openBuzzIds.has(it.id);
