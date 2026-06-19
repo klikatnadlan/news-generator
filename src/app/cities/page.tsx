@@ -49,6 +49,9 @@ const RESEARCH_TOPICS = [
   { emoji: "🏥", label: "בריאות", term: "בריאות" },
   { emoji: "🌳", label: "סביבה", term: "סביבה" },
   { emoji: "🏖️", label: "תיירות", term: "תיירות" },
+  { emoji: "⚽", label: "ספורט ואירועים", term: "ספורט" },
+  { emoji: "🎭", label: "תרבות ופנאי", term: "תרבות" },
+  { emoji: "🎪", label: "אירועים עירוניים", term: "אירועים" },
 ];
 
 function fmtNum(n: number | null) {
@@ -117,6 +120,28 @@ export default function CitiesPage() {
   // INSIDE LeaderFeed instead of throwing the user to the external site.
   const [openBuzzIds, setOpenBuzzIds] = useState<Set<string>>(new Set());
   const toggleBuzz = (id: string) => setOpenBuzzIds((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+
+  // "📈 תהליך הבשלה" — maturation timeline of a city / project / developer.
+  type MatItem = { id: string; title: string; summary?: string; source: string; url: string; date: string | null; web: boolean; year: number; conf: "exact" | "parsed" | "approx" };
+  const [maturationEntity, setMaturationEntity] = useState<string>("");
+  const [maturation, setMaturation] = useState<{ city: string; entity: string; firstYear: number | null; lastYear: number | null; yearsMaturing: number | null; timeline: { year: number; items: MatItem[] }[]; totalItems: number } | null>(null);
+  const [maturationLoading, setMaturationLoading] = useState(false);
+  const [maturationCopied, setMaturationCopied] = useState(false);
+  const runMaturation = async () => {
+    if (!selected) return;
+    setMaturationLoading(true);
+    setOpenBuzzIds(new Set());
+    try {
+      const entQ = maturationEntity.trim() ? `&entity=${encodeURIComponent(maturationEntity.trim())}` : "";
+      const res = await fetch(`/api/cities/maturation?city=${encodeURIComponent(selected)}${entQ}`);
+      const data = await res.json();
+      setMaturation(data && data.timeline ? data : { city: selected, entity: maturationEntity, firstYear: null, lastYear: null, yearsMaturing: null, timeline: [], totalItems: 0 });
+    } catch {
+      setMaturation({ city: selected, entity: maturationEntity, firstYear: null, lastYear: null, yearsMaturing: null, timeline: [], totalItems: 0 });
+    } finally {
+      setMaturationLoading(false);
+    }
+  };
 
   // "תדריך אזור" — structured AI report (click only, sources are real articles).
   type Dossier = { report: string; sources: { title: string; source: string; url: string; date: string | null }[]; wikipediaUrl?: string };
@@ -424,6 +449,19 @@ export default function CitiesPage() {
                 </button>
               </div>
 
+              {/* 📈 תהליך הבשלה — maturation timeline of a project / developer / the city */}
+              <div className="flex items-center flex-wrap gap-2 mt-2.5 pt-2.5 border-t" style={{ borderColor: "#f1f5f9" }}>
+                <input value={maturationEntity} onChange={(e) => setMaturationEntity(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") runMaturation(); }}
+                  placeholder="פרויקט / יזם / שכונה (אופציונלי) — למשל רני צים, נופי בן שמן"
+                  className="text-[12px] px-2.5 py-1.5 rounded-lg border flex-1 min-w-[170px]" style={{ borderColor: "#fde68a" }} dir="rtl" />
+                <button onClick={runMaturation} disabled={maturationLoading}
+                  className="lf-btn text-[12px] !py-2 !px-4 text-white disabled:opacity-50 whitespace-nowrap" style={{ background: "#f59e0b" }}
+                  title="ציר זמן: איך העיר / הפרויקט / היזם הבשילו לאורך השנים — מאז ועד היום">
+                  {maturationLoading ? "⏳ בונה ציר זמן…" : "📈 תהליך הבשלה"}
+                </button>
+              </div>
+
               {/* 🧠 Structured area dossier — report + real linked sources */}
               {dossier && (
                 <div className="mt-3 pt-3 border-t" style={{ borderColor: "#ede9fe" }}>
@@ -500,6 +538,63 @@ export default function CitiesPage() {
                     );
                   })}
                   <p className="text-[10px] pt-1" style={{ color: "#9ca3af" }}>🌐 = כשאין מספיק במאגר שלנו, המחקר יוצא לרשת ומביא תוצאות חיות. "אין עדיין" = גם במאגר וגם ברשת לא נמצא דבר רלוונטי.</p>
+                </div>
+              )}
+
+              {/* 📈 תהליך הבשלה — chronological maturation arc (oldest → newest) */}
+              {maturation && (
+                <div className="mt-3 pt-3 border-t" style={{ borderColor: "#fef3c7" }}>
+                  {maturation.timeline.length > 0 ? (
+                    <>
+                      <p className="text-[13px] font-extrabold" style={{ color: "#b45309" }}>
+                        📈 {maturation.entity ? `${maturation.entity} · ` : ""}{maturation.city}
+                        {maturation.yearsMaturing ? ` — מבשיל כבר ${maturation.yearsMaturing} שנים` : ""}
+                      </p>
+                      {maturation.firstYear && maturation.lastYear && (
+                        <p className="text-[11px] mb-2.5" style={{ color: "#92400e" }}>מ-{maturation.firstYear} ועד היום · {maturation.totalItems} אזכורים על ציר הזמן</p>
+                      )}
+                      <div className="space-y-2.5">
+                        {maturation.timeline.map((yr) => (
+                          <div key={yr.year} className="pr-3" style={{ borderRight: "2px solid #fcd34d" }}>
+                            <span className="text-[12px] font-extrabold inline-block mb-1" style={{ color: "#b45309" }}>● {yr.year}</span>
+                            <div className="space-y-1.5">
+                              {yr.items.map((it) => {
+                                const buzzOpen = openBuzzIds.has(it.id);
+                                return (
+                                  <div key={it.id}>
+                                    <div className="text-[12px] leading-[1.5]" style={{ color: "#374151" }} dir="rtl">
+                                      {it.title}
+                                      {it.web && <span className="text-[9px] font-bold mr-1 px-1 py-0.5 rounded align-middle" style={{ background: "#ecfeff", color: "#0e7490", border: "1px solid #a5f3fc" }}>🌐</span>}
+                                      {it.conf === "approx" && <span className="text-[9px] mr-1" title="שנה משוערת" style={{ color: "#d97706" }}>≈</span>}
+                                      <span className="text-[10px] mr-1" style={{ color: "#9ca3af" }}> ({it.source}{it.date ? ` · ${it.date}` : ""})</span>
+                                      <button onClick={() => toggleBuzz(it.id)}
+                                        className="text-[10px] font-bold mr-1.5 px-1.5 py-0.5 rounded border align-middle"
+                                        style={{ borderColor: "#f59e0b", color: "#b45309", background: buzzOpen ? "#fef3c7" : "#fff" }}>
+                                        {buzzOpen ? "▲ סגור" : "📖 קרא"}
+                                      </button>
+                                    </div>
+                                    {buzzOpen && (
+                                      <div className="mt-1.5 mb-2">
+                                        <NewsCard news={{ ...it, source_url: it.url || "", published_at: it.date || null, score: null, reasoning: "" } as unknown as ScoredNews} selected={false} onSelect={() => {}} showDate readOnly={it.web} />
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <button onClick={async () => {
+                        const txt = `תהליך הבשלה — ${maturation.entity ? maturation.entity + " · " : ""}${maturation.city}${maturation.yearsMaturing ? ` (מבשיל ${maturation.yearsMaturing} שנים)` : ""}\n\n` +
+                          maturation.timeline.map((yr) => `${yr.year}:\n` + yr.items.map((it) => `• ${it.title} (${it.source})${it.url ? ` — ${it.url}` : ""}`).join("\n")).join("\n\n");
+                        await navigator.clipboard.writeText(txt); setMaturationCopied(true); setTimeout(() => setMaturationCopied(false), 1500);
+                      }} className="lf-btn lf-btn-outline text-[11px] !py-1 !px-2 mt-2.5">{maturationCopied ? "✓ הועתק" : "📋 העתק ציר זמן"}</button>
+                      <p className="text-[10px] pt-1.5" style={{ color: "#9ca3af" }}>🌐 = מהרשת · ≈ = שנה משוערת. הציר מורכב ממקורות חיים + מהמאגר שלנו, מהישן לחדש.</p>
+                    </>
+                  ) : (
+                    <p className="text-[12px]" style={{ color: "#9ca3af" }}>לא נמצאו אזכורים מתוארכים. נסו שם פרויקט / יזם / שכונה ספציפי (למשל "רני צים").</p>
+                  )}
                 </div>
               )}
             </div>
