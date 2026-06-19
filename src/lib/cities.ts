@@ -128,6 +128,26 @@ export const RESEARCH_TOPIC_KEYWORDS: Record<string, string[]> = {
   "תיירות": ["תיירות", "מלון", "מלונות", "נופש", "אטרקציה", "מבקרים"],
 };
 
+// Natural-language web-search query per topic (city name is prepended). Used by
+// the research web-fallback (Firecrawl) — phrased the way a person would Google
+// it, NOT the internal keyword-OR list (which is tuned for our title matching).
+export const RESEARCH_TOPIC_WEB_QUERY: Record<string, string> = {
+  "פרויקט": "פרויקט בנייה חדש דירות",
+  "דירות": "דירות חדשות למכירה",
+  "התחדשות": "התחדשות עירונית פינוי בינוי",
+  "מחירים": "מחירי דירות",
+  "מחיר למשתכן": "דירה בהנחה מחיר למשתכן",
+  "מכרז": "מכרז קרקע רשות מקרקעי ישראל",
+  "חינוך": "חינוך בתי ספר",
+  "אלימות": "פשיעה אלימות ביטחון אישי",
+  "תעסוקה": "תעסוקה אזור תעשייה מפעל",
+  "כביש": "תחבורה כבישים תשתיות",
+  "רכבת": "רכבת תחבורה ציבורית",
+  "בריאות": "בית חולים בריאות מרפאות",
+  "סביבה": "איכות הסביבה פארק שטחים ירוקים",
+  "תיירות": "תיירות מלונות נופש",
+};
+
 // Search terms for a city's news feed (name + aliases).
 export function citySearchTerms(c: City): string {
   // The longest / most specific term first; the search uses word-AND so the

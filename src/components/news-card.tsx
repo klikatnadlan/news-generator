@@ -12,6 +12,9 @@ interface NewsCardProps {
   selected: boolean;
   onSelect: (id: string, selected: boolean) => void;
   showDate?: boolean;
+  // Web-research results aren't in our DB → no id to generate from. readOnly
+  // hides צור הודעה/כתבה (which need a DB id) while keeping reader / copy / open.
+  readOnly?: boolean;
 }
 
 function formatNewsDate(iso?: string | null): string {
@@ -49,7 +52,7 @@ function getSource(s: string) {
   return { label: s, color: "#6b7280" };
 }
 
-export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) {
+export function NewsCard({ news, selected, onSelect, showDate, readOnly }: NewsCardProps) {
   const [copyLabel, setCopyLabel] = useState<string | null>(null);
   const [generating, setGenerating] = useState<"message" | "article" | null>(null);
   const [generatedText, setGeneratedText] = useState<string | null>(null);
@@ -207,7 +210,7 @@ export function NewsCard({ news, selected, onSelect, showDate }: NewsCardProps) 
         {actionsOpen && (
         <div className="flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
           <button onClick={async (e) => { e.stopPropagation(); await navigator.clipboard.writeText(`${news.title}${news.summary ? `\n${news.summary}` : ""}`); setCopyLabel("✓"); setTimeout(() => setCopyLabel(null), 1500); }} className="text-[11px] font-medium h-[30px] px-3 rounded-md border transition-colors" style={copyLabel ? { background: "#f0fdf4", borderColor: "#059669", color: "#059669" } : { borderColor: "#e5e7eb", color: "#6b7280", background: "#fff" }}>{copyLabel || "📋 העתק תכלס"}</button>
-          {!isPaywalled && (
+          {!isPaywalled && !readOnly && (
             <>
               <button onClick={(e) => generate("message", e)} disabled={generating !== null} className="text-[11px] font-semibold h-[30px] px-3.5 rounded-md text-white disabled:opacity-40 transition-colors" style={{ background: "#0f1419" }}>{generating === "message" ? "⏳ מייצר..." : "📝 צור הודעה"}</button>
               <button onClick={(e) => generate("article", e)} disabled={generating !== null} className="text-[11px] font-semibold h-[30px] px-3.5 rounded-md border disabled:opacity-40 transition-colors" style={{ borderColor: "#dc2626", color: "#dc2626", background: "#fff" }}>{generating === "article" ? "⏳ מייצר..." : "📰 צור כתבה"}</button>

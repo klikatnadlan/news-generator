@@ -110,7 +110,7 @@ export default function CitiesPage() {
   const [researchTopics, setResearchTopics] = useState<Set<string>>(new Set());
   const [customCubes, setCustomCubes] = useState<string[]>([]);
   const [researchFrom, setResearchFrom] = useState<string>(""); // "" = all time
-  const [research, setResearch] = useState<{ topic: string; count: number; items: { id: string; title: string; summary?: string; source: string; url: string; date: string | null }[] }[] | null>(null);
+  const [research, setResearch] = useState<{ topic: string; count: number; webCount?: number; items: { id: string; title: string; summary?: string; source: string; url: string; date: string | null; web?: boolean }[] }[] | null>(null);
   const [researchLoading, setResearchLoading] = useState(false);
   const [openResearchTopic, setOpenResearchTopic] = useState<string | null>(null);
   // "קרא באז" inside research results — opens the full content cube (NewsCard)
@@ -463,6 +463,7 @@ export default function CitiesPage() {
                             {topicMeta?.emoji} {topicMeta?.label || r.topic}
                           </span>
                           <span className="text-[12px] font-extrabold" style={{ color: r.count > 0 ? "#0369a1" : "#cbd5e1" }}>
+                            {(r.webCount ?? 0) > 0 && <span title="כולל תוצאות מהרשת">🌐 </span>}
                             {r.count > 0 ? `${r.count} באזים ${open ? "▲" : "▼"}` : "אין עדיין"}
                           </span>
                         </button>
@@ -474,6 +475,7 @@ export default function CitiesPage() {
                                 <div key={it.id}>
                                   <div className="text-[12px] leading-[1.5]" style={{ color: "#374151" }} dir="rtl">
                                     <span className="font-bold" style={{ color: "#0369a1" }}>{i + 1}.</span> {it.title}
+                                    {it.web && <span className="text-[9px] font-bold mr-1 px-1 py-0.5 rounded align-middle" style={{ background: "#ecfeff", color: "#0e7490", border: "1px solid #a5f3fc" }}>🌐 מהרשת</span>}
                                     <span className="text-[10px] mr-1" style={{ color: "#9ca3af" }}> ({it.source}{it.date ? ` · ${it.date}` : ""})</span>
                                     <button onClick={() => toggleBuzz(it.id)}
                                       className="text-[10px] font-bold mr-1.5 px-1.5 py-0.5 rounded border align-middle"
@@ -483,7 +485,7 @@ export default function CitiesPage() {
                                   </div>
                                   {buzzOpen && (
                                     <div className="mt-1.5 mb-2">
-                                      <NewsCard news={{ ...it, source_url: it.url || "", published_at: it.date || null, score: null, reasoning: "" } as unknown as ScoredNews} selected={false} onSelect={() => {}} showDate />
+                                      <NewsCard news={{ ...it, source_url: it.url || "", published_at: it.date || null, score: null, reasoning: "" } as unknown as ScoredNews} selected={false} onSelect={() => {}} showDate readOnly={it.web} />
                                     </div>
                                   )}
                                 </div>
@@ -497,7 +499,7 @@ export default function CitiesPage() {
                       </div>
                     );
                   })}
-                  <p className="text-[10px] pt-1" style={{ color: "#9ca3af" }}>נושאים עם "אין עדיין" = פערי כיסוי (כדאי להוסיף מקורות מקומיים/כלליים כדי לתפוס אותם).</p>
+                  <p className="text-[10px] pt-1" style={{ color: "#9ca3af" }}>🌐 = כשאין מספיק במאגר שלנו, המחקר יוצא לרשת ומביא תוצאות חיות. "אין עדיין" = גם במאגר וגם ברשת לא נמצא דבר רלוונטי.</p>
                 </div>
               )}
             </div>
