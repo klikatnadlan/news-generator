@@ -57,7 +57,7 @@ The app uses a custom design system called **LeaderFeed**. Do NOT change to a di
 - **Framework:** Next.js 15 (App Router), TypeScript, Tailwind CSS
 - **UI Library:** shadcn/ui components + custom LeaderFeed classes
 - **Database:** Supabase (news_items, news_scores, generated_texts, etc.)
-- **AI:** Claude claude-sonnet-4-20250514 via Anthropic SDK
+- **AI:** Claude claude-sonnet-4-6 (generation) + claude-haiku-4-5-20251001 (scoring) via Anthropic SDK
 - **Deploy:** Vercel (Hobby plan, 10s timeout for serverless)
 - **RSS:** Single curated feed from rss.app
 
