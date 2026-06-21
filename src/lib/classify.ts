@@ -54,8 +54,11 @@ export const STRONG_POLITICS_NOT_RE = [
 ];
 
 export const STRONG_SECURITY_NOT_RE = [
+  // NOTE: "מבצע" was removed — it substring-matched "מבצעים" (sales promotions)
+  // and standalone vetoed legit RE marketing ("מבצע מכירות", "מבצע השקה"). The
+  // remaining tokens are unambiguous military.
   "מלחמה", "צה\"ל", "חיזבאללה", "חמאס", "ירי",
-  "פיגוע", "טילים", "מבצע", "מילואים", "תרחיש",
+  "פיגוע", "טילים", "מילואים", "תרחיש",
   "בדאחייה", "בביירות",
 ];
 
@@ -64,6 +67,18 @@ const ALL_VETO = [
   ...STRONG_POLITICS_NOT_RE,
   ...STRONG_SECURITY_NOT_RE,
 ];
+
+// Hebrew-aware veto match. The token must sit at a WORD boundary (optionally
+// after a one-letter Hebrew prefix ה/ו/ב/כ/ל/מ/ש/ד) and must NOT continue into
+// more Hebrew root letters. Plain substring matching wrongly vetoed real-estate
+// items: "ירי" (gunfire) is a substring of "מחירים"/"שמחירי" (prices), so any
+// price headline was rejected as a security story and the home feed emptied.
+// This keeps real vetoes ("הממשלה", "בירי") while ending the false positives.
+const HEB_RANGE = "\\u05D0-\\u05EA";
+function vetoMatch(text: string, kw: string): boolean {
+  const esc = kw.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?:^|[^${HEB_RANGE}])[הובכלמשד]?${esc}(?![${HEB_RANGE}])`, "u").test(text);
+}
 
 /**
  * Returns true iff the article should appear on the real-estate-only feed.
@@ -79,9 +94,10 @@ export function isRealEstate(title: string, summary: string, source: string): bo
 
   const text = `${title} ${summary || ""}`.toLowerCase();
 
-  // Veto: if it screams finance/politics/security, reject even if a RE word slips in
+  // Veto: if it screams finance/politics/security, reject even if a RE word slips
+  // in. Word-boundary aware (see vetoMatch) so "ירי" no longer matches "מחירים".
   for (const kw of ALL_VETO) {
-    if (text.includes(kw.toLowerCase())) return false;
+    if (vetoMatch(text, kw)) return false;
   }
 
   // Include: at least one real-estate signal must be present

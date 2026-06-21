@@ -1,0 +1,3 @@
+VETO hits: ['ירי']
+RE hits: ['דירה', 'דירות', 'חריש']
+isRealEstate(source=ICE) = False

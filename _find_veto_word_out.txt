@@ -1,0 +1,4 @@
+veto term: ירי (len 3)
+words containing it: ['שמחירי', 'המחירים,']
+first index in text: 47
+context: ...היות שמחירי דירות ...

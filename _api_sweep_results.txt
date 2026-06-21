@@ -1,0 +1,98 @@
+================================================================================
+LABEL : news/today
+URL   : https://news-generator-seven.vercel.app/api/news/today
+STATUS: 200   (1677 ms, 57 bytes, application/json)
+SAMPLE: JSON dict keys=['news', 'lastScan'] | news=len0 | lastScan=2026-06-21T10:20:55.482593+00:00
+HEAD  : {"news":[],"lastScan":"2026-06-21T10:20:55.482593+00:00"}
+
+================================================================================
+LABEL : news/week
+URL   : https://news-generator-seven.vercel.app/api/news/week
+STATUS: 200   (877 ms, 103 bytes, application/json)
+SAMPLE: JSON dict keys=['news', 'lastScan', 'weekStart', 'today'] | news=len0 | lastScan=2026-06-21T10:20:55.482593+00:00 | weekStart=2026-06-21 | today=2026-06-21
+HEAD  : {"news":[],"lastScan":"2026-06-21T10:20:55.482593+00:00","weekStart":"2026-06-21","today":"2026-06-21"}
+
+================================================================================
+LABEL : news/week-all
+URL   : https://news-generator-seven.vercel.app/api/news/week-all
+STATUS: 200   (601 ms, 38063 bytes, application/json)
+SAMPLE: JSON dict keys=['news', 'weekStart', 'today'] | news=len50 | weekStart=2026-06-21 | today=2026-06-21
+HEAD  : {"news":[{"id":"f62c597c-96d6-44d8-a69c-21c31593dc5d","title":"רכשו דירה ב-2022 ביישוב הזה ","source":"ICE","summary":"האם יכול להיות שמחירי דירות חדשות יורדים ביישובים שבהם הם עומדים על 1.5 מיליון שקל ומטה? מספר עסקאות בחריש מצביעות על כך שלמרות המחירים, העיר עדיין לא מתאימה למשקיעים","fetched_at":"2026-06-21T04:00:43.044935+00:00","scan_batch":"2026-06-21T04:00:32.443Z","source_url":"https://www.ice.co.il/realestate/news/article/1113264","published_at":"2026-06-20T18:04:52+00:00","full_article_text":null,"score":72,"reasoning":"דירות חדשות בחריש, רלוונטי לקנייה ראשונה וחריגות במחירים - עוררו
+
+================================================================================
+LABEL : narratives
+URL   : https://news-generator-seven.vercel.app/api/narratives
+STATUS: 200   (37698 ms, 1337 bytes, application/json)
+SAMPLE: JSON dict keys=['narratives', 'range', 'startStr', 'todayStr', 'count', 'cached'] | narratives=len3 | range=week | startStr=2026-06-14 | todayStr=2026-06-21 | count=45 | cached=False
+HEAD  : {"narratives":[{"title":"משבר הבנייה: פרויקטים תקועים ובטיחות","count":4,"summary":"מינהל הבטיחות מאיים להשבית בנייה של רבי קומות בשל סיכון של '100 טונה על הראש', ובמקביל הקבלנים מתריעים על 'צונאמי של פרויקטים תקועים' ומדד תשומות הבנייה ממשיך לעלות.","sources":["גלובס","דה מרקר","כלכליסט"]},{"title":"מטרו ופרויקטי תשתית מתקדמים","count":2,"summary":"פרויקט המטרו עובר לשלב הביצוע אחרי שנים של עיכובים, ובמקביל AI מובילה שיא של 25 שנה בהשכרת משרדים במנהטן — שניהם נרטיב של תשתיות עירוניות בשינוי.","sources":["כלכליסט"]},{"title":"אינפלציה וסביבת המאקרו הגלובלית","count":3,"summary":"האינפלציה טיפס
+
+================================================================================
+LABEL : market-index
+URL   : https://news-generator-seven.vercel.app/api/market-index
+STATUS: 200   (6298 ms, 500 bytes, application/json)
+SAMPLE: JSON dict keys=['index', 'trend', 'summary', 'date', 'movingAvg', 'range', 'historyDays', 'disclaimer'] | index=43 | trend=יורד | summary=שוק הנדל"ן מציג יציבות יחסית אך אי-ודאות גיאופוליטית סביב הס... | date=2026-06-21 | movingAvg=67 | historyDays=5 | disclaimer=המדד מבוסס על ניתוח באזים ונתוני ממשלה. אינו מהווה המלצת השק...
+HEAD  : {"index":43,"trend":"יורד","summary":"שוק הנדל\"ן מציג יציבות יחסית אך אי-ודאות גיאופוליטית סביב הסכם איראן ותנודתיות בשווקים הפיננסיים מייצרים לחץ כלפי מטה על אמון המשקיעים","date":"2026-06-21","movingAvg":67,"range":{"min":43,"max":91},"historyDays":5,"disclaimer":"המדד מבוסס על ניתוח באזים ונתוני ממשלה. אינו מהווה המלצת השקעה."}
+
+================================================================================
+LABEL : archive?q=מעלות
+URL   : https://news-generator-seven.vercel.app/api/archive?q=%D7%9E%D7%A2%D7%9C%D7%95%D7%AA
+STATUS: 200   (1282 ms, 17178 bytes, application/json)
+SAMPLE: JSON dict keys=['items', 'total', 'page', 'totalPages'] | items=len20 | total=7379 | page=1 | totalPages=369
+HEAD  : {"items":[{"id":"41c8b795-c1ac-476d-83bd-3ab213f189e4","title":"מסיבת הסיום יצאה משליטה: אלימות ואלכוהול הובילו לסגירת לופט באשקלון","summary":"מסיבת הסיום של תלמידי כיתה י' שכללה אלכוהול הביאה לסגירת הלופט במתחם הקוסמוס בצומת סילבר שבאשקלון. שוטרי תחנת אשקלון פתחו בחקירה, במסגרתה נחקרו בעלי המקום ונאספו ממצאים המעידים על קיום האירוע בניגוד להוראות החוק. עוד עלה כי העסק פעל ללא רישיון","source":"וואלה","url":"https://news.walla.co.il/item/3847340","created_at":"2026-06-21T10:20:55.482593+00:00","score":null,"scan_date":"2026-06-21"},{"id":"63dad690-ec73-47c7-a206-85c9940deb72","title":"המשטרה 
+
+================================================================================
+LABEL : cities/overview
+URL   : https://news-generator-seven.vercel.app/api/cities/overview?city=%D7%9E%D7%A2%D7%9C%D7%95%D7%AA+%D7%AA%D7%A8%D7%A9%D7%99%D7%97%D7%90
+STATUS: 200   (1924 ms, 420 bytes, application/json)
+SAMPLE: JSON dict keys=['city', 'population', 'populationAsOf', 'mayor', 'metric', 'nationalRent', 'rentDiffPct', 'avgWage', 'wageDiffPct', 'nationalWage', 'wageAsOf', 'articleCount', 'projectorUrl'] | population=23169 | populationAsOf=אפריל 2026 | mayor=מוטי בן דוד | metric=None | nationalRent=5379 | rentDiffPct=None | avgWage=10766 | wageDiffPct=-15 | nationalWage=12593 | wageAsOf=2023 | articleCount=21 | projectorUrl=https://tenders-app-nu.vercel.app/city/%D7%9E%D7%A2%D7%9C%D7...
+HEAD  : {"city":{"name":"מעלות תרשיחא","district":"צפון"},"population":23169,"populationAsOf":"אפריל 2026","mayor":"מוטי בן דוד","metric":null,"nationalRent":5379,"rentDiffPct":null,"avgWage":10766,"wageDiffPct":-15,"nationalWage":12593,"wageAsOf":"2023","articleCount":21,"projectorUrl":"https://tenders-app-nu.vercel.app/city/%D7%9E%D7%A2%D7%9C%D7%95%D7%AA%20%D7%AA%D7%A8%D7%A9%D7%99%D7%97%D7%90"}
+
+================================================================================
+LABEL : cities/feed
+URL   : https://news-generator-seven.vercel.app/api/cities/feed?city=%D7%9E%D7%A2%D7%9C%D7%95%D7%AA+%D7%AA%D7%A8%D7%A9%D7%99%D7%97%D7%90
+STATUS: 200   (785 ms, 18320 bytes, application/json)
+SAMPLE: JSON dict keys=['items', 'total', 'page', 'totalPages'] | items=len20 | total=45 | page=1 | totalPages=3
+HEAD  : {"items":[{"id":"dc316608-822c-4f88-881e-0684fcc90a99","title":"גל חום כבד באירופה: בצרפת עד 30 מעלות בלילה, בספרד מבטלים צפייה במונדיאל","summary":"מזג אוויר לוהט פוקד את מערב היבשת, ולא ברור מתי יחלוף: בצרפת הכריזו \"כוננות אדומה\" ביותר משליש מהמחוזות החל מהיום, משתתפי חג המוזיקה \"פט דה לה מוזיק\" יידרשו להימנע מאלכוהול. במדריד ייסגר אזור האוהדים בפלאסה דה קולון, והתושבים יצפו במשחק מול סעודיה הערב מהבית. טמפרטורות גבוהות גם באיטליה, גרמניה ושווייץ, ז'אן-לוק עבר לגור בבית-מערה ו\"ניצל\" משינויי האקלים","source":"ynet","url":"https://www.ynet.co.il/news/article/bj11neghzgg","created_at":"20
+
+================================================================================
+LABEL : cities/research (ONCE)
+URL   : https://news-generator-seven.vercel.app/api/cities/research?city=%D7%9E%D7%A2%D7%9C%D7%95%D7%AA+%D7%AA%D7%A8%D7%A9%D7%99%D7%97%D7%90&topics=%D7%A4%D7%A8%D7%95%D7%99%D7%A7%D7%98
+STATUS: 200   (2861 ms, 4485 bytes, application/json)
+SAMPLE: JSON dict keys=['city', 'results', 'totalHits'] | city=מעלות תרשיחא | results=len1 | totalHits=6
+HEAD  : {"city":"מעלות תרשיחא","results":[{"topic":"פרויקט","count":6,"items":[{"id":"web:https://www.instagram.com/p/DXLp6xHDIeE/","title":"740 דירות חדשות בצפון: שלוש תוכניות התחדשות עולות לוועדה המחוזית שלוש ...","summary":"פרויקט מגורים המוקם בשכונה חדשה בסמוך למושב חבצלת השרון ובמרחק של כ־1 ק\"מ בלבד מחוף הים. הפרויקט כולל הקמת 3 מגדלי מגורים בני 15 קומות על ...","source":"instagram.com","url":"https://www.instagram.com/p/DXLp6xHDIeE/","date":null,"web":true},{"id":"web:https://www.instagram.com/reel/DQUuePEAfK5/","title":"⁨ ⁨ ⁨ ⁨ ⁨ 60 שניות עם ראש עיריית מעלות תרשיחא, מוטי בן דוד ...","summary":
+
+================================================================================
+LABEL : cities/maturation (ONCE)
+URL   : https://news-generator-seven.vercel.app/api/cities/maturation?city=%D7%9E%D7%A2%D7%9C%D7%95%D7%AA+%D7%AA%D7%A8%D7%A9%D7%99%D7%97%D7%90&entity=%D7%A8%D7%A0%D7%99+%D7%A6%D7%99%D7%9D
+STATUS: 200   (3801 ms, 14723 bytes, application/json)
+SAMPLE: JSON dict keys=['city', 'entity', 'focus', 'subject', 'firstYear', 'lastYear', 'yearsMaturing', 'timeline', 'totalItems', 'sources'] | city=מעלות תרשיחא | entity=רני צים | focus= | subject=רני צים מעלות תרשיחא | firstYear=2013 | lastYear=2026 | yearsMaturing=13 | timeline=len8 | totalItems=28
+HEAD  : {"city":"מעלות תרשיחא","entity":"רני צים","focus":"","subject":"רני צים מעלות תרשיחא","firstYear":2013,"lastYear":2026,"yearsMaturing":13,"timeline":[{"year":2013,"items":[{"id":"web:https://ar.maltar.org.il/89/","title":"تنمية وتطوير بحيرة مونفورت","summary":"היזם רני צים רכש 22 דונם על שפת האגם ובכוונתו להקים מלון בן 300 חדרים עם מרכז קונגרסים ומרכז מסחרי של כ- 7000 מ\"ר עם 24 חנויות לאורכו של האגם. במסגרת התכנית ...","source":"ar.maltar.org.il","url":"https://ar.maltar.org.il/89/","date":null,"web":true,"year":2013,"conf":"approx"},{"id":"web:https://www.calcalist.co.il/local/articles/0,734
+
+================================================================================
+LABEL : alerts
+URL   : https://news-generator-seven.vercel.app/api/alerts
+STATUS: 200   (1592 ms, 15042 bytes, application/json)
+SAMPLE: JSON dict keys=['alerts'] | alerts=len64
+HEAD  : {"alerts":[{"id":"7de5a382-c81e-4ca2-983a-44a14b211272","name":"כל הנדל\"ן בכף ידך","emoji":"🏠","keywords":["נדל\"ן","דירה","דירות","משכנתא","משכנתאות","שכירות","שכ\"ד","קבלן","קבלנים","יזם","יזמים","פרויקט","מחיר דירה","מחירי דיור","מחירי דירות","פינוי בינוי","פינוי-בינוי","התחדשות עירונית","תמ\"א","מחיר למשתכן","דירה בהנחה","תיווך","מתווך","היתר בנייה","התחלות בנייה","מגורים","רמ\"י","רשות מקרקעי","שוק הדיור"],"matchCount":1462,"latestDate":"2026-06-21T10:18:35+00:00","cur7d":260,"prev7d":295,"trend":"cooling"},{"id":"b623a895-53c0-4c94-b81e-ce5ae2f21cdc","name":"התחדשות עירונית","emoji":"🏗️
+
+================================================================================
+LABEL : cron/model-health (manual scan)
+URL   : https://news-generator-seven.vercel.app/api/cron/model-health
+STATUS: 200   (1812 ms, 175 bytes, application/json)
+SAMPLE: JSON dict keys=['ok', 'checked', 'dead'] | ok=True | checked=len2 | dead=len0
+HEAD  : {"ok":true,"checked":[{"kind":"צ'אט/יצירה","model":"claude-sonnet-4-6","alive":true},{"kind":"דירוג","model":"claude-haiku-4-5-20251001","alive":true}],"dead":[]}
+
+================================================================================
+LABEL : history
+URL   : https://news-generator-seven.vercel.app/api/history
+STATUS: 200   (714 ms, 3389 bytes, application/json)
+SAMPLE: JSON dict keys=['history'] | history=len1
+HEAD  : {"history":[{"id":"af18acd9-e78f-4122-9a6f-fbe219d736e7","generated_text_id":"f7cc1da2-138d-4657-bd6a-b78bfd3267f2","sent_at":"2026-03-17T13:50:50.482785+00:00","sent_by":"בן","channel":"whatsapp_share","quality_rating":null,"generated_texts":{"id":"f7cc1da2-138d-4657-bd6a-b78bfd3267f2","style":"commentary","created_at":"2026-03-17T13:49:03.807295+00:00","news_items":{"id":"fe7821c9-a932-4200-adf6-d89695d09d6a","title":"מהפכת השכירות בישראל: פחות בעלים, יותר שוכרים, השוק הפרטי שולט","source":"קליקת חדשות (מאוחד)","summary":"שינוי דרמטי בהרגלי המגורים של הישראלים בעשור האחרון: מי הן הערים שבהן 
+
+================================================================================
+LABEL : article-read
+URL   : https://news-generator-seven.vercel.app/api/article-read?url=https%3A%2F%2Fwww.gov.il%2Fhe%2Fpages%2Fmaalot-security-10819
+STATUS: 200   (511 ms, 34 bytes, application/json)
+SAMPLE: JSON dict keys=['text', 'full', 'chars'] | text= | full=False | chars=0
+HEAD  : {"text":"","full":false,"chars":0}
+
