@@ -42,7 +42,12 @@ export async function GET(request: NextRequest) {
     onlyPostsNewerThan: since,
   };
 
-  const origin = new URL(request.url).origin;
+  // CRITICAL: when the Vercel CRON fires, request.url is the deployment-specific
+  // URL (…-<hash>-…vercel.app) which sits behind Vercel deployment protection
+  // (SSO) → Apify's webhook POST there gets a 401 and the posts never ingest
+  // (this silently stalled FB content from 2026-06-12). Register the webhook
+  // against the STABLE PUBLIC production domain instead.
+  const origin = process.env.FB_INGEST_BASE_URL || "https://news-generator-seven.vercel.app";
   const webhook = [{
     eventTypes: ["ACTOR.RUN.SUCCEEDED"],
     requestUrl: `${origin}/api/fb-ingest?secret=${encodeURIComponent(secret || "manual")}`,
