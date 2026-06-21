@@ -38,28 +38,46 @@ export async function runScan(): Promise<ScanResult> {
     throw insertError;
   }
 
-  // Step 3: Score with Claude — but ONLY the non-ingest-only items. Broad feeds
-  // (general/local, marked ingestOnly) are stored for search/city research but
-  // never scored (zero tokens) and never reach the curated home/headlines.
-  const ingestOnlyUrls = new Set(articles.filter((a) => a.ingestOnly).map((a) => a.link));
-  const scorable = (insertedNews || []).filter((n) => !ingestOnlyUrls.has(n.source_url));
+  void insertedNews; // ingest is committed above; scoring below works off the DB
+  const today = new Date().toISOString().split("T")[0];
 
-  const toScore = scorable.map((n) => ({
-    title: n.title,
-    summary: n.summary || "",
-    source: n.source,
-  }));
+  // Step 3: Score with Claude — every SCORABLE item in this feed that has NO
+  // score yet. Critically this is NOT limited to the freshly-inserted rows: an
+  // article published DURING the day is ingested by a later fetch, and if that
+  // scan's scoring was rate-limited/failed (Haiku rate-limits on rapid manual
+  // scans), `ignoreDuplicates` turns it into a permanent "duplicate" that no
+  // future scan would ever re-score → it stays invisible on the home feed even
+  // though it's a whitelisted RE source (מרכז הנדל"ן / מגדילים …). Querying
+  // unscored items self-heals that gap. Ingest-only feeds (local/FB) are still
+  // never scored (0 tokens).
+  const scorableLinks = articles.filter((a) => !a.ingestOnly).map((a) => a.link).filter(Boolean);
+  const linkChunks: string[][] = [];
+  for (let i = 0; i < scorableLinks.length; i += 50) linkChunks.push(scorableLinks.slice(i, i + 50));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const unscored: any[] = [];
+  for (const part of linkChunks) {
+    const { data } = await supabase
+      .from("news_items")
+      .select("id, title, summary, source, source_url, news_scores(score)")
+      .in("source_url", part);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const it of (data || []) as any[]) {
+      if (!it.news_scores || it.news_scores.length === 0) unscored.push(it);
+    }
+  }
+  // Bound per-run token spend; any overflow is caught by the next run.
+  const toScoreItems = unscored.slice(0, 100);
+  const toScore = toScoreItems.map((n) => ({ title: n.title, summary: n.summary || "", source: n.source }));
 
   if (toScore.length === 0) {
-    console.log("No new articles to score, skipping Claude API call");
-    // Return existing top 3 for today
-    const today = new Date().toISOString().split("T")[0];
+    console.log("No unscored articles to score, skipping Claude API call");
     const { data: existingTop3 } = await supabase
       .from("news_scores")
       .select("*, news_items(*)")
       .eq("scan_date", today)
       .order("score", { ascending: false })
       .limit(3);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const top3Mapped: ScoredNews[] = (existingTop3 || []).map((s: any) => ({
       ...s.news_items,
       score: s.score,
@@ -77,10 +95,9 @@ export async function runScan(): Promise<ScanResult> {
   }
 
   // Step 4: Match scores to news items and store
-  const today = new Date().toISOString().split("T")[0];
   const scoreInserts = scores
     .map((s) => {
-      const newsItem = scorable[s.index];
+      const newsItem = toScoreItems[s.index];
       if (!newsItem) return null;
       return {
         news_item_id: newsItem.id,
