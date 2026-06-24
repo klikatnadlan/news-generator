@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { SiteNav } from "@/components/site-nav";
-import { SiteFooter } from "@/components/site-footer";
 import {
   GALILEE_BIG_NUMBERS, GALILEE_STORIES, GALILEE_ITEMS, GALILEE_NARRATIVE,
   GALILEE_STATS, IMPACT_LABEL, IMPACT_COLOR, galileeCategories, type Impact, type GalileeItem,
@@ -212,8 +211,6 @@ export default function GalilPage() {
           <p className="text-[10px] mt-4" style={{ color: "#c7c7cc" }}>כל המקורות זמינים לציבור. הפורטל אינו מהווה ייעוץ השקעות ואינו מתחייב לתשואה.</p>
         </div>
       </div>
-
-      <SiteFooter />
     </div>
   );
 }
