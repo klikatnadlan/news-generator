@@ -21,15 +21,21 @@ function ImpactBadge({ impact }: { impact: Impact }) {
 function ItemCard({ it }: { it: GalileeItem }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false); // true only after a successful non-empty load
   const [loading, setLoading] = useState(false);
   const read = async () => {
-    setOpen((o) => !o);
-    if (text !== null) return;
+    const next = !open;
+    setOpen(next);
+    // Fetch when opening; cache only a SUCCESSFUL non-empty read so a transient
+    // failure/block can be retried by closing and re-opening (not stuck forever).
+    if (!next || loaded || loading) return;
     setLoading(true);
     try {
       const r = await fetch(`/api/article-read?url=${encodeURIComponent(it.url)}`);
       const d = await r.json();
-      setText(d.text || "");
+      const t = d.text || "";
+      setText(t);
+      if (t) setLoaded(true);
     } catch { setText(""); } finally { setLoading(false); }
   };
   return (
@@ -121,8 +127,8 @@ export default function GalilPage() {
               <div key={story.title} className="lf-card p-4" style={{ borderRight: "3px solid #dc2626" }}>
                 <h3 className="text-[15px] font-extrabold mb-3" style={{ color: "#0f1419" }}>🔗 {story.title}</h3>
                 <div className="space-y-3 pr-3" style={{ borderRight: "2px solid #fca5a5" }}>
-                  {story.steps.map((s) => (
-                    <div key={s.stepLabel} className="relative">
+                  {story.steps.map((s, si) => (
+                    <div key={s.url || si} className="relative">
                       <span className="absolute -right-[19px] top-1 w-3 h-3 rounded-full" style={{ background: "#dc2626", boxShadow: "0 0 0 3px #fff" }} />
                       <div className="flex items-center gap-1.5 flex-wrap mb-1">
                         <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded" style={{ background: "#0f1419", color: "#fff" }}>{s.stepLabel}</span>
@@ -162,9 +168,13 @@ export default function GalilPage() {
         </div>
 
         <p className="text-[11px] mb-3" style={{ color: "#9ca3af" }}>מציג {items.length} מתוך {GALILEE_ITEMS.length} מהלכים</p>
-        <div className="grid md:grid-cols-2 gap-3 mb-9">
-          {items.map((it) => <ItemCard key={it.url} it={it} />)}
-        </div>
+        {items.length === 0 ? (
+          <p className="text-[12px] py-6 text-center mb-9" style={{ color: "#9ca3af" }}>אין מהלכים תואמים לסינון — נסו תחום או רמת השפעה אחרת.</p>
+        ) : (
+          <div className="grid md:grid-cols-2 gap-3 mb-9">
+            {items.map((it, i) => <ItemCard key={i} it={it} />)}
+          </div>
+        )}
 
         {/* ───── Live strip (fresh from our corpus) ───── */}
         {live.length > 0 && (

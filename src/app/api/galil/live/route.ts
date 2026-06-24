@@ -22,7 +22,7 @@ export async function GET() {
     const seen = new Set<string>();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const items = ((data || []) as any[])
-      .filter((d) => d.title && d.source_url && !seen.has(d.title) && seen.add(d.title))
+      .filter((d) => d.title && d.source_url && !seen.has(d.source_url) && seen.add(d.source_url))
       .slice(0, 12)
       .map((d) => ({ id: d.id, title: d.title, source: d.source || "", url: d.source_url, date: (d.published_at || "").slice(0, 10) }));
     return NextResponse.json({ items });

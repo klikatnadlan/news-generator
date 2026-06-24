@@ -43,7 +43,7 @@ export const GALILEE_STORIES: GalileeStory[] = [
       {
         stepLabel: "שלב 1/3",
         title: "מגידו זכתה במכרז לבניית הפרויקט",
-        source: "כלכליסט", date: "2021", category: "היזם / פרויקט", impact: "medium",
+        source: "כלכליסט", date: "2021", category: "נדל״ן והתחדשות", impact: "medium",
         whyItMatters: "הפרויקט יצא לדרך במכרז מסודר שזכה לסיקור כלכלי. נקודת הפתיחה של רצף ההחלטות שתראו בצעדים הבאים.",
         url: "https://www.calcalist.co.il/real-estate/article/ryovqlijf",
       },
@@ -76,7 +76,7 @@ export const GALILEE_STORIES: GalileeStory[] = [
       {
         stepLabel: "שלב 2/2",
         title: "570 מיליון ₪ לאוניברסיטת תל חי בגליל",
-        source: "Ynet", date: "2026", category: "השקעת מדינה / אקדמיה", impact: "high",
+        source: "Ynet", date: "2026", category: "חינוך ואקדמיה", impact: "high",
         whyItMatters: "מה שב-2022 היה ברמה של פגישות, ב-2026 כבר תקציב מאושר של 570 מיליון ₪. זה ההבדל בין הצהרת כוונות לבין החלטת תקציב — והוא קורה בפועל באזור.",
         url: "https://www.ynet.co.il/news/article/bj6nhk6s11e",
       },
@@ -112,7 +112,7 @@ export const GALILEE_ITEMS: GalileeItem[] = [
   },
   {
     title: "13 מיליון ₪ לצמיחת התיירות החקלאית בגליל",
-    source: "משרד החקלאות", date: "2026", category: "השקעות מדינה", impact: "medium",
+    source: "משרד החקלאות / תנופה לצפון", date: "2026", category: "השקעות מדינה", impact: "medium",
     whyItMatters: "13 מיליון ₪ ייעודיים לחקלאים וליזמים בגליל להרחבת פעילות תיירותית. תיירות פנים מגדילה תנועה, מסחר ושירותים סביב הפרויקט.",
     url: "https://www.gov.il/he/pages/13_million_growth_agricultural_tourism",
   },
@@ -135,10 +135,12 @@ export const GALILEE_ITEMS: GalileeItem[] = [
     url: "https://www.calcalist.co.il/real-estate/article/rjqifzsowg",
   },
   {
+    // Source was nahariya.muni.il/bids/487 — that municipal domain now redirects
+    // to an abuse-parking site, so point to our own published coverage instead.
     title: "עבודות פיתוח במשולש בן עמי",
-    source: "עיריית נהריה", date: "2026", category: "תחבורה ותשתיות", impact: "medium",
-    whyItMatters: "מכרזים לעבודות פיתוח שכבר יצאו לדרך — סימן שהפרויקט נמצא בשלב ביצוע ולא רק תכנון על הנייר.",
-    url: "https://www.nahariya.muni.il/bids/487/",
+    source: 'קליקת הנדל"ן', date: "2026", category: "תחבורה ותשתיות", impact: "medium",
+    whyItMatters: "מכרזים לעבודות פיתוח שכבר יצאו לדרך — סימן שהפרויקט נמצא בשלב ביצוע ולא רק תכנון על הנייר. שכונה חדשה צמודה למרכז הרפואי לגליל המערבי.",
+    url: "https://klikatnadlan.co.il/nahariyabenami/",
   },
   {
     title: "יישוב חלוצי יוקם במעלות",
@@ -199,10 +201,11 @@ export const IMPACT_COLOR: Record<Impact, { bg: string; fg: string; bd: string }
   low: { bg: "#f0f9ff", fg: "#0369a1", bd: "#bae6fd" },
 };
 
-// All distinct categories present (for the filter chips).
+// Categories for the filter chips — built from GALILEE_ITEMS ONLY (the filter
+// applies to the items grid; including story-only categories would create chips
+// that match 0 items).
 export function galileeCategories(): string[] {
   const set = new Set<string>();
   for (const it of GALILEE_ITEMS) set.add(it.category);
-  for (const s of GALILEE_STORIES) for (const st of s.steps) set.add(st.category);
   return [...set];
 }
