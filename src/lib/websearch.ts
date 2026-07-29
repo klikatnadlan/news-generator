@@ -110,6 +110,27 @@ export async function firecrawlSearchV2(
     .slice(0, limit);
 }
 
+// LeaderFeed is a real-estate product, so a bare web query can land in a totally
+// different world: "שפיר ברוך שפינוזה" (a Petah Tikva urban-renewal project by
+// Shapir on Baruch Spinoza st.) returns the PHILOSOPHER — Wikipedia, Ben-Yehuda,
+// museums. Appending real-estate context fixes it: verified live, the bare query
+// returned 5/6 philosopher results while `+ פרויקט נדל"ן דירות` returned 6/6
+// on-target (madlan תמ"א 38, the Shapir project, the tenants' conference).
+// Skipped when the query already carries a real-estate signal, so
+// "מחיר למשתכן חריש" is left exactly as the user typed it.
+const RE_HINTS = [
+  "נדל", "דירה", "דירות", "פרויקט", "משכנת", "שכונה", "מגרש", "מגרשים",
+  "תמ\"א", "תמא", "פינוי", "התחדשות", "מחיר למשתכן", "מחיר מטרה", "יזם", "יזמים",
+  "קבלן", "קבלנים", "מכרז", "בנייה", "בניה", "מגורים", "שכירות", "שכ\"ד",
+  "היתר", "רמ\"י", "מלון", "מסחר", "משרדים", "ריבית", "מיסוי", "מס רכישה",
+];
+export function reWebQuery(query: string): string {
+  const q = (query || "").trim();
+  if (!q) return q;
+  const hasSignal = RE_HINTS.some((h) => q.includes(h));
+  return hasSignal ? q : `${q} פרויקט נדל"ן דירות`;
+}
+
 // Friendly Hebrew source label from a URL host (when we don't recognize the
 // outlet) — e.g. "https://moovitapp.com/..." → "moovitapp.com".
 export function hostLabel(url: string): string {

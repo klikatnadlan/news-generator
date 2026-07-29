@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
-import { firecrawlSearch, hostLabel } from "@/lib/websearch";
+import { firecrawlSearch, hostLabel, reWebQuery } from "@/lib/websearch";
 
 // Below this many internal hits a query is "thin" → top it up from the web.
 const THIN = 3;
@@ -91,7 +91,9 @@ export async function GET(request: NextRequest) {
   // real user query, only on page 1, only when thin, and cached 24h per query.
   const webItems: ArchiveItem[] = [];
   if (query && total < THIN && page === 1) {
-    const cacheKey = `websearch|archive|${query.slice(0, 120)}`;
+    // v2 = real-estate-scoped queries; bumping the key retires caches built with
+    // the old bare query (which could hold off-topic results).
+    const cacheKey = `websearch|archive|v2|${query.slice(0, 120)}`;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let web: any[] = [];
     try {
@@ -107,7 +109,9 @@ export async function GET(request: NextRequest) {
     } catch { /* cache miss → fetch fresh */ }
 
     if (web.length === 0) {
-      web = await firecrawlSearch(query, 8);
+      // Scope the web query to real estate so an ambiguous name doesn't land in
+      // another world (see reWebQuery: "שפיר ברוך שפינוזה" → the philosopher).
+      web = await firecrawlSearch(reWebQuery(query), 8);
       if (web.length) {
         try {
           await supabase.from("narrative_cache").upsert(
