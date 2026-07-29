@@ -17,6 +17,7 @@ interface ArchiveItem {
   created_at: string;
   score: number | null;
   scan_date: string | null;
+  web?: boolean; // came from the live web search, not our corpus
 }
 
 interface SearchResult {
@@ -24,6 +25,8 @@ interface SearchResult {
   total: number;
   page: number;
   totalPages: number;
+  webCount?: number;
+  internalTotal?: number;
 }
 
 function getSourceName(source: string): string {
@@ -270,9 +273,22 @@ export default function ArchivePage() {
           <div className="space-y-2">
             <p className="text-[12px] mb-2" style={{ color: "#9ca3af" }}>
               {results.total} באזים · עמוד {results.page}/{results.totalPages}
+              {(results.webCount ?? 0) > 0 && (
+                <span style={{ color: "#0e7490" }}> · 🌐 {results.webCount} מהרשת</span>
+              )}
             </p>
+            {(results.webCount ?? 0) > 0 && (
+              <p className="text-[11px] mb-2 px-2.5 py-1.5 rounded-lg" style={{ background: "#ecfeff", color: "#0e7490", border: "1px solid #a5f3fc" }} dir="rtl">
+                🌐 לא היה לנו מספיק על זה במאגר — אז יצאנו לרשת והבאנו תוצאות חיות.
+              </p>
+            )}
             {results.items.map((item) => (
-              <NewsCard key={item.id} news={toScored(item)} selected={selectedIds.has(item.id)} onSelect={toggleSelect} showDate />
+              <div key={item.id}>
+                {item.web && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded inline-block mb-1" style={{ background: "#ecfeff", color: "#0e7490", border: "1px solid #a5f3fc" }}>🌐 מהרשת</span>
+                )}
+                <NewsCard news={toScored(item)} selected={selectedIds.has(item.id)} onSelect={toggleSelect} showDate readOnly={item.web} />
+              </div>
             ))}
 
             {results.totalPages > 1 && (

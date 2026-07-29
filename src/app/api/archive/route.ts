@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
+import { firecrawlSearch, hostLabel } from "@/lib/websearch";
+
+// Below this many internal hits a query is "thin" → top it up from the web.
+const THIN = 3;
+const WEB_CACHE_HOURS = 24;
 
 // Map a source URL to a clean Hebrew source name (incl. קליקת הנדל"ן).
 function detectSourceFromUrl(url: string): string | null {
@@ -60,7 +65,11 @@ export async function GET(request: NextRequest) {
     supabase.from("search_gaps").insert({ query: query.slice(0, 200), results: 0, page: "archive" }).then(() => {}, () => {});
   }
 
-  const items = rows.map((r) => {
+  type ArchiveItem = {
+    id: string; title: string; summary: string; source: string; url: string;
+    created_at: string; score: number | null; scan_date: string | null; web?: boolean;
+  };
+  const items: ArchiveItem[] = rows.map((r) => {
     const dateIso = (r.published_at || r.fetched_at || "") as string;
     return {
       id: r.id,
@@ -71,13 +80,73 @@ export async function GET(request: NextRequest) {
       created_at: r.fetched_at || r.published_at || "",
       score: r.score ?? null,
       scan_date: dateIso ? dateIso.slice(0, 10) : null,
+      web: false,
     };
   });
 
+  // 🌐 "גוגל פנימי" for the deep-feed: when our own corpus is thin for this
+  // query (a specific project/developer we simply haven't covered — e.g.
+  // "ברוך שפינוזה פתח תקווה שפיר"), go out and search the WEB, so the search
+  // answers instead of returning nothing. Not Claude tokens; fires only on a
+  // real user query, only on page 1, only when thin, and cached 24h per query.
+  const webItems: ArchiveItem[] = [];
+  if (query && total < THIN && page === 1) {
+    const cacheKey = `websearch|archive|${query.slice(0, 120)}`;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let web: any[] = [];
+    try {
+      const { data: cached } = await supabase
+        .from("narrative_cache")
+        .select("narratives, created_at")
+        .eq("cache_key", cacheKey)
+        .maybeSingle();
+      if (cached?.created_at) {
+        const ageH = (Date.now() - new Date(cached.created_at).getTime()) / 3_600_000;
+        if (ageH < WEB_CACHE_HOURS && Array.isArray(cached.narratives)) web = cached.narratives;
+      }
+    } catch { /* cache miss → fetch fresh */ }
+
+    if (web.length === 0) {
+      web = await firecrawlSearch(query, 8);
+      if (web.length) {
+        try {
+          await supabase.from("narrative_cache").upsert(
+            { cache_key: cacheKey, narratives: web, count: web.length, created_at: new Date().toISOString() },
+            { onConflict: "cache_key" }
+          );
+        } catch { /* best-effort */ }
+      }
+    }
+
+    const seen = new Set(items.map((it) => (it.url || "").toLowerCase().replace(/[#?].*$/, "").replace(/\/$/, "")));
+    for (const w of web) {
+      const key = String(w.url || "").toLowerCase().replace(/[#?].*$/, "").replace(/\/$/, "");
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      webItems.push({
+        id: `web:${w.url}`,
+        title: String(w.title || "").replace(/<[^>]*>/g, ""),
+        summary: String(w.description || "").replace(/<[^>]*>/g, ""),
+        source: detectSourceFromUrl(String(w.url)) || hostLabel(String(w.url)),
+        url: String(w.url),
+        created_at: "",
+        score: null,
+        scan_date: null,
+        web: true,
+      });
+    }
+  }
+
+  // Web results come after ours (ours are dated + scored), but they're what turns
+  // a dead end into an answer.
+  const merged = [...items, ...webItems];
+
   return NextResponse.json({
-    items,
-    total,
+    items: merged,
+    total: total + webItems.length,
+    webCount: webItems.length,
+    internalTotal: total,
     page,
-    totalPages: Math.ceil(total / limit),
+    totalPages: Math.max(1, Math.ceil(total / limit)),
   });
 }
