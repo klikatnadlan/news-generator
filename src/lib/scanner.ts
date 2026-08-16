@@ -17,9 +17,16 @@ export interface ScanResult {
 
 export async function runScan(): Promise<ScanResult> {
   const scanBatch = new Date().toISOString();
+  // Phase timings. The scan runs against a hard 60s Vercel ceiling, and when it
+  // blew past it the failure was a bare FUNCTION_INVOCATION_TIMEOUT that said
+  // nothing about which phase was slow. Cheap to log, and it turns the next
+  // timeout into a diagnosis instead of a guessing game.
+  const t0 = Date.now();
+  const since = () => `${((Date.now() - t0) / 1000).toFixed(1)}s`;
 
   // Step 1: Fetch all RSS feeds
   const articles = await fetchAllFeeds();
+  console.log(`[scan] fetched ${articles.length} articles @${since()}`);
   if (articles.length === 0) {
     return { scanned: 0, scored: 0, top3: [] };
   }
@@ -75,6 +82,7 @@ export async function runScan(): Promise<ScanResult> {
     // Nothing landed at all — that is a genuine failure, not a partial one.
     throw lastIngestError;
   }
+  console.log(`[scan] upserted ${newsInserts.length} rows (${ingestFailedChunks} bad chunks) @${since()}`);
   const today = new Date().toISOString().split("T")[0];
 
   // Step 3: Score with Claude — every SCORABLE item in this feed that has NO
@@ -101,8 +109,29 @@ export async function runScan(): Promise<ScanResult> {
       if (!it.news_scores || it.news_scores.length === 0) unscored.push(it);
     }
   }
-  // Bound per-run token spend; any overflow is caught by the next run.
-  const toScoreItems = unscored.slice(0, 100);
+  console.log(`[scan] found ${unscored.length} unscored of ${scorableLinks.length} scorable @${since()}`);
+  // Bound per-run token spend AND per-run WALL TIME; any overflow is caught by
+  // the next run (the unscored query above is what makes that safe).
+  //
+  // The count alone is not enough. `scoreNews` sends 25 items per Claude call
+  // and runs 3 calls concurrently, so cost comes in waves of 75 items at ~30s a
+  // wave. A flat cap of 100 forces a SECOND wave and the scan then exceeds
+  // Vercel's hard 60s limit — which is not a graceful degradation but a
+  // FUNCTION_INVOCATION_TIMEOUT that loses the run's scoring entirely. So size
+  // the batch to the time actually left after ingest: a slow fetch means fewer
+  // items this run, never a blown deadline.
+  const SCORE_WAVE = 75;          // 3 concurrent chunks of 25
+  const WAVE_MS = 32_000;         // measured ~30s per wave
+  const SCAN_BUDGET_MS = 55_000;  // leave headroom under the 60s ceiling
+  const leftMs = SCAN_BUDGET_MS - (Date.now() - t0);
+  const affordable = leftMs >= WAVE_MS ? SCORE_WAVE : leftMs >= WAVE_MS / 2 ? 25 : 0;
+  const toScoreItems = unscored.slice(0, affordable);
+  if (unscored.length > toScoreItems.length) {
+    // Say so out loud — a quietly truncated batch reads as "everything scored".
+    console.warn(
+      `[scan] scoring ${toScoreItems.length}/${unscored.length} unscored (${(leftMs / 1000).toFixed(1)}s left); rest defers to the next run`
+    );
+  }
   const toScore = toScoreItems.map((n) => ({ title: n.title, summary: n.summary || "", source: n.source }));
 
   if (toScore.length === 0) {
@@ -125,6 +154,7 @@ export async function runScan(): Promise<ScanResult> {
   let scores;
   try {
     scores = await scoreNews(toScore);
+    console.log(`[scan] scored ${scores.length} items @${since()}`);
   } catch (err) {
     console.error("Claude scoring failed, storing raw news only:", err);
     return { scanned: articles.length, scored: 0, top3: [], ingestFailedRows };

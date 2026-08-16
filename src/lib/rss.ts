@@ -3,10 +3,14 @@ import { RSS_FEEDS } from "./sources";
 
 export const DEFAULT_FEED_UA = "KlikaVault-NewsBot/1.0";
 
-// Per-request timeout. Raised from 10s together with the concurrency cap below:
-// the two are coupled, because a request that sits in a queue is burning its own
-// timeout budget while waiting.
-const FEED_TIMEOUT_MS = 15000;
+// Per-request timeout.
+//
+// This is almost entirely a DEAD-feed budget, not a healthy-feed one: measured
+// on production, every healthy feed answers in 0.2-7.1s, while ~22 permanently
+// dead ingest-only feeds each burn the full timeout every single scan. At 15s
+// they alone accounted for ~20s of the scan's 60s ceiling. 10s still clears the
+// slowest healthy feed (7.1s) with margin while cutting that tax by a third.
+const FEED_TIMEOUT_MS = 10000;
 
 /**
  * How many feeds we fetch at once.

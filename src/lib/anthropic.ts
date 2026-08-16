@@ -186,6 +186,55 @@ const SCORING_SYSTEM = `אתה מנתח חדשות נדל"ן בכיר. אתה מ
 - מתחת ל-40: לא רלוונטי`;
 
 /**
+ * Repair the one way Hebrew reliably breaks JSON: gershayim.
+ *
+ * Hebrew abbreviations are written with a double quote INSIDE the word — נדל"ן,
+ * תמ"א, ת"א, שכ"ד, רמ"י — and when the model writes one into a JSON string it
+ * closes the string early. Measured 2026-08-16 on real output:
+ *
+ *   { "index": 0, "score": 15, "reasoning": "לא רלוונטי לנדל"ן או כספים" }
+ *
+ * `JSON.parse` dies at that quote, and because a failed parse discarded the
+ * whole chunk, ALL 25 articles in it were silently dropped — one scan returned
+ * scored=0 this way. "נדל״ן" is the single most common word in this product, so
+ * this was not a rare edge case; it was a routine, invisible loss.
+ *
+ * A quote genuinely ends a string only when the next non-space character is one
+ * of , } ] : — anything else means it sits inside the text, so escape it.
+ * Already-escaped quotes are passed through untouched.
+ */
+export function repairHebrewQuotes(s: string): string {
+  let out = "";
+  let inString = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (!inString) {
+      out += c;
+      if (c === '"') inString = true;
+      continue;
+    }
+    if (c === "\\" && i + 1 < s.length) {
+      out += c + s[i + 1];
+      i++;
+      continue;
+    }
+    if (c === '"') {
+      let j = i + 1;
+      while (j < s.length && /\s/.test(s[j])) j++;
+      if (j >= s.length || ",}]:".includes(s[j])) {
+        out += c;
+        inString = false;
+      } else {
+        out += '\\"'; // gershayim inside the value
+      }
+      continue;
+    }
+    out += c;
+  }
+  return out;
+}
+
+/**
  * Score a small chunk of articles (≤ 25). Each call gets its own max_tokens
  * budget — generous enough for 25 short reasonings without truncation.
  */
@@ -228,9 +277,18 @@ ${articleList}
     if (match) {
       try {
         parsed = JSON.parse(match[0]);
-      } catch (err) {
-        console.error(`scoreChunk: JSON parse failed after bracket extract (offset=${indexOffset})`, err);
-        return [];
+      } catch {
+        // Hebrew gershayim break the JSON before it ever reaches us. Retry on a
+        // repaired copy — see repairHebrewQuotes.
+        try {
+          parsed = JSON.parse(repairHebrewQuotes(match[0]));
+        } catch (err2) {
+          console.error(`scoreChunk: JSON parse failed after bracket extract (offset=${indexOffset})`, err2);
+          // Show the offending text. Without it a parse failure silently
+          // discards all 25 items and there is nothing to diagnose from.
+          console.error(`scoreChunk: raw model text (offset=${indexOffset}):`, match[0].slice(0, 400));
+          return [];
+        }
       }
     } else {
       console.error(`scoreChunk: no JSON array in response (offset=${indexOffset}), text starts with:`, text.slice(0, 200));
