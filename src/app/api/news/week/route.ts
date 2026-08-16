@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { isRealEstate } from "@/lib/classify";
+import { isRealEstate, dedupeStories } from "@/lib/classify";
 
 function detectSourceFromUrl(url: string): string | null {
   if (!url) return null;
@@ -64,8 +64,11 @@ export async function GET() {
       };
     })
     // Hard filter: home feed is real-estate only
-    .filter((n: any) => isRealEstate(n.title || "", n.summary || "", n.source))
-    .slice(0, 200);
+    .filter((n: any) => isRealEstate(n.title || "", n.summary || "", n.source));
+
+  // Collapse the same story arriving from both its outlet feed and the
+  // aggregate. Done after the score sort, so the better copy survives.
+  const deduped = dedupeStories(news).slice(0, 200);
 
   // Get last scan time
   const { data: lastScan } = await supabase
@@ -75,7 +78,7 @@ export async function GET() {
     .limit(1);
 
   return NextResponse.json({
-    news,
+    news: deduped,
     lastScan: lastScan?.[0]?.fetched_at || null,
     weekStart,
     today,

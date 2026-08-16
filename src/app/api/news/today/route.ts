@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { isRealEstate } from "@/lib/classify";
+import { isRealEstate, dedupeStories } from "@/lib/classify";
 
 // Detect real source from article URL (mirrors rss.ts logic)
 function detectSourceFromUrl(url: string): string | null {
@@ -54,8 +54,11 @@ export async function GET() {
       };
     })
     // Real-estate-only on the dashboard "ידיעות מובילות" strip
-    .filter((n: any) => isRealEstate(n.title || "", n.summary || "", n.source))
-    .slice(0, 6);
+    .filter((n: any) => isRealEstate(n.title || "", n.summary || "", n.source));
+
+  // Dedupe BEFORE the slice — otherwise a duplicated story eats one of the six
+  // visible slots and the strip shows the same headline twice.
+  const deduped = dedupeStories(news).slice(0, 6);
 
   // Get last scan time
   const { data: lastScan } = await supabase
@@ -65,7 +68,7 @@ export async function GET() {
     .limit(1);
 
   return NextResponse.json({
-    news,
+    news: deduped,
     lastScan: lastScan?.[0]?.fetched_at || null,
   });
 }

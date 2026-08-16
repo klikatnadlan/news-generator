@@ -89,6 +89,44 @@ function vetoMatch(text: string, kw: string): boolean {
  *   3. Contains a RE keyword → true.
  *   4. Otherwise → false.
  */
+/**
+ * Collapse the same story arriving from two feeds.
+ *
+ * Reviving the dead outlet feeds (2026-08-16) made this visible: an article now
+ * reaches us BOTH from its own outlet feed and from the rss.app aggregate, under
+ * two different URLs — so the `onConflict: source_url` dedupe at ingest cannot
+ * see them as one. Measured right after the fix: 2 duplicate rows out of 38 on
+ * the home feed, e.g. "רווח של יותר ממיליון שקל על דירת מחיר למשתכן בלוד" twice
+ * from גלובס.
+ *
+ * Two shapes are collapsed: identical titles, and one feed's truncated headline
+ * being a prefix of the other's full one ("…להיפטר מהדירה שקנו" vs "…שקנו על
+ * הנייר"). The prefix rule only applies to titles long enough that a shared
+ * opening cannot be coincidence.
+ *
+ * Expects the input already ordered best-first (the feeds sort by score), so the
+ * survivor is the higher-scoring, fuller-headline copy.
+ */
+const PREFIX_MIN_LEN = 30;
+export function dedupeStories<T extends { title?: string | null }>(items: T[]): T[] {
+  const kept: { norm: string; item: T }[] = [];
+  for (const item of items) {
+    const norm = (item.title || "").replace(/\s+/g, " ").trim();
+    if (!norm) {
+      kept.push({ norm, item });
+      continue;
+    }
+    const dup = kept.some(
+      (k) =>
+        k.norm === norm ||
+        (norm.length >= PREFIX_MIN_LEN && k.norm.startsWith(norm)) ||
+        (k.norm.length >= PREFIX_MIN_LEN && norm.startsWith(k.norm))
+    );
+    if (!dup) kept.push({ norm, item });
+  }
+  return kept.map((k) => k.item);
+}
+
 export function isRealEstate(title: string, summary: string, source: string): boolean {
   if (REALESTATE_SOURCES.has(source)) return true;
 
