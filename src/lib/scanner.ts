@@ -7,6 +7,12 @@ export interface ScanResult {
   scanned: number;
   scored: number;
   top3: ScoredNews[];
+  /**
+   * Rows that failed to land. Reported rather than swallowed: a scan that
+   * ingests nothing must not be able to look like a scan that ingested
+   * everything. Absent/0 means the whole sweep was stored.
+   */
+  ingestFailedRows?: number;
 }
 
 export async function runScan(): Promise<ScanResult> {
@@ -19,26 +25,56 @@ export async function runScan(): Promise<ScanResult> {
   }
 
   // Step 2: Store raw news items (upsert to handle dedup)
-  const newsInserts = articles.map((a) => ({
-    title: a.title,
-    source: a.source,
-    source_url: a.link,
-    published_at: a.pubDate ? new Date(a.pubDate).toISOString() : new Date().toISOString(),
-    summary: a.contentSnippet || null,
-    scan_batch: scanBatch,
-  }));
+  //
+  // Deduped by URL in memory first: the same article legitimately arrives from
+  // both its own outlet feed and the rss.app aggregate, and shipping the
+  // duplicate only makes the statement below heavier for no gain.
+  const seenUrls = new Set<string>();
+  const newsInserts = articles
+    .filter((a) => a.link && !seenUrls.has(a.link) && seenUrls.add(a.link))
+    .map((a) => ({
+      title: a.title,
+      source: a.source,
+      source_url: a.link,
+      published_at: a.pubDate ? new Date(a.pubDate).toISOString() : new Date().toISOString(),
+      summary: a.contentSnippet || null,
+      scan_batch: scanBatch,
+    }));
 
-  const { data: insertedNews, error: insertError } = await supabase
-    .from("news_items")
-    .upsert(newsInserts, { onConflict: "source_url", ignoreDuplicates: true })
-    .select();
-
-  if (insertError) {
-    console.error("Error inserting news:", insertError);
-    throw insertError;
+  // Chunked, because a single upsert of the whole sweep dies: once the dead
+  // feeds were revived and the window widened to 72h the payload grew ~5x
+  // (~370 rows/day → ~1,800), and Postgres answered `57014: canceling statement
+  // due to statement timeout` — which surfaced as a bare "Scan failed" 500 with
+  // ZERO rows ingested. Also dropped the trailing `.select()`: it made the
+  // statement return every inserted row and the result was never read.
+  //
+  // One bad chunk must not swallow the rest, and must never pass silently:
+  // that exact shape (an atomic chunk killing the upsert) once ate 50 days of
+  // data while the run still reported healthy. Failures are counted, logged,
+  // and returned — and only a total wipeout throws.
+  const UPSERT_CHUNK = 300;
+  let ingestFailedChunks = 0;
+  let ingestFailedRows = 0;
+  let lastIngestError: unknown = null;
+  for (let i = 0; i < newsInserts.length; i += UPSERT_CHUNK) {
+    const chunk = newsInserts.slice(i, i + UPSERT_CHUNK);
+    const { error: insertError } = await supabase
+      .from("news_items")
+      .upsert(chunk, { onConflict: "source_url", ignoreDuplicates: true });
+    if (insertError) {
+      ingestFailedChunks++;
+      ingestFailedRows += chunk.length;
+      lastIngestError = insertError;
+      console.error(
+        `Error inserting news (chunk ${i}-${i + chunk.length}, ${chunk.length} rows):`,
+        insertError
+      );
+    }
   }
-
-  void insertedNews; // ingest is committed above; scoring below works off the DB
+  if (ingestFailedChunks && ingestFailedRows >= newsInserts.length) {
+    // Nothing landed at all — that is a genuine failure, not a partial one.
+    throw lastIngestError;
+  }
   const today = new Date().toISOString().split("T")[0];
 
   // Step 3: Score with Claude — every SCORABLE item in this feed that has NO
@@ -83,7 +119,7 @@ export async function runScan(): Promise<ScanResult> {
       score: s.score,
       reasoning: s.reasoning,
     }));
-    return { scanned: articles.length, scored: 0, top3: top3Mapped };
+    return { scanned: articles.length, scored: 0, top3: top3Mapped, ingestFailedRows };
   }
 
   let scores;
@@ -91,7 +127,7 @@ export async function runScan(): Promise<ScanResult> {
     scores = await scoreNews(toScore);
   } catch (err) {
     console.error("Claude scoring failed, storing raw news only:", err);
-    return { scanned: articles.length, scored: 0, top3: [] };
+    return { scanned: articles.length, scored: 0, top3: [], ingestFailedRows };
   }
 
   // Step 4: Match scores to news items and store
@@ -133,5 +169,6 @@ export async function runScan(): Promise<ScanResult> {
     scanned: articles.length,
     scored: scores.length,
     top3: top3Mapped,
+    ingestFailedRows,
   };
 }
