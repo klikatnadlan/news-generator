@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { pingModel, MONITORED_MODELS, MODEL_FALLBACKS } from "@/lib/anthropic";
 import { sendEmail } from "@/lib/email";
 import { supabase } from "@/lib/supabase";
+import { checkFeeds } from "@/lib/feed-health";
 
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 // Daily AI-model health monitor. The 2-day outage happened because a deprecated
 // model failed SILENTLY — nobody knew. This pings every model the app uses (4
@@ -65,5 +66,64 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: dead.length === 0, checked, dead });
+  // ─── Feed health ───────────────────────────────────────────────────────────
+  // Same failure shape as a retired model, different layer: on 2026-08-16 six of
+  // the ten scorable real-estate feeds were found dead — several answering
+  // 200 OK with an empty body — and nothing had ever raised an error, so the
+  // home feed starved for weeks in silence. Checked here (03:40, before the
+  // 04:00 scan) so a dead source is known before the day's run depends on it.
+  const feedReport = await checkFeeds();
+  if (feedReport.deadScorable.length) {
+    const today = new Date().toISOString().slice(0, 10);
+    const key = `feed_alert|${feedReport.deadScorable.map((f) => f.name).join(",")}|${today}`;
+    let alreadySent = false;
+    try {
+      const { data } = await supabase.from("narrative_cache").select("cache_key").eq("cache_key", key).maybeSingle();
+      alreadySent = !!data;
+    } catch { /* ignore */ }
+    if (!alreadySent) {
+      const rows = feedReport.deadScorable.map((f) =>
+        `<tr><td style="padding:6px 10px;border:1px solid #eee;font-weight:700">${f.name}</td>
+         <td style="padding:6px 10px;border:1px solid #eee;color:#dc2626">${f.error || "אפס פריטים"}</td>
+         <td style="padding:6px 10px;border:1px solid #eee;color:#6b7280;font-size:11px;direction:ltr">${f.url}</td></tr>`
+      ).join("");
+      const live = feedReport.feeds.filter((f) => f.ok && f.scorable);
+      const html = `<div dir="rtl" style="font-family:Arial;font-size:14px;color:#0f1419">
+        <h2>📡 לידרפיד — מקור חדשות הפסיק להחזיר פריטים</h2>
+        <p>הבדיקה היומית מצאה פיד שאמור להזין את עמוד הבית ולא מחזיר כלום.
+        <b>שים לב: פיד מת לא זורק שגיאה</b> — הוא עונה 200 עם גוף ריק, ולכן הסריקה
+        ממשיכה לדווח הצלחה בזמן שעמוד הבית מתרוקן.</p>
+        <table style="border-collapse:collapse"><tr>
+          <th style="padding:6px 10px;border:1px solid #eee">מקור</th>
+          <th style="padding:6px 10px;border:1px solid #eee">מה קרה</th>
+          <th style="padding:6px 10px;border:1px solid #eee">כתובת</th></tr>${rows}</table>
+        <p style="margin-top:14px">נשארו חיים ${live.length} מקורות מדורגים: ${live.map((f) => `${f.name} (${f.items})`).join(" · ") || "אף אחד — עמוד הבית יתרוקן!"}</p>
+        <p style="color:#6b7280;font-size:12px">תיקון: מצא את הכתובת העדכנית ועדכן ב-<code>src/lib/sources.ts</code>.
+        בדיקה ידנית בכל רגע: <code>/api/feed-health</code></p>
+      </div>`;
+      try {
+        await sendEmail({
+          to: "klikatnadlan@gmail.com",
+          subject: `📡 לידרפיד: ${feedReport.deadScorable.length} מקורות חדשות מתים — ${feedReport.deadScorable.map((f) => f.name).join(", ")}`,
+          html,
+        });
+        await supabase.from("narrative_cache").upsert(
+          { cache_key: key, narratives: { dead: feedReport.deadScorable }, count: feedReport.deadScorable.length, created_at: new Date().toISOString() },
+          { onConflict: "cache_key" }
+        );
+      } catch (e) { console.error("feed-health alert failed:", e); }
+    }
+  }
+
+  return NextResponse.json({
+    ok: dead.length === 0 && feedReport.ok,
+    checked,
+    dead,
+    feeds: {
+      ok: feedReport.ok,
+      total: feedReport.total,
+      deadScorable: feedReport.deadScorable.map((f) => ({ name: f.name, error: f.error })),
+      deadIngestOnly: feedReport.deadIngestOnly.length,
+    },
+  });
 }

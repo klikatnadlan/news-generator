@@ -59,4 +59,9 @@ export interface RSSFeedConfig {
   // research, but NOT scored by Claude (zero tokens). They never reach the
   // curated home/headlines feeds, which read only scored items.
   ingestOnly?: boolean;
+  // Per-feed User-Agent override. The default bot UA is honest and preferred,
+  // but a few publishers reject any non-browser UA outright (TheMarker answers
+  // 403 to "KlikaVault-NewsBot/1.0" while serving 100 items to a browser UA).
+  // Set this ONLY for feeds measured to require it — see feed-health.
+  userAgent?: string;
 }
