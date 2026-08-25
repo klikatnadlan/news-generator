@@ -45,6 +45,11 @@ export const RSS_FEEDS: RSSFeedConfig[] = [
     name: "מעריב נדל״ן",
     url: "https://www.maariv.co.il/rss/nadlan",
     category: "general",
+    // 2026-08-25: started answering 403 from Vercel while serving 20 items/day
+    // to any User-Agent from a normal connection — the same signature TheMarker
+    // showed, which a browser UA fixed. It had delivered exactly 20 items/day on
+    // the 22nd, 23rd and 24th and zero on the 25th.
+    userAgent: BROWSER_UA,
   },
   {
     name: 'קליקת הנדל"ן',
