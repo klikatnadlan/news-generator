@@ -182,7 +182,15 @@ export async function GET(request: NextRequest) {
         const cityNames = [city.name, ...(city.aliases || [])];
         const local = webItems.filter((w) => mentionsCity(`${w.title} ${w.summary}`, cityNames));
         const national = webItems.filter((w) => !mentionsCity(`${w.title} ${w.summary}`, cityNames));
-        const rankedWeb = [...local, ...national.slice(0, MAX_NATIONAL)];
+        // Freshest first inside each band, undated last. Ben judges a research
+        // tool by whether the top line is recent — a 2018 item sitting above a
+        // 2026 one reads as a stale tool even when both are on-topic.
+        const byDateDesc = (a: { date: string | null }, b: { date: string | null }) =>
+          (b.date || "").localeCompare(a.date || "");
+        const rankedWeb = [
+          ...local.sort(byDateDesc),
+          ...national.sort(byDateDesc).slice(0, MAX_NATIONAL),
+        ];
 
         // Civic/custom topics: web is the targeted research → show it first
         // (internal civic matches are often loose). RE topics: internal first.
