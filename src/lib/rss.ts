@@ -1,5 +1,6 @@
 import Parser from "rss-parser";
 import { RSS_FEEDS } from "./sources";
+import { firecrawlFetchRaw } from "./websearch";
 
 export const DEFAULT_FEED_UA = "KlikaVault-NewsBot/1.0";
 
@@ -121,7 +122,22 @@ export async function fetchAllFeeds(): Promise<FeedArticle[]> {
 
   const results = await mapPool(RSS_FEEDS, FEED_CONCURRENCY, async (feed) => {
     try {
-      const parsed = await parserFor(feed.userAgent).parseURL(feed.url);
+      let parsed;
+      try {
+        parsed = await parserFor(feed.userAgent).parseURL(feed.url);
+      } catch (directErr) {
+        // Some publishers block our SERVER's IP, which no header can fix —
+        // מעריב נדל״ן went from 20 items/day to a flat 403 on 2026-08-25 while
+        // still serving any User-Agent from a normal connection. For feeds
+        // explicitly opted in, fetch the same URL through Firecrawl's network
+        // and parse the body ourselves. Only runs after a direct failure, so a
+        // healthy feed never costs a credit.
+        if (!feed.viaFirecrawlOnBlock) throw directErr;
+        const raw = await firecrawlFetchRaw(feed.url);
+        if (!raw) throw directErr;
+        parsed = await parserFor(feed.userAgent).parseString(raw);
+        console.log(`[rss] ${feed.name}: direct fetch blocked, recovered ${parsed.items?.length ?? 0} items via Firecrawl`);
+      }
       return (parsed.items || [])
         .filter((item) => {
           if (!item.pubDate) return true;

@@ -139,6 +139,34 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // ─── Precompute the מעקבים trend arrows ────────────────────────────────────
+  // `alert_radar()` computes this-week vs prior-week counts per alert. With 64
+  // saved watches that is 128 windowed scans over a table growing ~400 rows/day,
+  // and it intermittently dies with `57014 statement timeout` — which used to
+  // take the whole מעקבים page down with it (see /api/alerts).
+  //
+  // So compute it ONCE here, off the user's path, and cache the result. The page
+  // reads the cache and shows arrows even on a day the live call would fail;
+  // /api/alerts still tries live first, so a fast day is always current.
+  // Pure SQL — zero AI tokens.
+  try {
+    const { data: radar, error: radarErr } = await supabase.rpc("alert_radar");
+    if (radarErr) {
+      console.error("alert_radar precompute failed (cache keeps yesterday's arrows):", radarErr.message);
+    } else if (Array.isArray(radar)) {
+      const trends = (radar as { id: string; cur_7d: number; prev_7d: number }[]).map((a) => ({
+        id: a.id, cur7d: Number(a.cur_7d) || 0, prev7d: Number(a.prev_7d) || 0,
+      }));
+      await supabase.from("narrative_cache").upsert(
+        { cache_key: "alert_trends", narratives: trends, count: trends.length, created_at: new Date().toISOString() },
+        { onConflict: "cache_key" }
+      );
+      console.log(`alert_radar precomputed: ${trends.length} trends cached`);
+    }
+  } catch (e) {
+    console.error("alert_radar precompute threw:", e instanceof Error ? e.message : e);
+  }
+
   return NextResponse.json({
     ok: dead.length === 0 && feedReport.ok,
     checked,

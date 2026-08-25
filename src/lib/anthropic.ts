@@ -4,20 +4,30 @@ const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
 });
 
-const MODEL = "claude-sonnet-4-6";
+// Moved 2026-08-25 from claude-sonnet-4-6. Sonnet 5 is the newer model AND
+// cheaper: $2/$10 per MTok on the intro rate through 2026-08-31, then $3/$15 —
+// exactly what 4.6 already charged. Verified live against this account before
+// the swap (200, model echoed back as claude-sonnet-5).
+// Sonnet 5's breaking changes were checked first: the codebase passes no
+// temperature/top_p/top_k (removed — 400 on Sonnet 5), no budget_tokens, and no
+// assistant prefill, so this was a pure model-ID change.
+const MODEL = "claude-sonnet-5";
 // Scoring is classification-only (0-100 relevance) → cheaper Haiku tier. The
 // old claude-3-5-haiku-20241022 404'd on this account; claude-haiku-4-5 is
 // verified working (200), so scoring now runs on it — big cost saving on the
 // daily ~150-item scan, with prompt caching on top.
-const SCORING_MODEL = "claude-haiku-4-5-20251001";
+// Undated ID: verified 2026-08-25 that "claude-haiku-4-5" resolves to the same
+// model (the API echoes claude-haiku-4-5-20251001) and is the stable alias, so
+// it will not rot when the snapshot rolls.
+const SCORING_MODEL = "claude-haiku-4-5";
 
 // ─── Model resilience (so a deprecated model never silently kills AI again) ───
 // Layer 1: aiCreate() — non-streaming calls self-heal. If a model is retired
 //   (404 / not_found), it retries with the next live fallback automatically.
 // Layer 2: /api/cron/model-health pings these daily and emails on any death.
 export const MODEL_FALLBACKS: Record<string, string[]> = {
-  "claude-sonnet-4-6": ["claude-opus-4-8", "claude-haiku-4-5-20251001"],
-  "claude-haiku-4-5-20251001": ["claude-sonnet-4-6", "claude-opus-4-8"],
+  "claude-sonnet-5": ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"],
+  "claude-haiku-4-5": ["claude-sonnet-5", "claude-opus-4-8"],
 };
 // The models actually used in the app + their first fallback, for the monitor.
 export const MONITORED_MODELS = [

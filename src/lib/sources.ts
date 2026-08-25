@@ -55,6 +55,10 @@ export const RSS_FEEDS: RSSFeedConfig[] = [
     // policy. Feed-health reports it, and the two-strikes rule means Ben is
     // told only if it stays down across two daily checks.
     userAgent: BROWSER_UA,
+    // Verified 2026-08-25: Firecrawl fetches this exact URL and returns the full
+    // feed (20 items, 25KB) from its own network, so the 20 real-estate items a
+    // day are recovered instead of lost.
+    viaFirecrawlOnBlock: true,
   },
   {
     name: 'קליקת הנדל"ן',

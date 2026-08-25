@@ -64,4 +64,9 @@ export interface RSSFeedConfig {
   // 403 to "KlikaVault-NewsBot/1.0" while serving 100 items to a browser UA).
   // Set this ONLY for feeds measured to require it — see feed-health.
   userAgent?: string;
+  // Fetch through Firecrawl when the direct fetch fails. For publishers that
+  // block our SERVER's IP outright (not the User-Agent), which no header change
+  // can work around. Costs ~1 Firecrawl credit per refresh, so it is opt-in per
+  // feed and only ever runs after a direct attempt has already failed.
+  viaFirecrawlOnBlock?: boolean;
 }

@@ -140,3 +140,29 @@ export function hostLabel(url: string): string {
     return "";
   }
 }
+
+/**
+ * Fetch a URL's RAW body through Firecrawl.
+ *
+ * Why this exists: some publishers block Vercel's egress IPs outright.
+ * מעריב נדל״ן started answering 403 to our servers on 2026-08-25 while serving
+ * 20 items in 0.3s to any User-Agent from a normal connection, and a browser
+ * User-Agent did NOT help — it is the IP, not the header. Firecrawl fetches
+ * from its own network, so the feed comes through.
+ *
+ * Must request `rawHtml`: the `markdown` format strips the XML and returns 0
+ * items (measured). Costs ~1 credit per call — one blocked feed refreshed once
+ * a day is ~30 credits/month out of the 1,000 free ones.
+ */
+export async function firecrawlFetchRaw(url: string): Promise<string | null> {
+  const key = process.env.FIRECRAWL_API_KEY;
+  if (!key || !url) return null;
+  const d = await fcPost(
+    "https://api.firecrawl.dev/v2/scrape",
+    { url, formats: ["rawHtml"] },
+    key,
+    30000
+  );
+  const raw = d?.data?.rawHtml;
+  return typeof raw === "string" && raw.length > 0 ? raw : null;
+}

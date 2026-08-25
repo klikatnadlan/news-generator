@@ -29,10 +29,16 @@ export async function GET() {
   // So: degrade instead of collapse. alert_overview() is the same list without
   // the two window counts, is backed by the trigram index, and answers in ~2.3s.
   // Losing the 🔥/📈/📉 arrow is survivable; losing the page is not.
-  // Proper fix is DB-side (bound the window inside alert_radar, or precompute)
-  // and needs SQL access this app does not have with the anon key.
+  //
+  // And the arrows no longer have to be lost either: the daily model-health cron
+  // precomputes alert_radar off the user's path and caches it under
+  // "alert_trends", so on a day the live call times out we still show yesterday's
+  // arrows instead of none. Live first (always current when it works), cache
+  // second, no arrows only if both are unavailable.
   let { data, error } = await supabase.rpc("alert_radar");
   let degraded = false;
+  let trendSource: "live" | "cache" | "none" = "live";
+  let cachedTrends: Record<string, { cur7d: number; prev7d: number }> = {};
   if (error) {
     console.error("alert_radar failed, falling back to alert_overview:", error.message);
     const fb = await supabase.rpc("alert_overview");
@@ -41,10 +47,24 @@ export async function GET() {
     }
     data = fb.data;
     degraded = true;
+    trendSource = "none";
+    try {
+      const { data: cached } = await supabase.from("narrative_cache").select("narratives").eq("cache_key", "alert_trends").maybeSingle();
+      const rows = cached?.narratives as unknown;
+      if (Array.isArray(rows)) {
+        for (const r of rows as { id: string; cur7d: number; prev7d: number }[]) {
+          cachedTrends[r.id] = { cur7d: r.cur7d, prev7d: r.prev7d };
+        }
+        if (Object.keys(cachedTrends).length) trendSource = "cache";
+      }
+    } catch { /* no cache yet — arrows simply stay hidden */ }
   }
   const alerts = (data || []).map((a: { id: string; name: string; emoji: string; keywords: string[]; match_count: number; latest_published: string | null; cur_7d: number; prev_7d: number }) => {
-    const cur = Number(a.cur_7d) || 0;
-    const prev = Number(a.prev_7d) || 0;
+    // alert_overview carries no window counts, so on the degraded path fall
+    // back to the nightly precomputed pair for this alert.
+    const fallbackTrend = cachedTrends[a.id];
+    const cur = Number(a.cur_7d ?? fallbackTrend?.cur7d) || 0;
+    const prev = Number(a.prev_7d ?? fallbackTrend?.prev7d) || 0;
     return {
       id: a.id,
       name: a.name,
@@ -57,10 +77,14 @@ export async function GET() {
       trend: trendOf(cur, prev),
     };
   });
-  // `degraded` lets the UI (and a human reading the JSON) see that the trend
-  // arrows are absent by design right now, rather than reading "no trend" as
-  // "nothing is moving".
-  return NextResponse.json({ alerts, trendUnavailable: degraded });
+  // Says plainly where the arrows came from, so "no trend" is never mistaken for
+  // "nothing is moving": live = computed now, cache = last night's precompute,
+  // none = genuinely unavailable.
+  return NextResponse.json({
+    alerts,
+    trendUnavailable: degraded && trendSource === "none",
+    trendSource,
+  });
 }
 
 export async function POST(request: NextRequest) {

@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
   ).join("\n\n");
 
   const response = await client.messages.create({
-    model: "claude-sonnet-4-6",
+    model: "claude-sonnet-5",
     max_tokens: 3000,
     system: `אתה בן סולומון, מומחה נדל"ן עם מועדון צרכנות של 300,000+ חברים.
 כתוב כתבה ארכיונית מקיפה על בסיס נתונים היסטוריים.

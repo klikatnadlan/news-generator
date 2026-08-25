@@ -1,0 +1,71 @@
+import { NextRequest, NextResponse } from "next/server";
+
+export const maxDuration = 60;
+export const dynamic = "force-dynamic";
+
+/**
+ * Pre-warm the slow, cached, AI-backed views before a live demo.
+ *
+ * Why this is a manual endpoint and not a cron: the standing rule here is that
+ * Claude runs only on an explicit click. These calls each cost roughly 9-11
+ * agorot and their results are cached, so the first person to open the page pays
+ * the full latency — measured 2026-08-25: /api/narratives 37.9s cold, 1.3s warm;
+ * the city briefing ~40s cold, ~1.5s warm. Hitting this once before Ben walks in
+ * moves that wait off the demo and costs nothing on the days nobody calls it.
+ *
+ *   /api/warm            → narratives only
+ *   /api/warm?city=אשקלון → narratives + that city's briefing and research
+ *
+ * Everything it calls is already cached downstream, so calling it twice in a row
+ * costs nothing the second time.
+ */
+export async function GET(request: NextRequest) {
+  const sp = new URL(request.url).searchParams;
+  const city = sp.get("city") || "";
+  const topics = sp.get("topics") || "אלימות|חינוך|מחירים|תעסוקה";
+  const base = new URL(request.url).origin;
+
+  const targets: { label: string; url: string }[] = [
+    { label: "narratives", url: `${base}/api/narratives` },
+  ];
+  if (city) {
+    targets.push({ label: `dossier:${city}`, url: `${base}/api/cities/dossier?city=${encodeURIComponent(city)}` });
+    targets.push({ label: `research:${city}`, url: `${base}/api/cities/research?city=${encodeURIComponent(city)}&topics=${encodeURIComponent(topics)}` });
+  }
+
+  // Sequential on purpose: these are the heavy endpoints, and firing them at
+  // once is the exact pattern that has already made Postgres cancel queries here
+  // more than once today.
+  const results: { label: string; ok: boolean; seconds: number; detail?: string }[] = [];
+  for (const t of targets) {
+    const started = Date.now();
+    try {
+      const r = await fetch(t.url, { cache: "no-store" });
+      results.push({
+        label: t.label,
+        ok: r.ok,
+        seconds: Number(((Date.now() - started) / 1000).toFixed(1)),
+        detail: r.ok ? undefined : `HTTP ${r.status}`,
+      });
+    } catch (e) {
+      results.push({
+        label: t.label,
+        ok: false,
+        seconds: Number(((Date.now() - started) / 1000).toFixed(1)),
+        detail: e instanceof Error ? e.message.slice(0, 120) : "failed",
+      });
+    }
+  }
+
+  const allOk = results.every((r) => r.ok);
+  return NextResponse.json(
+    {
+      ok: allOk,
+      warmed: results,
+      hint: city
+        ? "מוכן. פתח את העמוד — התשובות כבר בקאש."
+        : "מוכן. להוסיף עיר: /api/warm?city=אשקלון",
+    },
+    { status: allOk ? 200 : 207 }
+  );
+}
