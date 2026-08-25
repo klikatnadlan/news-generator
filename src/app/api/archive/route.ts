@@ -30,6 +30,44 @@ function detectSourceFromUrl(url: string): string | null {
   return null;
 }
 
+
+// ─── Hebrew word-boundary relevance gate ───────────────────────────────────
+//
+// The `search_news` RPC matches SUBSTRINGS, and in Hebrew that is catastrophic
+// because "-ים" pluralises almost everything. Measured 2026-08-25 on the live
+// corpus:
+//   "צים"          → 1,277 hits — מציצים, מתרחצים, לוחצים …
+//   "רני"          →   715 hits — ציפורניים
+//   "פינוי בינוי"  →   372 hits — "פינוי חוף מציצים", "פינוי המוני" (שריפות
+//                                  בנבאדה), "הודעת פינוי לעזתים"
+//   "רני צים"      → trade-war news, a dental ad, and sea turtles
+// This is the same trap that once emptied the home feed ("ירי" ⊂ "מחירים") and
+// was fixed in classify.ts — the archive search never got the same treatment.
+//
+// The gate: EVERY query word must appear at a Hebrew word boundary, allowing a
+// single attached prefix letter (ה/ו/ב/כ/ל/מ/ש/ד) so "אשקלון" still matches
+// "באשקלון", but never letting a token continue into more root letters.
+// Short words (1-2 chars) are skipped — they are prepositions, not signal.
+const HEB = "א-ת";
+function hebWordRe(word: string): RegExp {
+  // Strip anything that is not a letter or a digit instead of escaping regex
+  // metacharacters: the query is user text, and a stray "(" or "*" would other-
+  // wise build an invalid pattern and throw mid-request.
+  const safe = word.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+  return new RegExp(`(?:^|[^${HEB}])[הובכלמשד]?${safe}(?![${HEB}])`, "u");
+}
+function matchesAllWords(text: string, q: string): boolean {
+  const words = q.toLowerCase().split(/[\s,"'׳״]+/).filter((w) => w.length > 2);
+  if (words.length === 0) return true; // nothing meaningful to test → keep
+  const t = text.toLowerCase();
+  return words.every((w) => hebWordRe(w).test(t));
+}
+
+// Sized like the other Firecrawl-touching routes (research is 45s). A cold
+// web fallback measured 31.9s before its 24h cache warmed; without this the
+// platform default could cut the request off mid-search.
+export const maxDuration = 60;
+
 export async function GET(request: NextRequest) {
   const supabase = getSupabase();
   const { searchParams } = new URL(request.url);
@@ -43,12 +81,19 @@ export async function GET(request: NextRequest) {
   // Full-corpus search via the search_news RPC: searches ALL news_items (not
   // just scored ones — that hid ~75% of the archive) with light Hebrew stemming
   // so "פרויקטים בחולון" finds "פרויקט … חולון". Empty query = browse by date.
+  //
+  // With a query we deliberately over-fetch and paginate AFTER the relevance
+  // gate below. Filtering a single 20-row page would make both the result count
+  // and the pager lie, since most of what the RPC returns for a Hebrew query is
+  // substring noise. SCAN_LIMIT bounds the cost; a query with more raw hits than
+  // this is reported as "at least", never silently truncated.
+  const SCAN_LIMIT = 200;
   const { data, error } = await supabase.rpc("search_news", {
     p_query: query,
     p_from: from || null,
     p_to: to || null,
-    p_limit: limit,
-    p_offset: offset,
+    p_limit: query ? SCAN_LIMIT : limit,
+    p_offset: query ? 0 : offset,
   });
 
   if (error) {
@@ -56,8 +101,33 @@ export async function GET(request: NextRequest) {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rows = (data || []) as any[];
-  const total = rows.length > 0 ? Number(rows[0].total) || 0 : 0;
+  const rawRows = (data || []) as any[];
+  const rawTotal = rawRows.length > 0 ? Number(rawRows[0].total) || 0 : 0;
+
+  // Drop substring coincidences before anything downstream counts them. Doing
+  // this here matters twice over: the reader stops seeing nonsense, AND the
+  // web-fallback threshold below now sees the TRUE internal depth, so a query
+  // we genuinely do not cover goes out to the web instead of being "answered"
+  // with junk that happened to clear the count.
+  const relevant = query
+    ? rawRows
+        .filter((r) => matchesAllWords(`${r.title || ""} ${r.summary || ""}`, query))
+        // Title hits first. Local outlets paste a city menu ("אופקים אור יהודה
+        // … אשקלון …") into every summary, so a search for a city name matched
+        // a fire in בית דגן before it matched anything actually about the city.
+        // A match in the headline is about the story; a match in the summary may
+        // only be boilerplate.
+        .sort((a, b) => {
+          const at = matchesAllWords(a.title || "", query) ? 1 : 0;
+          const bt = matchesAllWords(b.title || "", query) ? 1 : 0;
+          return bt - at;
+        })
+    : rawRows;
+  const droppedIrrelevant = rawRows.length - relevant.length;
+  const total = query ? relevant.length : rawTotal;
+  // Paginate the FILTERED set (the RPC already gave us the whole scan window).
+  const rows = query ? relevant.slice(offset, offset + limit) : relevant;
+  const scanTruncated = query && rawRows.length >= SCAN_LIMIT;
 
   // "גוגל פנימי": a search that finds nothing is a coverage gap — log it so we
   // can close it (new source / keywords). Fire-and-forget, never blocks.
@@ -152,5 +222,10 @@ export async function GET(request: NextRequest) {
     internalTotal: total,
     page,
     totalPages: Math.max(1, Math.ceil(total / limit)),
+    // How many substring coincidences the relevance gate removed, and whether
+    // the scan window was full. Reported rather than hidden so a thin result is
+    // readable as "we filtered noise" instead of "the search is broken".
+    filteredOut: droppedIrrelevant,
+    scanTruncated,
   });
 }
