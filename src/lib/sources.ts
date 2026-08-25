@@ -45,10 +45,15 @@ export const RSS_FEEDS: RSSFeedConfig[] = [
     name: "מעריב נדל״ן",
     url: "https://www.maariv.co.il/rss/nadlan",
     category: "general",
-    // 2026-08-25: started answering 403 from Vercel while serving 20 items/day
-    // to any User-Agent from a normal connection — the same signature TheMarker
-    // showed, which a browser UA fixed. It had delivered exactly 20 items/day on
-    // the 22nd, 23rd and 24th and zero on the 25th.
+    // ⚠️ 2026-08-25: answers 403 to US specifically. It delivered exactly 20
+    // items/day on the 22nd, 23rd and 24th, then zero on the 25th, while the
+    // same URL serves 20 items in 0.3s to ANY User-Agent from a normal
+    // connection. A browser UA was tried here and did NOT help (still 403), so
+    // unlike TheMarker this is an IP-level block on Vercel's egress, not a UA
+    // check — do not spend time on User-Agent variations again. The override is
+    // left in place because it is harmless and costs nothing if they change
+    // policy. Feed-health reports it, and the two-strikes rule means Ben is
+    // told only if it stays down across two daily checks.
     userAgent: BROWSER_UA,
   },
   {
