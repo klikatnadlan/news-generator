@@ -1,5 +1,6 @@
 import { RSS_FEEDS } from "./sources";
 import { parserFor, mapPool, FEED_CONCURRENCY } from "./rss";
+import { firecrawlFetchRaw } from "./websearch";
 
 /**
  * Feed health monitor.
@@ -47,7 +48,18 @@ const scorableOf = (f: (typeof RSS_FEEDS)[number]) => !f.ingestOnly;
 async function probe(feed: (typeof RSS_FEEDS)[number]): Promise<FeedHealth> {
   const scorable = !feed.ingestOnly;
   try {
-    const parsed = await parserFor(feed.userAgent).parseURL(feed.url);
+    let parsed;
+    try {
+      parsed = await parserFor(feed.userAgent).parseURL(feed.url);
+    } catch (directErr) {
+      // Mirror fetchAllFeeds exactly. Without this the monitor would report a
+      // feed as dead that the scan actually ingests fine through Firecrawl —
+      // an alarm about content that is, in fact, arriving.
+      if (!feed.viaFirecrawlOnBlock) throw directErr;
+      const raw = await firecrawlFetchRaw(feed.url);
+      if (!raw) throw directErr;
+      parsed = await parserFor(feed.userAgent).parseString(raw);
+    }
     const items = (parsed.items || []).length;
     return {
       name: feed.name,

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { firstText } from "@/lib/anthropic";
 import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "@/lib/supabase";
 import { findCity, RESEARCH_TOPIC_KEYWORDS } from "@/lib/cities";
@@ -115,7 +116,7 @@ ${list}
   try {
     const resp = await client.messages.create({ model: "claude-sonnet-5", max_tokens: 1500, messages: [{ role: "user", content: prompt }] });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    report = ((resp.content[0] as any)?.text || "").trim();
+    report = firstText(resp).trim();
   } catch (e) {
     console.error("city dossier failed", e);
     return NextResponse.json({ error: "לא הצלחנו לבנות את התדריך כרגע. נסה שוב." }, { status: 500 });

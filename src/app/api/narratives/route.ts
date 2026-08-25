@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { firstText } from "@/lib/anthropic";
 import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "@/lib/supabase";
 
@@ -215,7 +216,7 @@ ${headlineList}
   });
 
   let narratives: any[] = [];
-  const rawText = (response.content[0] as any)?.text || "";
+  const rawText = firstText(response);
   try {
     const match = rawText.match(/\[[\s\S]*\]/);
     if (match) {

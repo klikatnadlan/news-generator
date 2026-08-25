@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { firstText } from "@/lib/anthropic";
 import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "@/lib/supabase";
 import { fetchArticleText } from "@/lib/fetch-article";
@@ -40,7 +41,7 @@ ${sourceText}`;
   try {
     const resp = await client.messages.create({ model: "claude-sonnet-5", max_tokens: 500, messages: [{ role: "user", content: prompt }] });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    summary = ((resp.content[0] as any)?.text || "").trim().replace(/\s*—\s*/g, ", ");
+    summary = firstText(resp).trim().replace(/\s*—\s*/g, ", ");
   } catch (e) {
     console.error("article-summary failed", e);
     return NextResponse.json({ error: "לא הצלחנו לסכם כרגע. נסה שוב." }, { status: 500 });

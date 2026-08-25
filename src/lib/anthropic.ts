@@ -35,6 +35,27 @@ export const MONITORED_MODELS = [
   { kind: "דירוג", model: SCORING_MODEL },
 ];
 
+/**
+ * The first TEXT block of a response.
+ *
+ * Never index `content[0]` directly. On Sonnet 5 (and the whole 4.6+ family)
+ * adaptive thinking is on by default, so `content[0]` is often a `thinking`
+ * block and the text sits after it. Reading `content[0].text` there yields
+ * undefined — which every call site here turned into `""`, so the feature
+ * returned an EMPTY result with no error at all. Caught 2026-08-25 immediately
+ * after the move to Sonnet 5: the city briefing gathered 15 sources and then
+ * produced a 0-character report.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function firstText(response: any): string {
+  const blocks = response?.content;
+  if (!Array.isArray(blocks)) return "";
+  for (const b of blocks) {
+    if (b?.type === "text" && typeof b.text === "string") return b.text;
+  }
+  return "";
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function isModelDead(e: any): boolean {
   return e?.status === 404 || /not_found_error|unknown model|model[^.]*not[^.]*found|not_found/i.test(e?.message || "");
@@ -276,7 +297,7 @@ ${articleList}
     ],
   });
 
-  const text = response.content[0].type === "text" ? response.content[0].text : "";
+  const text = firstText(response);
 
   // Try strict JSON first; fall back to bracket extraction
   let parsed: ScoringResult[] = [];
@@ -471,7 +492,7 @@ export async function generateWhatsAppText(
     messages: [{ role: "user", content: buildWhatsAppPrompt(article, style) }],
   });
 
-  const text = response.content[0].type === "text" ? response.content[0].text : "";
+  const text = firstText(response);
   return cleanupHebrewDashes(text);
 }
 
@@ -567,7 +588,7 @@ export async function generateDailyDigest(
     messages: [{ role: "user", content: buildDigestPrompt(articles) }],
   });
 
-  const text = response.content[0].type === "text" ? response.content[0].text : "";
+  const text = firstText(response);
   return cleanupHebrewDashes(text);
 }
 
@@ -608,7 +629,7 @@ export async function generateCommentary(
   });
 
   const text =
-    response.content[0].type === "text" ? response.content[0].text : "";
+    firstText(response);
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
     throw new Error("Failed to parse commentary JSON from Claude response");
@@ -653,7 +674,7 @@ ${text}
   });
 
   const responseText =
-    response.content[0].type === "text" ? response.content[0].text : "";
+    firstText(response);
   const jsonMatch = responseText.match(/\\{[\\s\\S]*\\}/);
   if (!jsonMatch) {
     return { score: 7, flags: [], suggestion: "" };
@@ -698,7 +719,7 @@ export async function generateArticle(
     system: VOICE_DNA_SYSTEM_CACHED,
     messages: [{ role: "user", content: buildArticlePrompt(title, summary, extra) }],
   });
-  return response.content[0].type === "text" ? response.content[0].text : "";
+  return firstText(response);
 }
 
 /**
@@ -738,7 +759,7 @@ export async function factCheck(text: string, _context?: string): Promise<{ pass
       },
     ],
   });
-  const rt = response.content[0].type === "text" ? response.content[0].text : "";
+  const rt = firstText(response);
   const m = rt.match(/\{[\s\S]*\}/);
   if (!m) return { passed: true, issues: [] };
   try { return JSON.parse(m[0]); } catch { return { passed: true, issues: [] }; }
@@ -753,7 +774,7 @@ export async function refineText(currentText: string, instruction: string): Prom
       { role: "user", content: `שפר את הטקסט הבא לפי ההוראה.\n\nטקסט נוכחי:\n"""\n${currentText}\n"""\n\nהוראה: ${instruction}\n\nהחזר רק את הטקסט המשופר, ללא הסברים.` },
     ],
   });
-  return response.content[0].type === "text" ? response.content[0].text : currentText;
+  return firstText(response) || currentText;
 }
 
 // ─── Generate merged narrative ───
@@ -766,7 +787,7 @@ export async function generateMergedNarrative(articles: { title: string; summary
       { role: "user", content: `אתה בן סולומון מקליקת הנדל"ן. כתוב נרטיב מאוחד מהידיעות הבאות:\n\n${list}\n\nכתוב הודעת וואטסאפ אחת שלמה שמחברת את כל הידיעות לסיפור אחד. עברית שיחתית, מספרים ספציפיים, קצר ונקודתי.` },
     ],
   });
-  return response.content[0].type === "text" ? response.content[0].text : "";
+  return firstText(response);
 }
 
 // ─── Market confidence index ───
@@ -779,7 +800,7 @@ export async function calculateMarketConfidence(newsItems: { title: string; scor
       { role: "user", content: `נתח את כותרות הנדל"ן הבאות וחשב מדד אמון שוק 1-100:\n\n${list}\n\nהחזר JSON בלבד, ללא טקסט נוסף, בלי גרשיים בתוך המשפט:\n{ "index": 65, "trend": "עולה/יורד/יציב", "summary": "משפט אחד" }` },
     ],
   });
-  const rt = response.content[0].type === "text" ? response.content[0].text : "";
+  const rt = firstText(response);
   // Robust parse — Hebrew LLM JSON often has unescaped quotes (נדל"ן) that break
   // JSON.parse, which previously dropped us to the 50/empty fallback. Try strict
   // first, then field-by-field regex extraction (tolerates inner quotes).
@@ -805,7 +826,7 @@ export async function checkRepetition(text: string, recentTexts?: string[]): Pro
       { role: "user", content: `בדוק אם הטקסט הבא חוזר על עצמו ביחס לטקסטים קודמים:\n\nטקסט חדש:\n${text.slice(0, 300)}\n\nטקסטים קודמים:\n${recent}\n\nהחזר JSON:\n{ "isRepetitive": true/false, "similarity": 0-100, "suggestion": "מה לשנות" }` },
     ],
   });
-  const rt = response.content[0].type === "text" ? response.content[0].text : "";
+  const rt = firstText(response);
   const m = rt.match(/\{[\s\S]*\}/);
   if (!m) return { isRepetitive: false, similarity: 0, suggestion: "" };
   try { return JSON.parse(m[0]); } catch { return { isRepetitive: false, similarity: 0, suggestion: "" }; }

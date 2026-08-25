@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { firstText } from "@/lib/anthropic";
 import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "@/lib/supabase";
 
@@ -90,7 +91,7 @@ ${headlineLines || "(אין)"}
       messages: [{ role: "user", content: prompt }],
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    brief = ((resp.content[0] as any)?.text || "").trim();
+    brief = firstText(resp).trim();
   } catch (e) {
     console.error("weekly-brief: generation failed", e);
     return NextResponse.json({ error: "לא הצלחנו לייצר את המודיעין כרגע. נסה שוב." }, { status: 500 });

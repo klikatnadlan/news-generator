@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { firstText } from "@/lib/anthropic";
 import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "@/lib/supabase";
 
@@ -173,7 +174,7 @@ ${compactList(current, 35) || "(אין כותרות)"}
       max_tokens: 1300,
       messages: [{ role: "user", content: prompt }],
     });
-    const rawText = (response.content[0] as any)?.text || "";
+    const rawText = firstText(response);
     const match = rawText.match(/\{[\s\S]*\}/);
     if (match) {
       const parsed = JSON.parse(match[0]);

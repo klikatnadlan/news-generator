@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { firstText } from "@/lib/anthropic";
 import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "@/lib/supabase";
 import { findCity } from "@/lib/cities";
@@ -64,7 +65,7 @@ ${list}
       messages: [{ role: "user", content: prompt }],
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    summary = ((resp.content[0] as any)?.text || "").trim();
+    summary = firstText(resp).trim();
   } catch (e) {
     console.error("city summary failed", e);
     return NextResponse.json({ error: "לא הצלחנו לייצר את התדריך כרגע. נסה שוב." }, { status: 500 });

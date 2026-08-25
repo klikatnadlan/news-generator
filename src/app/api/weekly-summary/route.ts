@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { firstText } from "@/lib/anthropic";
 import { getSupabase } from "@/lib/supabase";
 import Anthropic from "@anthropic-ai/sdk";
 
@@ -74,7 +75,7 @@ ${articles}
     }],
   });
 
-  const text = response.content[0].type === "text" ? response.content[0].text : "";
+  const text = firstText(response);
   const cleanText = text.replace(/—/g, "-");
 
   return NextResponse.json({
