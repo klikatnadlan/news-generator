@@ -46,15 +46,45 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Alert not found" }, { status: 404 });
   }
 
-  const { data, error } = await supabase.rpc("match_alert_articles", {
+  // Default to a 90-day window when the caller did not ask for a range.
+  //
+  // Unbounded, this endpoint died: `match_alert_articles` with p_limit 300 over
+  // all of news_items answered `57014 canceling statement due to statement
+  // timeout` for the broadest watch (measured 2026-08-25 on "כל הנדל״ן בכף ידך",
+  // 29 keywords). The window is not a compromise — it is strictly better:
+  //   limit=300, all-time -> TIMEOUT
+  //   limit=300, 90 days  -> 3.0s, a full 300 rows
+  //   limit=100, all-time -> 3.5s, only 100 rows
+  // A watch answers "what is happening", so recent-and-more beats old-and-fewer.
+  // An explicit ?from=/?to= is always honoured as given.
+  const DEFAULT_WINDOW_DAYS = 90;
+  const defaultedWindow = !from && !to;
+  const effectiveFrom = from
+    || (defaultedWindow
+        ? new Date(Date.now() - DEFAULT_WINDOW_DAYS * 864e5).toISOString().slice(0, 10)
+        : null);
+
+  let { data, error } = await supabase.rpc("match_alert_articles", {
     p_keywords: alert.keywords,
     p_limit: 300,
-    p_from: from || null,
+    p_from: effectiveFrom,
     p_to: to || null,
   });
 
+  // Last resort for a watch so broad that even the window is not enough: fewer
+  // rows rather than a 500 that empties the panel.
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("match_alert_articles failed, retrying with a smaller limit:", error.message);
+    const retry = await supabase.rpc("match_alert_articles", {
+      p_keywords: alert.keywords,
+      p_limit: 100,
+      p_from: effectiveFrom,
+      p_to: to || null,
+    });
+    if (retry.error) {
+      return NextResponse.json({ error: retry.error.message }, { status: 500 });
+    }
+    data = retry.data;
   }
 
   const articles = (data || []).map((r: { id: string; title: string; source: string; source_url: string; summary: string | null; published_at: string | null; score: number | null }) => ({
@@ -70,5 +100,11 @@ export async function GET(request: NextRequest) {
     scan_batch: "",
   }));
 
-  return NextResponse.json({ alert, articles });
+  // Say when the result was scoped, so a short list reads as "last 90 days"
+  // rather than "this watch has almost nothing".
+  return NextResponse.json({
+    alert,
+    articles,
+    windowDays: defaultedWindow ? DEFAULT_WINDOW_DAYS : null,
+  });
 }

@@ -14,18 +14,43 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "חובה לשלוח מילות חיפוש" }, { status: 400 });
   }
 
-  // Search archive for relevant articles
-  let builder = supabase
-    .from("news_items")
-    .select("*, news_scores(score, scan_date)")
-    .or(`title.ilike.%${query}%,summary.ilike.%${query}%`);
+  // Search the archive through the indexed `search_news` RPC — the same path
+  // /api/archive uses.
+  //
+  // This used to run `.or(title.ilike.%q%, summary.ilike.%q%)` directly against
+  // news_items. A leading-wildcard ILIKE across two columns cannot use the
+  // trigram index, so it sequentially scanned all 32K+ rows; add the Claude call
+  // on top and the request blew Vercel's 60s ceiling with a bare
+  // FUNCTION_INVOCATION_TIMEOUT (measured 2026-08-25 on "פינוי בינוי").
+  // The RPC answers the same question in ~1.5s.
+  const { data: rpcRows, error: rpcErr } = await supabase.rpc("search_news", {
+    p_query: query,
+    p_from: from || null,
+    p_to: to || null,
+    p_limit: 60,
+    p_offset: 0,
+  });
+  if (rpcErr) {
+    return NextResponse.json({ error: rpcErr.message }, { status: 500 });
+  }
 
-  if (from) builder = builder.gte("fetched_at", `${from}T00:00:00`);
-  if (to) builder = builder.lte("fetched_at", `${to}T23:59:59`);
+  // Same Hebrew word-boundary gate as the archive search: `search_news` matches
+  // substrings, and in Hebrew "-ים" pluralises almost everything, so without
+  // this an article would be written from coincidental matches.
+  const HEB = "א-ת";
+  const words: string[] = query
+    .toLowerCase()
+    .split(/[\s,"'׳״]+/)
+    .filter((w: string) => w.length > 2);
+  const relevant = (rpcRows || []).filter((r: { title?: string; summary?: string }) => {
+    const text = `${r.title || ""} ${r.summary || ""}`.toLowerCase();
+    return words.every((w: string) => {
+      const safe = w.replace(/[^\p{L}\p{N}]/gu, "");
+      return new RegExp(`(?:^|[^${HEB}])[הובכלמשד]?${safe}(?![${HEB}])`, "u").test(text);
+    });
+  });
 
-  const { data } = await builder
-    .order("fetched_at", { ascending: false })
-    .limit(15);
+  const data = relevant.slice(0, 15);
 
   if (!data?.length) {
     return NextResponse.json({ error: `לא נמצאו חדשות עבור "${query}"` }, { status: 404 });

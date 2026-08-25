@@ -97,11 +97,16 @@ export async function POST(request: NextRequest) {
       if (checklist.passed >= CHECKLIST.length * 0.8) break;
     }
 
-    // Fact-check
-    const factResult = await factCheck(html, articleContext).catch(() => ({ verified: true, issues: [], score: 7 }));
-
-    // Humanity score
-    const humanityResult = await checkHumanityScore(html).catch(() => ({ score: 7, flags: [], suggestion: "" }));
+    // Fact-check and humanity score run CONCURRENTLY. Both only read the
+    // finished `html` and neither feeds the other, so running them in sequence
+    // just added their latencies together — and that was enough to push the
+    // whole pipeline past Vercel's hard 60s ceiling (measured 2026-08-25:
+    // FUNCTION_INVOCATION_TIMEOUT; fact-check 11.2s + humanity 11.4s on top of
+    // article generation). Overlapping them gives back ~11s for free.
+    const [factResult, humanityResult] = await Promise.all([
+      factCheck(html, articleContext).catch(() => ({ verified: true, issues: [], score: 7 })),
+      checkHumanityScore(html).catch(() => ({ score: 7, flags: [], suggestion: "" })),
+    ]);
 
     // Save to DB
     const { data: saved } = await supabase
