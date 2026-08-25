@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "@/lib/supabase";
 import { findCity, RESEARCH_TOPIC_KEYWORDS } from "@/lib/cities";
+import { mapPool } from "@/lib/rss";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
@@ -50,10 +51,19 @@ export async function GET(request: NextRequest) {
   // ─── Token-free retrieval: gather + dedupe the city's articles across topics ───
   const seen = new Set<string>();
   const sources: { title: string; source: string; url: string; date: string | null }[] = [];
-  await Promise.all(
-    useTopics.map(async (topic) => {
+  // Bounded, NOT Promise.all. Each city_news call is a full-corpus scan, and
+  // firing all nine default topics at once made Postgres cancel every single one
+  // with `57014 statement timeout` (measured 2026-08-25: 9/9 failed for נהריה
+  // and for אשקלון). Because the failure was swallowed, the briefing reported
+  // "אין מספיק באזים על העיר" for EVERY city — a headline feature reading as
+  // "no coverage" while the same query returns 31-36 rows when run on its own.
+  await mapPool(useTopics, 3, async (topic) => {
       try {
-        const { data } = await supabase.rpc("city_news", { p_city: city.name, p_aliases: city.aliases || [], p_strict: !!city.commonWord, p_chip: "", p_chip_any: RESEARCH_TOPIC_KEYWORDS[topic] || [topic], p_from: from, p_to: null, p_limit: 6, p_offset: 0 });
+        const { data, error: rpcError } = await supabase.rpc("city_news", { p_city: city.name, p_aliases: city.aliases || [], p_strict: !!city.commonWord, p_chip: "", p_chip_any: RESEARCH_TOPIC_KEYWORDS[topic] || [topic], p_from: from, p_to: null, p_limit: 6, p_offset: 0 });
+        // A per-topic failure used to vanish into `catch {}`, so a systematic
+        // problem looked identical to "this city has no coverage" — the whole
+        // briefing reported "אין מספיק באזים" while the data sat right there.
+        if (rpcError) console.error(`dossier: city_news failed for ${city.name}/${topic}:`, rpcError.message);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         for (const r of (data || []) as any[]) {
           const key = clean(r.title).slice(0, 90);
@@ -61,9 +71,10 @@ export async function GET(request: NextRequest) {
           seen.add(key);
           sources.push({ title: clean(r.title), source: detectSourceFromUrl(r.source_url) || r.source || "", url: r.source_url || "", date: (r.published_at || r.fetched_at || "")?.slice?.(0, 10) || null });
         }
-      } catch { /* skip topic */ }
-    })
-  );
+      } catch (e) {
+        console.error(`dossier: topic ${topic} threw for ${city.name}:`, e instanceof Error ? e.message : e);
+      }
+  });
 
   // City facts (from the overview cache — populated when the city was opened).
   let facts: { population: number | null; mayor: string | null } = { population: null, mayor: null };

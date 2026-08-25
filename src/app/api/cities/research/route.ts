@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { findCity, RESEARCH_TOPIC_KEYWORDS, RESEARCH_TOPIC_WEB_QUERY } from "@/lib/cities";
 import { firecrawlSearch, firecrawlSearchV2, hostLabel, type WebResult } from "@/lib/websearch";
+import { mapPool } from "@/lib/rss";
 
 export const maxDuration = 45;
 
@@ -143,8 +144,12 @@ export async function GET(request: NextRequest) {
   const topics = topicsRaw.split("|").map((t) => t.trim()).filter(Boolean).slice(0, 14);
   if (topics.length === 0) return NextResponse.json({ results: [], totalHits: 0 });
 
-  const results = await Promise.all(
-    topics.map(async (topic) => {
+  // Bounded like the dossier: each topic runs a full-corpus city_news scan, and
+  // firing them all at once is what made Postgres cancel every query with
+  // `57014 statement timeout` there (9/9 topics, silently). Research allows up
+  // to 14 topics, so it is exposed to exactly the same wall.
+  const results = await mapPool(topics, 3, async (topic) => {
+    {
       try {
         // Curated keywords (OR) when we know the cube; custom cubes fall back
         // to the literal term. Title-hits rank first (relevance).
@@ -222,8 +227,8 @@ export async function GET(request: NextRequest) {
       } catch {
         return { topic, count: 0, items: [], webCount: 0 };
       }
-    })
-  );
+    }
+  });
 
   const totalHits = results.reduce((s, r) => s + r.count, 0);
   // Found dimensions first, then the empty ones (gaps are still informative).
