@@ -19,9 +19,28 @@ function trendOf(cur: number, prev: number): "surge" | "rising" | "cooling" | ""
 export async function GET() {
   // alert_radar() = alert_overview + this-week / prior-week counts, one scan
   // per alert. Pure SQL, zero AI tokens.
-  const { data, error } = await supabase.rpc("alert_radar");
+  //
+  // It no longer always fits: with 64 saved watches it runs 128 extra windowed
+  // scans over a news_items table that grows ~400 rows/day, and Postgres now
+  // answers `57014 canceling statement due to statement timeout` (measured
+  // 2026-08-25, ~4s). That 500 took the whole מעקבים page down — no list, no
+  // counts, nothing — because a trend BADGE could not be computed.
+  //
+  // So: degrade instead of collapse. alert_overview() is the same list without
+  // the two window counts, is backed by the trigram index, and answers in ~2.3s.
+  // Losing the 🔥/📈/📉 arrow is survivable; losing the page is not.
+  // Proper fix is DB-side (bound the window inside alert_radar, or precompute)
+  // and needs SQL access this app does not have with the anon key.
+  let { data, error } = await supabase.rpc("alert_radar");
+  let degraded = false;
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("alert_radar failed, falling back to alert_overview:", error.message);
+    const fb = await supabase.rpc("alert_overview");
+    if (fb.error) {
+      return NextResponse.json({ error: fb.error.message }, { status: 500 });
+    }
+    data = fb.data;
+    degraded = true;
   }
   const alerts = (data || []).map((a: { id: string; name: string; emoji: string; keywords: string[]; match_count: number; latest_published: string | null; cur_7d: number; prev_7d: number }) => {
     const cur = Number(a.cur_7d) || 0;
@@ -38,7 +57,10 @@ export async function GET() {
       trend: trendOf(cur, prev),
     };
   });
-  return NextResponse.json({ alerts });
+  // `degraded` lets the UI (and a human reading the JSON) see that the trend
+  // arrows are absent by design right now, rather than reading "no trend" as
+  // "nothing is moving".
+  return NextResponse.json({ alerts, trendUnavailable: degraded });
 }
 
 export async function POST(request: NextRequest) {

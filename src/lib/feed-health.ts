@@ -39,7 +39,10 @@ export interface FeedHealthReport {
   feeds: FeedHealth[];
 }
 
-async function checkOne(feed: (typeof RSS_FEEDS)[number]): Promise<FeedHealth> {
+/**
+ * One attempt, no interpretation.
+ */
+async function probe(feed: (typeof RSS_FEEDS)[number]): Promise<FeedHealth> {
   const scorable = !feed.ingestOnly;
   try {
     const parsed = await parserFor(feed.userAgent).parseURL(feed.url);
@@ -63,6 +66,25 @@ async function checkOne(feed: (typeof RSS_FEEDS)[number]): Promise<FeedHealth> {
       error: err instanceof Error ? err.message.slice(0, 160) : String(err).slice(0, 160),
     };
   }
+}
+
+/**
+ * Check a feed, retrying once before calling it dead.
+ *
+ * Measured 2026-08-25: מעריב נדל״ן was reported dead by the monitor while the
+ * very same feed answered 6/6 times in 0.3-0.6s from another network — a
+ * transient blip on Vercel's side, not a dead source. Without this retry the
+ * monitor would have emailed Ben a false alarm, and an alert channel that cries
+ * wolf gets ignored precisely when it is finally right.
+ */
+async function checkOne(feed: (typeof RSS_FEEDS)[number]): Promise<FeedHealth> {
+  const first = await probe(feed);
+  if (first.ok) return first;
+  await new Promise((r) => setTimeout(r, 1200));
+  const second = await probe(feed);
+  if (second.ok) return second;
+  // Still failing after a retry — report the second attempt's reason.
+  return { ...second, error: second.error ? `${second.error} (גם בניסיון חוזר)` : second.error };
 }
 
 /**
