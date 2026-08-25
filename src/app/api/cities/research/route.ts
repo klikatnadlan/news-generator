@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { findCity, RESEARCH_TOPIC_KEYWORDS, RESEARCH_TOPIC_WEB_QUERY } from "@/lib/cities";
-import { firecrawlSearch, hostLabel, type WebResult } from "@/lib/websearch";
+import { firecrawlSearch, firecrawlSearchV2, hostLabel, type WebResult } from "@/lib/websearch";
 
 export const maxDuration = 45;
 
@@ -31,7 +31,11 @@ function normUrl(u: string): string {
 // Web results for a city+topic, cached 24h in narrative_cache so a repeated
 // מחקר on the same city+topic costs nothing. Returns [] on any failure.
 async function getWebResults(cityName: string, topic: string): Promise<WebResult[]> {
-  const cacheKey = `webresearch|${cityName}|${topic}`;
+  // v2 — the query shape and the search mode both changed (short city-anchored
+  // query, news mode with real dates). Without bumping this, every city+topic
+  // already in the cache would keep serving the OLD dateless, non-city results
+  // for 24h and the fix would look like it did nothing.
+  const cacheKey = `webresearch|v2|${cityName}|${topic}`;
   try {
     const { data: cached } = await supabase
       .from("narrative_cache")
@@ -46,8 +50,18 @@ async function getWebResults(cityName: string, topic: string): Promise<WebResult
     }
   } catch { /* cache miss → fetch fresh */ }
 
-  const query = `${cityName} ${RESEARCH_TOPIC_WEB_QUERY[topic] || topic}`;
-  const web = await firecrawlSearch(query, 6);
+  // Quote the city so the engine treats it as one required phrase, then a SHORT
+  // topic hint (see RESEARCH_TOPIC_WEB_QUERY for why short matters).
+  const query = `"${cityName}" ${RESEARCH_TOPIC_WEB_QUERY[topic] || topic}`;
+
+  // News mode first: it is the only mode that returns a real `date`, and it is
+  // measurably more city-specific. Measured 2026-08-16 on "אלימות":
+  //   old long query, v1  → 1/12 results mentioned the city,  0/12 dated
+  //   short query, news   → 7/12 mentioned the city,         12/12 dated
+  // Some cubes have no news at all (small towns, evergreen topics), so fall back
+  // to plain web search rather than showing an empty section.
+  let web = await firecrawlSearchV2(query, { limit: 6, news: true });
+  if (web.length === 0) web = await firecrawlSearch(query, 6);
   if (web.length) {
     try {
       await supabase.from("narrative_cache").upsert(
@@ -76,6 +90,33 @@ function detectSourceFromUrl(url: string): string | null {
   return null;
 }
 const clean = (s: string) => (s || "").replace(/<[^>]*>/g, "").trim();
+
+// Firecrawl news dates arrive human-formatted ("Feb 16, 2025"); internal rows are
+// ISO. Normalise so the UI shows one consistent "נכון ל…" format either way.
+function normDate(d?: string | null): string | null {
+  if (!d) return null;
+  const s = String(d).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const t = Date.parse(s);
+  if (Number.isNaN(t)) return null;
+  return new Date(t).toISOString().slice(0, 10);
+}
+
+// Does this result actually talk about THIS city?
+//
+// The reason this exists: a web search for a civic topic drifts to national
+// coverage. Measured 2026-08-16 on "אלימות" across נהריה / בית שאן / אשקלון —
+// only 1 of 18 results so much as mentioned the city; the rest were national
+// femicide reports. Showing those under a city heading is worse than showing
+// nothing: it reads as if the tool researched the city when it did not.
+function mentionsCity(text: string, names: string[]): boolean {
+  const t = text || "";
+  return names.some((n) => n && n.length > 1 && t.includes(n));
+}
+
+// Keep every genuinely local result, plus at most this many national ones as
+// background, so a thin city still shows context instead of an empty section.
+const MAX_NATIONAL = 2;
 
 export async function GET(request: NextRequest) {
   const sp = new URL(request.url).searchParams;
@@ -129,19 +170,27 @@ export async function GET(request: NextRequest) {
               summary: clean(w.description),
               source: detectSourceFromUrl(w.url) || hostLabel(w.url),
               url: w.url,
-              date: null,
+              // News results carry a real publication date. Ben's standing rule:
+              // every figure shown must say when it is true as of.
+              date: normDate(w.date),
               web: true,
             });
           }
         }
 
+        // City-specific results first, national background last and capped.
+        const cityNames = [city.name, ...(city.aliases || [])];
+        const local = webItems.filter((w) => mentionsCity(`${w.title} ${w.summary}`, cityNames));
+        const national = webItems.filter((w) => !mentionsCity(`${w.title} ${w.summary}`, cityNames));
+        const rankedWeb = [...local, ...national.slice(0, MAX_NATIONAL)];
+
         // Civic/custom topics: web is the targeted research → show it first
         // (internal civic matches are often loose). RE topics: internal first.
         const webFirst = !RE_TOPICS.has(topic);
-        const items = webFirst ? [...webItems, ...internalItems] : [...internalItems, ...webItems];
+        const items = webFirst ? [...rankedWeb, ...internalItems] : [...internalItems, ...rankedWeb];
         // Badge count = everything visible when web was added; else internal total.
-        const count = webItems.length > 0 ? items.length : internalCount;
-        return { topic, count, items, webCount: webItems.length };
+        const count = rankedWeb.length > 0 ? items.length : internalCount;
+        return { topic, count, items, webCount: rankedWeb.length, localWebCount: local.length };
       } catch {
         return { topic, count: 0, items: [], webCount: 0 };
       }

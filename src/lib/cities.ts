@@ -135,25 +135,36 @@ export const RESEARCH_TOPIC_KEYWORDS: Record<string, string[]> = {
 // Natural-language web-search query per topic (city name is prepended). Used by
 // the research web-fallback (Firecrawl) — phrased the way a person would Google
 // it, NOT the internal keyword-OR list (which is tuned for our title matching).
+// Web-search query per research cube, appended to the city name.
+//
+// SHORT ON PURPOSE. These used to be long comma-separated term lists, and that
+// was actively harmful — measured 2026-08-16 against Firecrawl:
+//   "נהריה רצח, ניסיון לרצח, ירי, דקירה, שוד, … אלימות נגד נשים, …"
+//     → 0/6 results even MENTIONED נהריה. All six were national femicide
+//       material (Knesset PDFs, women's-lobby archives, a crime map, YouTube).
+//   "\"נהריה\" פשיעה אלימות משטרה" in news mode → dated, city-specific results.
+// The city is one token competing with ~20 heavy national terms; the search
+// engine follows the crowd and the city disappears. A longer list also breaks
+// news search outright — a 6-term variant returned ZERO results.
+// Keep these to 2-4 words. Add terms only with a measurement showing it helps.
 export const RESEARCH_TOPIC_WEB_QUERY: Record<string, string> = {
-  "פרויקט": "פרויקט בנייה חדש, שכונה חדשה, מגדל מגורים, היתר בנייה, יח\"ד חדשות בשיווק",
-  "דירות": "דירות חדשות למכירה, שיווק דירות, אכלוס שכונה, דירות מקבלן",
-  "התחדשות": "התחדשות עירונית, פינוי בינוי, תמ\"א 38, מתחם פינוי בינוי חדש, הריסה ובנייה מחדש",
-  "מחירים": "מחירי דירות, עליית מחירי הדירות, ירידת מחירים, מחיר ממוצע למ\"ר, שוק הנדל\"ן",
-  "מחיר למשתכן": "דירה בהנחה, מחיר למשתכן, מחיר מטרה, הגרלת דירות בהנחה, מתחם מחיר מטרה חדש",
-  "מכרז": "מכרז קרקע חדש, רשות מקרקעי ישראל רמ\"י, שיווק קרקע למגורים, מכרז להקמת שכונה",
-  "חינוך": "בית ספר חדש, בתי ספר, גני ילדים, מוסדות חינוך, דירוג בגרויות, פתיחת שנת לימודים",
-  "אלימות": "רצח, ניסיון לרצח, ירי, דקירה, שוד, גנבות ופריצות, אלימות נגד נשים, אלימות במשפחה, פשיעה ועבריינות, פעילות משטרה",
-  "תעסוקה": "אזור תעשייה חדש, פארק תעשייה והייטק, פתיחת מפעל, משרות ומקומות עבודה, מרכז עסקים",
-  "כביש": "כביש חדש, כבישי גישה חדשים, מחלף חדש, צומת, כביש 6, פרויקט תשתיות תחבורה",
-  "רכבת": "תחנת רכבת חדשה, רכבת קלה, מטרו, קו רכבת חדש, הרחבת תחבורה ציבורית",
-  "בריאות": "בית חולים חדש, מרכז רפואי, מרפאה וקופת חולים חדשה, שירותי בריאות, טיפת חלב",
-  "סביבה": "פארק חדש, שטחים ירוקים וגינות ציבוריות, איכות הסביבה, זיהום אוויר, פרויקט מיחזור",
-  "תיירות": "מלון חדש, פרויקט תיירות, אטרקציה תיירותית, נופש ותיירות, מתחם מלונאות",
-  // New topics (Ben): sport incl. city races, culture/leisure incl. shows, civic events.
-  "ספורט": "מרוץ, אירועי ספורט, אצטדיון, קבוצת כדורגל וכדורסל עירונית, היכל ספורט",
-  "תרבות": "הופעות ומופעים, תיאטרון, קונצרט ומוזיקה, פסטיבל ואירועי תרבות, היכל התרבות",
-  "אירועים": "אירוע עירוני, פסטיבל ויריד, אירוע המוני, חגיגות יום העצמאות, אירוע קהילתי",
+  "פרויקט": "שכונה חדשה בנייה",
+  "דירות": "דירות חדשות שיווק",
+  "התחדשות": "התחדשות עירונית פינוי בינוי",
+  "מחירים": "מחירי דירות",
+  "מחיר למשתכן": "מחיר למשתכן דירה בהנחה",
+  "מכרז": "מכרז קרקע רמ\"י",
+  "חינוך": "בית ספר חינוך",
+  "אלימות": "פשיעה אלימות משטרה",
+  "תעסוקה": "תעשייה תעסוקה מפעל",
+  "כביש": "כביש מחלף תחבורה",
+  "רכבת": "רכבת תחנה",
+  "בריאות": "בית חולים מרפאה",
+  "סביבה": "פארק סביבה",
+  "תיירות": "מלון תיירות",
+  "ספורט": "ספורט אצטדיון מרוץ",
+  "תרבות": "תרבות הופעות פסטיבל",
+  "אירועים": "אירוע עירוני פסטיבל",
 };
 
 // Search terms for a city's news feed (name + aliases).
