@@ -38,13 +38,18 @@ export const MONITORED_MODELS = [
 /**
  * The first TEXT block of a response.
  *
- * Never index `content[0]` directly. On Sonnet 5 (and the whole 4.6+ family)
- * adaptive thinking is on by default, so `content[0]` is often a `thinking`
- * block and the text sits after it. Reading `content[0].text` there yields
- * undefined — which every call site here turned into `""`, so the feature
- * returned an EMPTY result with no error at all. Caught 2026-08-25 immediately
- * after the move to Sonnet 5: the city briefing gathered 15 sources and then
- * produced a 0-character report.
+ * Never index `content[0]` directly: the text block is not guaranteed to be
+ * first, and reading `.text` off a non-text block yields undefined — which each
+ * call site here turned into `""`, i.e. an EMPTY result with no error raised at
+ * all. This helper makes every call site indifferent to block ordering.
+ *
+ * Honest note on provenance: this was written after the city briefing returned
+ * a 0-character report right after the move to Sonnet 5, on the theory that a
+ * thinking block was arriving first. That theory did NOT hold up — 4 of 4
+ * probes against Sonnet 5 (no `thinking` param) returned `text` as the first and
+ * only block. The empty report was real and has not recurred (3/3 cities since),
+ * but its cause was never pinned down. Keep this helper because it is correct
+ * and defensive, not because it is a proven fix.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function firstText(response: any): string {
