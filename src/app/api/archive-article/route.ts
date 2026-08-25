@@ -63,7 +63,16 @@ export async function POST(request: NextRequest) {
 
   const response = await client.messages.create({
     model: "claude-sonnet-5",
-    max_tokens: 3000,
+    // 2200, not 3000, and that is a measurement rather than a guess. This route
+    // answers a button on /archive and was returning a bare 504
+    // FUNCTION_INVOCATION_TIMEOUT. Measured 2026-08-25 on this exact prompt:
+    //   3000 -> 55.7s, model stopped on its own at 2030 tokens
+    //   2200 -> 47.8s, stopped on its own at 1731 tokens (complete article)
+    //   1600 -> 43.3s, stop_reason "max_tokens" — the article gets cut off
+    // The model's natural length here is ~1700-2000 tokens, so 3000 bought no
+    // extra content, only latency against Vercel's hard 60s ceiling. 2200 keeps
+    // the article whole and leaves ~12s of headroom.
+    max_tokens: 2200,
     system: `אתה בן סולומון, מומחה נדל"ן עם מועדון צרכנות של 300,000+ חברים.
 כתוב כתבה ארכיונית מקיפה על בסיס נתונים היסטוריים.
 
