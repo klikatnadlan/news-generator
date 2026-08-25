@@ -37,8 +37,22 @@ export async function POST(request: NextRequest) {
   if (!response.ok) {
     const errorText = await response.text();
     console.error("ElevenLabs TTS error:", errorText);
+    // Pass the provider's own reason through. A bare "TTS failed" cost an audit
+    // pass to diagnose: the real answer was sitting in ElevenLabs' response the
+    // whole time — "API key ID used as API key ... keys start with 'sk_'", i.e.
+    // the key ID was stored instead of the key. Surface it so the next person
+    // reads the cause instead of guessing.
+    let detail = errorText.slice(0, 300);
+    let hint: string | undefined;
+    try {
+      const parsed = JSON.parse(errorText);
+      detail = parsed?.detail?.message || parsed?.detail?.status || detail;
+      if (String(detail).includes("API key ID used as API key")) {
+        hint = "המפתח שנשמר הוא ה-ID של המפתח ולא המפתח עצמו. מפתח אמיתי מתחיל ב-sk_ ומוצג רק ברגע היצירה או הרענון ב-ElevenLabs. לעדכן את ELEVENLABS_API_KEY ב-Vercel וב-.env.local.";
+      }
+    } catch { /* not JSON — keep the raw text */ }
     return NextResponse.json(
-      { error: "TTS failed" },
+      { error: "TTS failed", detail, hint },
       { status: response.status }
     );
   }
