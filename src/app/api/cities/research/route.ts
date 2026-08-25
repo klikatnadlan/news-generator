@@ -201,9 +201,15 @@ export async function GET(request: NextRequest) {
         // 2026 one reads as a stale tool even when both are on-topic.
         const byDateDesc = (a: { date: string | null }, b: { date: string | null }) =>
           (b.date || "").localeCompare(a.date || "");
+        // Background items are FLAGGED, not disguised. On an ambiguous or small
+        // town the web still returns national coverage (שלומי is also a common
+        // first name — "עו״ד שלומי שרון" matched; a Tel Aviv price story once
+        // sat under a שלומי card). Showing those unlabelled makes the tool look
+        // like it researched the city when it did not; labelling them keeps the
+        // context useful and the claim honest.
         const rankedWeb = [
           ...local.sort(byDateDesc),
-          ...national.sort(byDateDesc).slice(0, MAX_NATIONAL),
+          ...national.sort(byDateDesc).slice(0, MAX_NATIONAL).map((w) => ({ ...w, national: true })),
         ];
 
         // Civic/custom topics: web is the targeted research → show it first

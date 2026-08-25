@@ -26,7 +26,7 @@ export const CITIES: City[] = [
   { name: "בית שאן", district: "צפון" },
   { name: "מגדל העמק", district: "צפון" },
   { name: "יקנעם", district: "צפון", aliases: ["יקנעם עילית"], wikiPage: "יקנעם עילית" },
-  { name: "שלומי", district: "צפון" },
+  { name: "שלומי", district: "צפון", commonWord: true }, // also a very common first name ("שלומי שרון")
   { name: "מעלה אדומים", district: "יו\"ש" },
   // חיפה
   { name: "חיפה", district: "חיפה" },
