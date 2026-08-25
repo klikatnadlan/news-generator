@@ -39,6 +39,8 @@ export interface FeedHealthReport {
   feeds: FeedHealth[];
 }
 
+const scorableOf = (f: (typeof RSS_FEEDS)[number]) => !f.ingestOnly;
+
 /**
  * One attempt, no interpretation.
  */
@@ -80,6 +82,10 @@ async function probe(feed: (typeof RSS_FEEDS)[number]): Promise<FeedHealth> {
 async function checkOne(feed: (typeof RSS_FEEDS)[number]): Promise<FeedHealth> {
   const first = await probe(feed);
   if (first.ok) return first;
+  // Only scorable feeds get a retry. They are the only ones that can raise an
+  // alert, and retrying the ~21 permanently dead ingest-only feeds doubled the
+  // whole sweep (16.9s → 29.1s) to re-confirm what we already know.
+  if (!scorableOf(feed)) return first;
   await new Promise((r) => setTimeout(r, 1200));
   const second = await probe(feed);
   if (second.ok) return second;

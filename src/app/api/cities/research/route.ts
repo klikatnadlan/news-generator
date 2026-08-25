@@ -118,6 +118,19 @@ function mentionsCity(text: string, names: string[]): boolean {
 // background, so a thin city still shows context instead of an empty section.
 const MAX_NATIONAL = 2;
 
+// Hosts that are a doorway, not a source. A research card reading "google.com"
+// or "youtube.com" as the outlet looks broken in front of a client even when the
+// underlying story is fine — and a bare "YouTube" title (seen in the 2026-08-25
+// audit) carries no information at all.
+const NON_SOURCE_HOSTS = [
+  "google.com", "google.co.il", "news.google.", "youtube.com", "youtu.be",
+  "webcache.googleusercontent.com", "translate.google.",
+];
+function isRealSource(url: string): boolean {
+  const u = (url || "").toLowerCase();
+  return !NON_SOURCE_HOSTS.some((h) => u.includes(h));
+}
+
 export async function GET(request: NextRequest) {
   const sp = new URL(request.url).searchParams;
   const cityName = sp.get("city") || "";
@@ -163,6 +176,7 @@ export async function GET(request: NextRequest) {
           for (const w of web) {
             const key = normUrl(w.url);
             if (!key || seen.has(key)) continue;
+            if (!isRealSource(w.url)) continue;
             seen.add(key);
             webItems.push({
               id: `web:${w.url}`,

@@ -73,16 +73,40 @@ export async function GET(request: NextRequest) {
   // home feed starved for weeks in silence. Checked here (03:40, before the
   // 04:00 scan) so a dead source is known before the day's run depends on it.
   const feedReport = await checkFeeds();
-  if (feedReport.deadScorable.length) {
+
+  // TWO STRIKES before we email. Publishers block Vercel's IPs intermittently:
+  // measured 2026-08-25, מעריב נדל״ן delivered exactly 20 items/day on the 22nd,
+  // 23rd and 24th and zero on the 25th, while answering 6/6 from another network
+  // the same minute. A feed that fails one day and works the next is not dead,
+  // and paging Ben about it teaches him to ignore the channel. Only a feed that
+  // failed the PREVIOUS check too is treated as really gone.
+  const prevKey = "feed_health_prev_failing";
+  let prevFailing: string[] = [];
+  try {
+    const { data } = await supabase.from("narrative_cache").select("narratives").eq("cache_key", prevKey).maybeSingle();
+    const n = data?.narratives as unknown;
+    if (Array.isArray(n)) prevFailing = n as string[];
+  } catch { /* first run — no history yet */ }
+
+  const failingNow = feedReport.deadScorable.map((f) => f.name);
+  const confirmedDead = feedReport.deadScorable.filter((f) => prevFailing.includes(f.name));
+  try {
+    await supabase.from("narrative_cache").upsert(
+      { cache_key: prevKey, narratives: failingNow, count: failingNow.length, created_at: new Date().toISOString() },
+      { onConflict: "cache_key" }
+    );
+  } catch { /* best effort — worst case we alert a day later */ }
+
+  if (confirmedDead.length) {
     const today = new Date().toISOString().slice(0, 10);
-    const key = `feed_alert|${feedReport.deadScorable.map((f) => f.name).join(",")}|${today}`;
+    const key = `feed_alert|${confirmedDead.map((f) => f.name).join(",")}|${today}`;
     let alreadySent = false;
     try {
       const { data } = await supabase.from("narrative_cache").select("cache_key").eq("cache_key", key).maybeSingle();
       alreadySent = !!data;
     } catch { /* ignore */ }
     if (!alreadySent) {
-      const rows = feedReport.deadScorable.map((f) =>
+      const rows = confirmedDead.map((f) =>
         `<tr><td style="padding:6px 10px;border:1px solid #eee;font-weight:700">${f.name}</td>
          <td style="padding:6px 10px;border:1px solid #eee;color:#dc2626">${f.error || "אפס פריטים"}</td>
          <td style="padding:6px 10px;border:1px solid #eee;color:#6b7280;font-size:11px;direction:ltr">${f.url}</td></tr>`
@@ -104,11 +128,11 @@ export async function GET(request: NextRequest) {
       try {
         await sendEmail({
           to: "klikatnadlan@gmail.com",
-          subject: `📡 לידרפיד: ${feedReport.deadScorable.length} מקורות חדשות מתים — ${feedReport.deadScorable.map((f) => f.name).join(", ")}`,
+          subject: `📡 לידרפיד: ${confirmedDead.length} מקורות חדשות מתים — ${confirmedDead.map((f) => f.name).join(", ")}`,
           html,
         });
         await supabase.from("narrative_cache").upsert(
-          { cache_key: key, narratives: { dead: feedReport.deadScorable }, count: feedReport.deadScorable.length, created_at: new Date().toISOString() },
+          { cache_key: key, narratives: { dead: confirmedDead }, count: confirmedDead.length, created_at: new Date().toISOString() },
           { onConflict: "cache_key" }
         );
       } catch (e) { console.error("feed-health alert failed:", e); }
@@ -122,7 +146,8 @@ export async function GET(request: NextRequest) {
     feeds: {
       ok: feedReport.ok,
       total: feedReport.total,
-      deadScorable: feedReport.deadScorable.map((f) => ({ name: f.name, error: f.error })),
+      failingNow: feedReport.deadScorable.map((f) => ({ name: f.name, error: f.error })),
+      confirmedDead: confirmedDead.map((f) => f.name),
       deadIngestOnly: feedReport.deadIngestOnly.length,
     },
   });
