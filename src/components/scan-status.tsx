@@ -118,7 +118,7 @@ export function ScanStatus({
             השרת ער. רק חדשות עוד לא הגיעו.
           </p>
           <p className="text-[13px] max-w-sm mx-auto leading-[1.5]" style={{ color: "#6b7280" }}>
-            הסריקה האוטומטית רצה כל יום ב-06:00 ומביאה את כל ה-RSS feeds. אפשר גם להריץ עכשיו ידנית — לוקח ~15 שניות.
+            הסריקה האוטומטית רצה כל יום ב-07:00 ומביאה את כל ה-RSS feeds. אפשר גם להריץ עכשיו ידנית — לוקח ~15 שניות.
           </p>
           <Button
             size="lg"
@@ -190,7 +190,7 @@ export function ScanStatus({
         <span className="text-green-600 text-xs font-medium">{scanResult}</span>
       )}
       <span className="text-xs text-muted-foreground mr-auto">
-        סריקה אוטומטית כל יום ב-06:00
+        סריקה אוטומטית כל יום ב-07:00
       </span>
     </div>
   );
