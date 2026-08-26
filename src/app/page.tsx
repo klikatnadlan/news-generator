@@ -69,8 +69,37 @@ export default function HomePage() {
 
   useEffect(() => { fetchNews(); const i = setInterval(fetchNews, 5 * 60 * 1000); return () => clearInterval(i); }, [fetchNews]);
 
-  const todayStr = new Date().toISOString().split("T")[0];
-  const todayDay = DAYS_HEB[new Date().getDay()];
+  // The header clock has to TICK, not be derived during render.
+  //
+  // It used to be a bare `const now = new Date()` in the component body, so it
+  // only advanced when something else happened to re-render the page (the 5-min
+  // news refetch). Browsers throttle timers in background tabs and freeze them
+  // while the machine sleeps, so a tab left open overnight kept showing
+  // yesterday — seen 2026-08-26: the screen read "25 באוגוסט, 18:41" under a
+  // live "LIVE" badge while the real time was 08:14 the next morning.
+  // Ticking state fixes the running case; the visibility/focus listeners fix the
+  // one that actually bites — coming back to a tab after sleep.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const tick = () => setNow(new Date());
+    const i = setInterval(tick, 30_000);
+    document.addEventListener("visibilitychange", tick);
+    window.addEventListener("focus", tick);
+    return () => {
+      clearInterval(i);
+      document.removeEventListener("visibilitychange", tick);
+      window.removeEventListener("focus", tick);
+    };
+  }, []);
+
+  // Derived from the ticking clock above, not from a fresh `new Date()` per
+  // render. These are not decoration: `todayStr` decides WHICH items show under
+  // "היום", feeds the "ידיעות היום" counter and the day-tab label. Frozen, the
+  // page keeps serving yesterday's items as today's after midnight.
+  // (Kept on toISOString/UTC on purpose — `scan_date` is written the same way in
+  // scanner.ts, so both sides must agree on what "today" means.)
+  const todayStr = now.toISOString().split("T")[0];
+  const todayDay = DAYS_HEB[now.getDay()];
 
   // Smart default: if "היום" has no news yet (e.g. morning before the scan, or
   // the daily scan found only duplicates) but the week has items, auto-show
@@ -432,7 +461,6 @@ export default function HomePage() {
 
   const allSelected = news.length > 0 && news.every(n => selected.has(n.id));
 
-  const now = new Date();
   const timeStr = now.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
   const dateStr = now.toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
