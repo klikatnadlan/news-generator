@@ -79,7 +79,14 @@ export default function HomePage() {
   // live "LIVE" badge while the real time was 08:14 the next morning.
   // Ticking state fixes the running case; the visibility/focus listeners fix the
   // one that actually bites — coming back to a tab after sleep.
-  const [now, setNow] = useState(() => new Date());
+  // Deliberately NULL on the server. This page is served from Vercel's CDN
+  // cache, so anything the server renders into the clock is frozen at whenever
+  // that HTML was built — which can be hours old, not minutes. Seeding state
+  // with `new Date()` therefore shipped a stale time that stayed on screen until
+  // hydration finished (measured: page loaded showing 08:34 while Israel was
+  // 08:37). Rendering nothing until the client fills it in means the clock is
+  // either right or absent, never confidently wrong.
+  const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
     const tick = () => setNow(new Date());
     // Run once right away: the initial state was computed during SSR on a UTC
@@ -101,8 +108,9 @@ export default function HomePage() {
   // page keeps serving yesterday's items as today's after midnight.
   // (Kept on toISOString/UTC on purpose — `scan_date` is written the same way in
   // scanner.ts, so both sides must agree on what "today" means.)
-  const todayStr = now.toISOString().split("T")[0];
-  const todayDay = DAYS_HEB[now.getDay()];
+  const todayBase = now ?? new Date();
+  const todayStr = todayBase.toISOString().split("T")[0];
+  const todayDay = DAYS_HEB[todayBase.getDay()];
 
   // Smart default: if "היום" has no news yet (e.g. morning before the scan, or
   // the daily scan found only duplicates) but the week has items, auto-show
@@ -473,8 +481,8 @@ export default function HomePage() {
   // laptop set to another zone would show that zone's time under an Israeli
   // news header. This is an Israeli product: the clock is Israel's, always.
   const IL_TZ = "Asia/Jerusalem";
-  const timeStr = now.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: IL_TZ });
-  const dateStr = now.toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: IL_TZ });
+  const timeStr = now ? now.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: IL_TZ }) : "";
+  const dateStr = now ? now.toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: IL_TZ }) : "";
 
   const groupedByDate = news.reduce<Record<string, WeekNews[]>>((acc, item) => {
     if (!item.scan_date) return acc;
