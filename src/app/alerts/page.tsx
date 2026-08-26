@@ -183,7 +183,7 @@ export default function AlertsPage() {
   };
 
   const fmtDate = (iso: string | null) =>
-    iso ? new Date(iso).toLocaleDateString("he-IL", { day: "numeric", month: "numeric", year: "2-digit" }) : "—";
+    iso ? new Date(iso).toLocaleDateString("he-IL", { day: "numeric", month: "numeric", year: "2-digit", timeZone: "Asia/Jerusalem" }) : "—";
 
   // Quick-range presets → YYYY-MM-DD
   const todayIso = () => new Date().toISOString().split("T")[0];

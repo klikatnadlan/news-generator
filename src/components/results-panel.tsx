@@ -95,7 +95,7 @@ function WhatsAppPreview({ text }: { text: string }) {
       />
       <div className="flex justify-end mt-1 gap-1 items-center">
         <span className="text-[10px] text-gray-500">
-          {new Date().toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}
+          {new Date().toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jerusalem" })}
         </span>
         <span className="text-[10px] text-blue-500">✓✓</span>
       </div>

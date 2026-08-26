@@ -140,7 +140,7 @@ export default function DashboardPage() {
           <div className="lf-card p-3.5">
             <p className="text-[11px] mb-0.5" style={{ color: "#9ca3af" }}>סריקה אחרונה</p>
             <p className="text-[14px] font-bold" style={{ color: "#0f1419" }}>
-              {lastScan ? new Date(lastScan).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" }) : "—"}
+              {lastScan ? new Date(lastScan).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jerusalem" }) : "—"}
             </p>
           </div>
         </div>

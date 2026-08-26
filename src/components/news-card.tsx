@@ -21,7 +21,7 @@ function formatNewsDate(iso?: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("he-IL", { day: "numeric", month: "numeric", year: "2-digit" });
+  return d.toLocaleDateString("he-IL", { day: "numeric", month: "numeric", year: "2-digit", timeZone: "Asia/Jerusalem" });
 }
 
 const SOURCES: Record<string, { label: string; color: string }> = {

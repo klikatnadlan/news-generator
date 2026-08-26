@@ -106,6 +106,7 @@ export function ScanStatus({
       month: "2-digit",
       hour: "2-digit",
       minute: "2-digit",
+      timeZone: "Asia/Jerusalem",
     });
 
   // Large prominent button when no news

@@ -82,6 +82,9 @@ export default function HomePage() {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const tick = () => setNow(new Date());
+    // Run once right away: the initial state was computed during SSR on a UTC
+    // server, so without this the first 30 seconds show the server's clock.
+    tick();
     const i = setInterval(tick, 30_000);
     document.addEventListener("visibilitychange", tick);
     window.addEventListener("focus", tick);
@@ -461,8 +464,17 @@ export default function HomePage() {
 
   const allSelected = news.length > 0 && news.every(n => selected.has(n.id));
 
-  const timeStr = now.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
-  const dateStr = now.toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  // Pinned to Asia/Jerusalem, NOT the viewer's timezone.
+  //
+  // Two things went wrong without it. The server renders this page first and
+  // Vercel runs in UTC, so the HTML shipped "05:19" while it was 08:19 in
+  // Israel. And even on the client, `toLocaleTimeString("he-IL")` formats in the
+  // MACHINE's timezone — "he-IL" picks the language, never the zone — so a
+  // laptop set to another zone would show that zone's time under an Israeli
+  // news header. This is an Israeli product: the clock is Israel's, always.
+  const IL_TZ = "Asia/Jerusalem";
+  const timeStr = now.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: IL_TZ });
+  const dateStr = now.toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: IL_TZ });
 
   const groupedByDate = news.reduce<Record<string, WeekNews[]>>((acc, item) => {
     if (!item.scan_date) return acc;
@@ -572,7 +584,7 @@ export default function HomePage() {
               </div>
               <div className="lf-stat-card-v2">
                 <p className="lf-stat-number lf-stat-number-sm">
-                  {lastScan ? new Date(lastScan).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" }) : "—"}
+                  {lastScan ? new Date(lastScan).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jerusalem" }) : "—"}
                 </p>
                 <p className="lf-stat-label">סריקה אחרונה</p>
               </div>
@@ -630,7 +642,7 @@ export default function HomePage() {
             {selected.size > 0 && <><span className="text-white/20">|</span><span className="text-[11px] font-semibold" style={{ color: "#fca5a5" }}>{selected.size} נבחרו</span></>}
             <span className="text-white/20">|</span>
             <span className="text-white/40">סריקה</span>
-            <span className="text-white/60">{lastScan ? new Date(lastScan).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" }) : "—"}</span>
+            <span className="text-white/60">{lastScan ? new Date(lastScan).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jerusalem" }) : "—"}</span>
             {showHero === false && phase === "select" && <button className="mr-auto text-[10px] text-white/30 hover:text-white/60 transition-colors" onClick={() => setShowHero(true)}>הראה סקירה</button>}
           </div>
         </div>
