@@ -127,7 +127,7 @@ export async function GET(request: NextRequest) {
   // web-fallback threshold below now sees the TRUE internal depth, so a query
   // we genuinely do not cover goes out to the web instead of being "answered"
   // with junk that happened to clear the count.
-  const relevant = query
+  let relevant = query
     ? rawRows
         .filter((r) => matchesAllWords(`${r.title || ""} ${r.summary || ""}`, query))
         // Title hits first. Local outlets paste a city menu ("אופקים אור יהודה
@@ -141,6 +141,33 @@ export async function GET(request: NextRequest) {
           return bt - at;
         })
     : rawRows;
+  // If requiring EVERY word leaves almost nothing, retry the gate without the
+  // generic real-estate filler.
+  //
+  // This is the actual answer to "it doesn't find the recent ones". Searching
+  // `שיכון ובינוי נדל"ן` returned a single item from June, while `שיכון ובינוי`
+  // returned 16 — including 30.8 and four from 20.8 (the extortion probe, the
+  // A+ upgrade, the energy-arm sale). Our own coverage was there the whole time;
+  // the word "נדל״ן" excluded it, because those articles simply never say it
+  // next to the company name. The user's exact query still wins whenever it
+  // finds enough — this only rescues the thin case.
+  let widened: string | null = null;
+  if (query && relevant.length < THIN) {
+    const trimmed = trimGenericTerms(query);
+    if (trimmed !== query) {
+      const wider = rawRows
+        .filter((r) => matchesAllWords(`${r.title || ""} ${r.summary || ""}`, trimmed))
+        .sort((a, b) => {
+          const at = matchesAllWords(a.title || "", trimmed) ? 1 : 0;
+          const bt = matchesAllWords(b.title || "", trimmed) ? 1 : 0;
+          return bt - at;
+        });
+      if (wider.length > relevant.length) {
+        relevant = wider;
+        widened = trimmed;
+      }
+    }
+  }
   const droppedIrrelevant = rawRows.length - relevant.length;
   const total = query ? relevant.length : rawTotal;
   // Paginate the FILTERED set (the RPC already gave us the whole scan window).
@@ -270,5 +297,8 @@ export async function GET(request: NextRequest) {
     // readable as "we filtered noise" instead of "the search is broken".
     filteredOut: droppedIrrelevant,
     scanTruncated,
+    // Set when the exact query was too narrow and we widened it, so the UI can
+    // say so instead of quietly answering a different question.
+    widenedTo: widened,
   });
 }
