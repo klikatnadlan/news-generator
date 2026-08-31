@@ -152,7 +152,12 @@ export async function GET(request: NextRequest) {
   // next to the company name. The user's exact query still wins whenever it
   // finds enough — this only rescues the thin case.
   let widened: string | null = null;
-  if (query && relevant.length < THIN) {
+  // Threshold is 5, not THIN(3): three results for a company name is still a
+  // thin, unrepresentative answer, and the same search minus one generic word
+  // returned 16. The swap only happens if widening at least DOUBLES the result
+  // set, so a query that genuinely has 4 good exact matches keeps them.
+  const WIDEN_BELOW = 5;
+  if (query && relevant.length < WIDEN_BELOW) {
     const trimmed = trimGenericTerms(query);
     if (trimmed !== query) {
       // Re-ask the DATABASE, not just the filter. The RPC receives the full
@@ -175,7 +180,7 @@ export async function GET(request: NextRequest) {
           const bt = matchesAllWords(b.title || "", trimmed) ? 1 : 0;
           return bt - at;
         });
-      if (wider.length > relevant.length) {
+      if (wider.length >= Math.max(relevant.length * 2, THIN)) {
         relevant = wider;
         widened = trimmed;
       }
