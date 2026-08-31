@@ -155,7 +155,20 @@ export async function GET(request: NextRequest) {
   if (query && relevant.length < THIN) {
     const trimmed = trimGenericTerms(query);
     if (trimmed !== query) {
-      const wider = rawRows
+      // Re-ask the DATABASE, not just the filter. The RPC receives the full
+      // query, so the rows we want were never in `rawRows` to begin with —
+      // re-filtering what came back cannot recover them. Measured: the exact
+      // query returned 1 row from June, the trimmed one returns 16 including
+      // 30.8 and four from 20.8.
+      const { data: widerData } = await supabase.rpc("search_news", {
+        p_query: trimmed,
+        p_from: from || null,
+        p_to: to || null,
+        p_limit: SCAN_LIMIT,
+        p_offset: 0,
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const wider = ((widerData || []) as any[])
         .filter((r) => matchesAllWords(`${r.title || ""} ${r.summary || ""}`, trimmed))
         .sort((a, b) => {
           const at = matchesAllWords(a.title || "", trimmed) ? 1 : 0;
