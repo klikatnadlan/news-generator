@@ -647,7 +647,7 @@ export async function checkHumanityScore(
 ): Promise<{ score: number; flags: string[]; suggestion: string }> {
   const response = await aiCreate({
     model: MODEL,
-    max_tokens: 1024,
+    max_tokens: 4000,
     messages: [
       {
         role: "user",
@@ -756,7 +756,7 @@ export function sanitizeText(text: string): string {
 export async function factCheck(text: string, _context?: string): Promise<{ passed: boolean; verified?: boolean; issues: string[]; score?: number }> {
   const response = await aiCreate({
     model: MODEL,
-    max_tokens: 1024,
+    max_tokens: 4000,
     messages: [
       {
         role: "user",
@@ -801,7 +801,7 @@ export async function calculateMarketConfidence(newsItems: { title: string; scor
   const list = newsItems.map(n => `- ${n.title} (ציון: ${n.score})`).join("\n");
   const response = await aiCreate({
     model: MODEL,
-    max_tokens: 600,
+    max_tokens: 3000,
     messages: [
       { role: "user", content: `נתח את כותרות הנדל"ן הבאות וחשב מדד אמון שוק 1-100:\n\n${list}\n\nהחזר JSON בלבד, ללא טקסט נוסף, בלי גרשיים בתוך המשפט:\n{ "index": 65, "trend": "עולה/יורד/יציב", "summary": "משפט אחד" }` },
     ],
@@ -827,7 +827,7 @@ export async function checkRepetition(text: string, recentTexts?: string[]): Pro
   const recent = recentTexts.slice(0, 3).map((t, i) => `טקסט ${i + 1}:\n${t.slice(0, 200)}`).join("\n\n");
   const response = await aiCreate({
     model: MODEL,
-    max_tokens: 512,
+    max_tokens: 3000,
     messages: [
       { role: "user", content: `בדוק אם הטקסט הבא חוזר על עצמו ביחס לטקסטים קודמים:\n\nטקסט חדש:\n${text.slice(0, 300)}\n\nטקסטים קודמים:\n${recent}\n\nהחזר JSON:\n{ "isRepetitive": true/false, "similarity": 0-100, "suggestion": "מה לשנות" }` },
     ],

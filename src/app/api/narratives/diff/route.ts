@@ -172,7 +172,17 @@ ${compactList(current, 35) || "(אין כותרות)"}
   try {
     const response = await client.messages.create({
       model: "claude-sonnet-5",
-      max_tokens: 1300,
+      // Same exposure as /api/narratives: a JSON-returning call where adaptive
+      // thinking can consume the whole output budget and return no text at all.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ...({ output_config: { effort: "low" } } as any),
+    // Raised for Sonnet 5: THINKING TOKENS COUNT AGAINST max_tokens.
+    // Measured 2026-08-31 on /api/narratives — stop_reason "max_tokens",
+    // content blocks ["thinking"], output_tokens 1500 of which thinking_tokens
+    // 1500. The model spent the entire budget reasoning and emitted no text at
+    // all, so the feature returned an empty list with HTTP 200. A ceiling costs
+    // nothing unless it is used; starving it costs the whole answer.
+      max_tokens: 5000,
       messages: [{ role: "user", content: prompt }],
     });
     const rawText = firstText(response);

@@ -39,7 +39,7 @@ ${sourceText}`;
 
   let summary = "";
   try {
-    const resp = await client.messages.create({ model: "claude-sonnet-5", max_tokens: 500, messages: [{ role: "user", content: prompt }] });
+    const resp = await client.messages.create({ model: "claude-sonnet-5", max_tokens: 3000, messages: [{ role: "user", content: prompt }] });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     summary = firstText(resp).trim().replace(/\s*—\s*/g, ", ");
   } catch (e) {

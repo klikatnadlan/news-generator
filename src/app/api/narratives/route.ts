@@ -184,12 +184,34 @@ export async function GET(request: NextRequest) {
   // candidate set hard (see slice above) and keep max_tokens lean.
   const response = await client.messages.create({
     model: "claude-sonnet-5",
+    // effort "low" is REQUIRED here, not an optimisation.
+    //
+    // On Sonnet 5 thinking tokens are drawn from max_tokens, and adaptive
+    // thinking expands to fill whatever ceiling it is given. Measured
+    // 2026-08-31 on this exact prompt: at max_tokens 1500 it produced
+    // thinking_tokens 1500 and ZERO text; raising the ceiling to 5000 simply
+    // produced thinking_tokens 4999 and still zero text. The endpoint returned
+    // HTTP 200 with an empty narrative list either way.
+    // Low effort caps the reasoning instead (measured 348 -> 14 thinking
+    // tokens, half the latency) and the JSON comes back.
+    // Spread through a cast: the installed SDK is 0.39.0 (latest is 0.122.x) and
+    // predates `output_config` in its types, while the API accepts it fine —
+    // verified live, 8 narratives returned. Upgrading 83 minor versions is not a
+    // change to make the day before a demo; revisit it after.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ...({ output_config: { effort: "low" } } as any),
     // 1500 tokens. NOTE: do NOT lower this — Hebrew narratives tokenize
     // heavily, and at 1000 the JSON array got truncated mid-output (no closing
     // bracket → parse fails → empty result). Latency is handled by the cache
     // (repeat views are instant) and the candidate cap, not by starving the
     // output budget.
-    max_tokens: 1500,
+    // Raised for Sonnet 5: THINKING TOKENS COUNT AGAINST max_tokens.
+    // Measured 2026-08-31 on /api/narratives — stop_reason "max_tokens",
+    // content blocks ["thinking"], output_tokens 1500 of which thinking_tokens
+    // 1500. The model spent the entire budget reasoning and emitted no text at
+    // all, so the feature returned an empty list with HTTP 200. A ceiling costs
+    // nothing unless it is used; starving it costs the whole answer.
+    max_tokens: 5000,
     messages: [
       {
         role: "user",
@@ -218,6 +240,16 @@ ${headlineList}
 
   let narratives: any[] = [];
   const rawText = firstText(response);
+  // Diagnostic: an empty rawText is not a parse problem, it means the model
+  // returned no text block at all. Log the shape so the cause is visible.
+  if (!rawText) {
+    console.error(
+      "narratives: EMPTY response |",
+      "stop_reason=", (response as unknown as { stop_reason?: string }).stop_reason,
+      "| blocks=", JSON.stringify((response.content || []).map((b) => b.type)),
+      "| usage=", JSON.stringify((response as unknown as { usage?: unknown }).usage)
+    );
+  }
   try {
     const match = rawText.match(/\[[\s\S]*\]/);
     if (match) {

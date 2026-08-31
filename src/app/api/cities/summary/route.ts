@@ -61,7 +61,13 @@ ${list}
   try {
     const resp = await client.messages.create({
       model: "claude-sonnet-5",
-      max_tokens: 1300,
+    // Raised for Sonnet 5: THINKING TOKENS COUNT AGAINST max_tokens.
+    // Measured 2026-08-31 on /api/narratives — stop_reason "max_tokens",
+    // content blocks ["thinking"], output_tokens 1500 of which thinking_tokens
+    // 1500. The model spent the entire budget reasoning and emitted no text at
+    // all, so the feature returned an empty list with HTTP 200. A ceiling costs
+    // nothing unless it is used; starving it costs the whole answer.
+      max_tokens: 4000,
       messages: [{ role: "user", content: prompt }],
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

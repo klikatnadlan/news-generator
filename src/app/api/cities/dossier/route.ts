@@ -114,7 +114,7 @@ ${list}
 
   let report = "";
   try {
-    const resp = await client.messages.create({ model: "claude-sonnet-5", max_tokens: 1500, messages: [{ role: "user", content: prompt }] });
+    const resp = await client.messages.create({ model: "claude-sonnet-5", max_tokens: 5000, messages: [{ role: "user", content: prompt }] });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     report = firstText(resp).trim();
   } catch (e) {
