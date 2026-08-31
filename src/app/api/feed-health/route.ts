@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { checkFeeds } from "@/lib/feed-health";
+import { supabaseKeyKind } from "@/lib/supabase";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
@@ -11,7 +12,10 @@ export const dynamic = "force-dynamic";
  */
 export async function GET() {
   const report = await checkFeeds();
-  return NextResponse.json(report, {
+  // Lets a human confirm which Supabase key production is using, without
+  // opening a dashboard and without ever printing the key.
+  const dbKey = supabaseKeyKind();
+  return NextResponse.json({ ...report, dbKey }, {
     // A dead scorable feed is a real failure — surface it in the status code so
     // a monitor or a curl in a terminal notices without reading the body.
     status: report.ok ? 200 : 503,
