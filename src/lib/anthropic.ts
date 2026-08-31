@@ -639,7 +639,7 @@ export async function generateCommentary(
   if (!jsonMatch) {
     throw new Error("Failed to parse commentary JSON from Claude response");
   }
-  return JSON.parse(jsonMatch[0]);
+  try { return JSON.parse(jsonMatch[0]); } catch { return JSON.parse(repairHebrewQuotes(jsonMatch[0])); }
 }
 
 export async function checkHumanityScore(
@@ -767,7 +767,8 @@ export async function factCheck(text: string, _context?: string): Promise<{ pass
   const rt = firstText(response);
   const m = rt.match(/\{[\s\S]*\}/);
   if (!m) return { passed: true, issues: [] };
-  try { return JSON.parse(m[0]); } catch { return { passed: true, issues: [] }; }
+  try { return JSON.parse(m[0]); } catch { /* gershayim */ }
+  try { return JSON.parse(repairHebrewQuotes(m[0])); } catch { return { passed: true, issues: [] }; }
 }
 
 // ─── Refine text with instruction ───

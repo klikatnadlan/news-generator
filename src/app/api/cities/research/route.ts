@@ -36,7 +36,7 @@ async function getWebResults(cityName: string, topic: string): Promise<WebResult
   // query, news mode with real dates). Without bumping this, every city+topic
   // already in the cache would keep serving the OLD dateless, non-city results
   // for 24h and the fix would look like it did nothing.
-  const cacheKey = `webresearch|v2|${cityName}|${topic}`;
+  const cacheKey = `webresearch|v3|${cityName}|${topic}`;
   try {
     const { data: cached } = await supabase
       .from("narrative_cache")
@@ -61,7 +61,19 @@ async function getWebResults(cityName: string, topic: string): Promise<WebResult
   //   short query, news   → 7/12 mentioned the city,         12/12 dated
   // Some cubes have no news at all (small towns, evergreen topics), so fall back
   // to plain web search rather than showing an empty section.
-  let web = await firecrawlSearchV2(query, { limit: 6, news: true });
+  // News mode is brittle about BOTH quotes and extra words. Measured 2026-08-31:
+  //   "אשקלון" פשיעה אלימות משטרה  -> 0 news results  (falls through to organic:
+  //                                    undated pages like "נתונים כלליים - משטרת ישראל")
+  //   אשקלון פשיעה                 -> 6 news results, dated
+  // So the news attempt uses a BARE city plus the first topic word only. The
+  // quoted, fuller query is still what the organic fallback uses, where quotes
+  // genuinely help precision.
+  const topicHint = (RESEARCH_TOPIC_WEB_QUERY[topic] || topic).split(/\s+/)[0];
+  let web = await firecrawlSearchV2(`${cityName} ${topicHint}`, { limit: 6, news: true });
+  // Second news attempt with the full topic hint, still unquoted.
+  if (web.length === 0) {
+    web = await firecrawlSearchV2(`${cityName} ${RESEARCH_TOPIC_WEB_QUERY[topic] || topic}`, { limit: 6, news: true });
+  }
   if (web.length === 0) web = await firecrawlSearch(query, 6);
   if (web.length) {
     try {

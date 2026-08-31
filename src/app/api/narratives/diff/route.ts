@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { repairHebrewQuotes } from "@/lib/anthropic";
 import { firstText } from "@/lib/anthropic";
 import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "@/lib/supabase";
@@ -177,7 +178,12 @@ ${compactList(current, 35) || "(אין כותרות)"}
     const rawText = firstText(response);
     const match = rawText.match(/\{[\s\S]*\}/);
     if (match) {
-      const parsed = JSON.parse(match[0]);
+      let parsed;
+      try {
+        parsed = JSON.parse(match[0]);
+      } catch {
+        parsed = JSON.parse(repairHebrewQuotes(match[0]));
+      }
       diff = {
         changed: !!parsed.changed,
         summary: parsed.summary || "",

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { repairHebrewQuotes } from "@/lib/anthropic";
 import { firstText } from "@/lib/anthropic";
 import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "@/lib/supabase";
@@ -220,7 +221,15 @@ ${headlineList}
   try {
     const match = rawText.match(/\[[\s\S]*\]/);
     if (match) {
-      narratives = JSON.parse(match[0]);
+      // Hebrew gershayim (נדל"ן, תמ"א) close a JSON string early and kill the
+      // whole parse — the same trap that silently emptied article scoring.
+      // Measured 2026-08-31: this endpoint reported count=45 with an EMPTY
+      // narrative list, i.e. it read 45 items and showed the user nothing.
+      try {
+        narratives = JSON.parse(match[0]);
+      } catch {
+        narratives = JSON.parse(repairHebrewQuotes(match[0]));
+      }
     } else {
       throw new Error("no array match");
     }
