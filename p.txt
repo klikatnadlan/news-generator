@@ -1,3 +1,0 @@
-מה קורה בהתחדשות עירונית בבת ים   33.0s  terms=התחדשות עירונית בת ים    widened=None                   db=52  web=0   tot=52  OK
-מה קרה בשיכון ובינוי החודש?       33.6s  terms=שיכון ובינוי             widened=None                   db=6   web=0   tot=6   OK
-מה חדש במחיר למשתכן?              24.6s  terms=מחיר למשתכן              widened=None                   db=16  web=0   tot=16  OK

@@ -3,6 +3,7 @@ import { getSupabase } from "@/lib/supabase";
 import { matchesAllWords, trimGenericTerms, stripHebrewPrefixes } from "@/lib/hebrew-match";
 import { firecrawlSearch, firecrawlSearchV2, hostLabel, reWebQuery } from "@/lib/websearch";
 import { mapPool } from "@/lib/rss";
+import { isRealEstate, dedupeStories } from "@/lib/classify";
 
 export type AskMode = "what_happened" | "analysis" | "compare";
 
@@ -12,6 +13,21 @@ export interface AskPlan {
   terms: string;
   /** Extra entities for `compare` mode — one extra search per entry. */
   compareWith: string[];
+  /**
+   * Analysis mode only: the question ranks or counts entities WITHOUT naming a
+   * subject to search for ("מי היזמים שהופיעו הכי הרבה").
+   *
+   * This distinction decides the whole retrieval. Measured 2026-09-01 in
+   * production: that question planned `terms = "יזמים"`, which matched 21
+   * articles out of the 11,661 in the window — the ones that happen to use the
+   * literal word. An article about רני צים never says "יזמים", so the answer
+   * correctly reported finding no repeated developer. The sample was an
+   * artifact of the keyword, not a picture of the month.
+   *
+   * A census retrieves the window's HIGHEST-SCORING articles instead and lets
+   * the model count names across them.
+   */
+  census: boolean;
   /** ISO date (YYYY-MM-DD) or null for "no lower bound". */
   from: string | null;
   to: string | null;
@@ -86,8 +102,17 @@ export function planQueryByRules(question: string, today: Date): AskPlan {
     .filter((w) => w.length > 1)
     .join(" ");
 
-  return { mode: "what_happened", terms, compareWith: [], from: daysAgo(today, days), to: null };
+  return { mode: "what_happened", terms, compareWith: [], census: false, from: daysAgo(today, days), to: null };
 }
+
+// Category words that name a CLASS rather than a subject. A question whose
+// remaining terms are only these is asking "who, among everyone" — there is
+// nothing to search for, so searching for the class word itself samples the
+// corpus by vocabulary instead of by substance.
+const CENSUS_WORDS = new Set([
+  "יזמים", "יזם", "יזמיות", "קבלנים", "קבלן", "חברות", "חברה", "שחקנים",
+  "ערים", "עיר", "אזורים", "נושאים", "מגמות", "אנשים", "בנקים", "משקיעים",
+]);
 
 const PLAN_SYSTEM = `אתה ממיר שאלות בעברית למבנה חיפוש. אתה מחזיר JSON בלבד, בלי טקסט לפניו או אחריו ובלי גדרות קוד.`;
 
@@ -97,12 +122,19 @@ function planPrompt(question: string, todayIso: string): string {
 השאלה: "${question}"
 
 החזר בדיוק את המבנה הזה:
-{"mode":"what_happened","terms":"","compareWith":[],"from":"YYYY-MM-DD","to":null}
+{"mode":"what_happened","terms":"","compareWith":[],"census":false,"from":"YYYY-MM-DD","to":null}
 
 כללי mode:
 - "what_happened" — שאלה על מה קרה בנושא, בחברה או בעיר.
 - "analysis" — שאלה שדורשת ספירה או דירוג ("מי הכי", "כמה", "אילו הופיעו").
 - "compare" — שאלה שמשווה שתי ישויות. terms = הראשונה, compareWith = [השנייה].
+
+כלל census (רלוונטי רק ל-analysis):
+- census=true כשהשאלה מדרגת או סופרת ישויות **בלי לנקוב בישות מסוימת** —
+  "מי היזמים שהופיעו הכי הרבה", "אילו ערים בלטו", "מי החברות הפעילות".
+  במקרה כזה terms יכול להישאר ריק, כי אין מה לחפש.
+- census=false כשהספירה נוגעת לנושא ספציფי — "כמה כתבות היו על פינוי בינוי",
+  "כמה פעמים הוזכרה חיפה". אז terms = הנושא.
 
 כללי terms:
 - רק שם הישות או הנושא, כפי שהוא מופיע בכתבות.
@@ -161,7 +193,18 @@ export async function planQuery(question: string, today: Date): Promise<AskPlan>
     const mode: AskMode =
       parsed.mode === "analysis" || parsed.mode === "compare" ? parsed.mode : "what_happened";
     const terms = typeof parsed.terms === "string" ? parsed.terms.trim() : "";
-    if (!terms) {
+
+    // A census legitimately has no terms — there is no subject to search for.
+    // Trust the model's flag, but also catch the case it misses: analysis whose
+    // only remaining words name a class ("יזמים") rather than a subject.
+    const termWords = terms.split(/\s+/).filter(Boolean);
+    const census =
+      mode === "analysis" &&
+      (parsed.census === true ||
+        termWords.length === 0 ||
+        termWords.every((w: string) => CENSUS_WORDS.has(w)));
+
+    if (!terms && !census) {
       console.error("[ask] planner returned no terms → rules fallback");
       return fallback;
     }
@@ -182,6 +225,7 @@ export async function planQuery(question: string, today: Date): Promise<AskPlan>
       compareWith: Array.isArray(parsed.compareWith)
         ? parsed.compareWith.filter((x: unknown) => typeof x === "string" && x.trim()).slice(0, 2)
         : [],
+      census,
       from,
       to: dateOk(parsed.to) ? parsed.to : null,
     };
@@ -383,10 +427,63 @@ async function webTopUp(terms: string, deadline: number): Promise<AskSource[]> {
  * Retrieve the sources a plan asks for. Zero AI tokens — SQL and (only when the
  * corpus is thin) one cached Firecrawl call.
  */
+/** How many of the window's top-scoring articles a census counts across. */
+const CENSUS_LIMIT = 200;
+
+/**
+ * Retrieval for a census question ("מי הופיע הכי הרבה"): the window's
+ * HIGHEST-SCORING articles, not the ones matching a keyword.
+ *
+ * Mirrors /api/news/week — `score >= 30`, ordered desc — because that is
+ * already this app's definition of "the stories that mattered". The
+ * real-estate filter and story dedupe come along for the same reason the home
+ * feed uses them: a ranking built on syndicated duplicates counts one story
+ * three times.
+ */
+async function retrieveCensus(from: string | null): Promise<AskSource[]> {
+  const supabase = getSupabase();
+  let q = supabase
+    .from("news_scores")
+    .select("scan_date, score, news_items(title, summary, source, source_url, published_at, fetched_at)")
+    .gte("score", 30)
+    .order("score", { ascending: false })
+    .limit(CENSUS_LIMIT * 2); // over-fetch: the filters below remove a lot
+  if (from) q = q.gte("scan_date", from);
+
+  const { data, error } = await q;
+  if (error) {
+    console.error("[ask] census query failed:", error.message);
+    return [];
+  }
+
+  const seenTitle = new Set<string>();
+  const out: AskSource[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const row of (data || []) as any[]) {
+    const item = row.news_items;
+    if (!item?.title) continue;
+    if (!isRealEstate(item.title || "", item.summary || "", item.source || "")) continue;
+    const key = String(item.title).slice(0, 80);
+    if (seenTitle.has(key)) continue;
+    seenTitle.add(key);
+    out.push(toSource(item));
+    if (out.length >= CENSUS_LIMIT) break;
+  }
+  return dedupeStories(out);
+}
+
 export async function retrieveForPlan(plan: AskPlan): Promise<AskRetrieval> {
   const deadline = Date.now() + RETRIEVE_BUDGET_MS;
   const limit = SCAN[plan.mode];
   let widenedTo: string | null = null;
+
+  // A census has no subject to search for. Answering it from a keyword match
+  // samples the corpus by vocabulary: "יזמים" hit 21 of the window's 11,661
+  // articles, so the month's actual developers were invisible.
+  if (plan.mode === "analysis" && plan.census) {
+    const sources = await retrieveCensus(plan.from);
+    return { sources, internalCount: sources.length, webCount: 0, widenedTo: null };
+  }
 
   // Analysis counts headlines, so cap its window even if the planner asked for
   // more — 200 rows over a year is a slower query and a mushier answer.
@@ -481,9 +578,16 @@ export function buildAnswerPrompt(question: string, plan: AskPlan, r: AskRetriev
     .join("\n");
 
   const windowLine = plan.from ? `החלון: מ-${plan.from} עד היום.` : "החלון: כל המאגר.";
-  const basisLine =
-    plan.mode === "analysis"
-      ? `\nזו שאלת ספירה. פתח את התשובה במשפט שמצהיר על הבסיס: "על בסיס ${r.sources.length} כותרות${plan.from ? ` מ-${plan.from}` : ""}". אל תציג את הספירה כמדידה מדויקת.`
+  const window = plan.from ? ` מ-${plan.from}` : "";
+  const basisLine = plan.census
+    ? `
+זו שאלת דירוג. קיבלת את ${r.sources.length} הכתבות **המדורגות הגבוה ביותר** בתקופה, לא את כל הכתבות.
+פתח במשפט שמצהיר על הבסיס בדיוק כך: "על בסיס ${r.sources.length} הכתבות הבולטות${window}".
+עבור על הכותרות, זהה שמות של חברות ואנשים, וספור בכמה כותרות שונות כל שם מופיע.
+דרג לפי מספר האזכורים וציין את המספר ליד כל שם. אל תמנה שם שמופיע פעם אחת בלבד כ"בולט".
+זו ספירה מהכותרות ולכן היא קירוב. אמור זאת במשפט אחד בסוף, בלי להתנצל.`
+    : plan.mode === "analysis"
+      ? `\nזו שאלת ספירה. פתח את התשובה במשפט שמצהיר על הבסיס: "על בסיס ${r.sources.length} כותרות${window}". אל תציג את הספירה כמדידה מדויקת.`
       : "";
   const webLine = r.webCount
     ? `\n${r.internalCount} מהמקורות הם מהמאגר שלנו ו-${r.webCount} מחיפוש חי ברשת. אם המאגר שלנו דל בנושא, אמור זאת במשפט אחד.`
