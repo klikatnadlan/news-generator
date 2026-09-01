@@ -67,8 +67,17 @@ describe("stripHebrewPrefixes", () => {
     expect(matchesAllWords("התחדשות עירונית בחיפה", "תחדשות עירונית")).toBe(true);
   });
 
-  it("leaves short words whole — they are words, not prefixed roots", () => {
-    expect(stripHebrewPrefixes("בית של")).toBe("בית של");
+  it("strips a prefixed city name made of short words", () => {
+    // Measured in production 2026-09-01: the planner returned "בבת ים" and the
+    // query found 1 row; the clean form finds 52.
+    expect(stripHebrewPrefixes("התחדשות עירונית בבת ים")).toBe("תחדשות עירונית בת ים");
+  });
+
+  it("refuses to strip the query down to nothing the gate can check", () => {
+    // "בית" alone would become "ית" — two characters, which matchesAllWords
+    // skips — leaving the gate with nothing and every article "relevant".
+    expect(stripHebrewPrefixes("בית")).toBe("בית");
+    expect(matchesAllWords("כל טקסט אקראי", stripHebrewPrefixes("בית"))).toBe(false);
   });
 
   it("leaves words that do not start with a prefix letter alone", () => {

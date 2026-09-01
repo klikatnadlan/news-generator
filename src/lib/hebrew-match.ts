@@ -72,18 +72,27 @@ const PREFIX_LETTERS = "הובכלמשד";
  * on an already-thin result, and always re-gate on the stripped terms so the
  * optional-prefix rule in `hebWordRe` accepts both forms.
  *
- * The 4-character floor is load-bearing, not arbitrary: `matchesAllWords` SKIPS
- * words of 2 characters or fewer, so stripping a 3-letter word down to 2 would
- * silently remove it from the gate and let unrelated articles through. Four in
- * means three out, which is still gated. It also keeps "בית" and "של" whole.
- * (Measured 2026-09-01: a floor of 5 left "ברני צים" un-stripped and the query
- * returned 0 internal rows for a company we cover.)
+ * Two guards, both measured rather than guessed:
+ *
+ * - A 3-character floor. A floor of 5 left "ברני צים" whole and the query found
+ *   0 rows for a company we cover; a floor of 4 left "בבת ים" whole and
+ *   "התחדשות עירונית בבת ים" returned 1 row where the clean form returns 52.
+ *   Hebrew city names are full of short words, so the floor has to be low.
+ * - Never strip the query down to nothing GATEABLE. `matchesAllWords` skips
+ *   words of 2 characters or fewer, so a lone "בית" reduced to "ית" would leave
+ *   the gate with nothing to check and let every article through. When that
+ *   would happen, the original is returned untouched — in "התחדשות עירונית בבת
+ *   ים" the strong words survive, so "בבת" may safely become "בת".
  */
+const gateable = (s: string) => s.split(/\s+/).some((w) => w.length > 2);
+
 export function stripHebrewPrefixes(q: string): string {
-  return q
+  const stripped = q
     .split(/\s+/)
-    .map((w) => (w.length >= 4 && PREFIX_LETTERS.includes(w[0]) ? w.slice(1) : w))
+    .map((w) => (w.length >= 3 && PREFIX_LETTERS.includes(w[0]) ? w.slice(1) : w))
     .join(" ");
+  if (gateable(q) && !gateable(stripped)) return q;
+  return stripped;
 }
 
 export function trimGenericTerms(q: string): string {
