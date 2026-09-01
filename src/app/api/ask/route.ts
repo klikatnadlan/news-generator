@@ -68,8 +68,7 @@ export async function GET(request: NextRequest) {
               controller.enqueue(sse(encoder, "status", { phase: "found", text: `${n} מקורות (מהזיכרון)`, count: n }));
               controller.enqueue(sse(encoder, null, { text: c.answer }));
               controller.enqueue(sse(encoder, "done", { ...c, cached: true }));
-              controller.close();
-              return;
+              return; // `finally` closes — see the note there.
             }
           } catch { /* cache miss → answer fresh */ }
         }
@@ -80,7 +79,6 @@ export async function GET(request: NextRequest) {
           controller.enqueue(sse(encoder, "error", {
             error: `נגמרה מכסת השאלות להיום (${quota.cap}). שאלות שכבר נשאלו עדיין עונות מיד.`,
           }));
-          controller.close();
           return;
         }
 
@@ -98,7 +96,6 @@ export async function GET(request: NextRequest) {
             text: `לא מצאתי כתבות על "${question}" — לא במאגר שלנו ולא בחיפוש חי. נסה לנסח אחרת, או לשאול על שם חברה, פרויקט או עיר.`,
           }));
           controller.enqueue(sse(encoder, "done", { sources: [], mode: plan.mode, basis: "", cached: false }));
-          controller.close();
           return;
         }
 
@@ -159,6 +156,11 @@ export async function GET(request: NextRequest) {
           error: err instanceof Error ? err.message : "שגיאה לא צפויה",
         }));
       } finally {
+        // The ONLY close in this function. Every early return above (cache hit,
+        // quota exhausted, no sources) lands here, and closing an already-closed
+        // controller throws — which is how the cache path answered 500 while
+        // every probe passed: the probes all used &refresh=1 and never took it.
+        // That is the path a demo uses, since the chips are pre-warmed.
         controller.close();
       }
     },
