@@ -128,6 +128,12 @@ export async function GET(request: NextRequest) {
           basis: `${r.sources.length} כתבות${plan.from ? ` · מ-${plan.from}` : ""}`,
           widenedTo: r.widenedTo,
           webCount: r.webCount,
+          internalCount: r.internalCount,
+          // What we ACTUALLY searched for, surfaced rather than hidden. The
+          // planner rewrites the question, so without this a thin answer is
+          // indistinguishable from thin coverage — which is exactly how the
+          // first live probe looked before this was added.
+          searched: { terms: plan.terms, from: plan.from, to: plan.to, mode: plan.mode },
         };
 
         // Persist only a real answer — caching an empty string would serve the

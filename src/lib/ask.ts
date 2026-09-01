@@ -1,6 +1,6 @@
 import { aiCreate, firstText, repairHebrewQuotes } from "@/lib/anthropic";
 import { getSupabase } from "@/lib/supabase";
-import { matchesAllWords, trimGenericTerms } from "@/lib/hebrew-match";
+import { matchesAllWords, trimGenericTerms, stripHebrewPrefixes } from "@/lib/hebrew-match";
 import { firecrawlSearch, firecrawlSearchV2, hostLabel, reWebQuery } from "@/lib/websearch";
 import { mapPool } from "@/lib/rss";
 
@@ -55,13 +55,27 @@ const TIME_WORDS = new Set([
  * fails, and on its own it is good enough for the common "מה קרה ב־X" shape.
  * Pure and synchronous, so it is the part that carries the tests.
  */
+/**
+ * Days implied by an explicit time phrase, or null when the question has none.
+ *
+ * Separate from `planQueryByRules` because the model planner is NOT trusted with
+ * dates: measured 2026-09-01, Haiku answered `from = today-90` for every one of
+ * four probe questions, including "מה קרה בשיכון ובינוי החודש?". The answer then
+ * opened with "בחודש האחרון" and cited events from June — a real accuracy fault
+ * in a tool people quote. Rules are deterministic and tested; they win on dates.
+ */
+export function timePhraseDays(question: string): number | null {
+  const q = (question || "").trim();
+  for (const [re, d] of TIME_PHRASES) {
+    if (re.test(q)) return d;
+  }
+  return null;
+}
+
 export function planQueryByRules(question: string, today: Date): AskPlan {
   const q = (question || "").trim();
 
-  let days = 90;
-  for (const [re, d] of TIME_PHRASES) {
-    if (re.test(q)) { days = d; break; }
-  }
+  const days = timePhraseDays(q) ?? 90;
 
   const terms = q
     .replace(/[?!.,;:()[\]]/g, " ")
@@ -116,12 +130,17 @@ function stripFences(s: string): string {
 export async function planQuery(question: string, today: Date): Promise<AskPlan> {
   const fallback = planQueryByRules(question, today);
   try {
+    // NO `output_config: { effort }` here. Haiku 4.5 rejects it outright:
+    //   400 invalid_request_error "This model does not support the effort parameter"
+    // The effort knob exists for the Sonnet-5 generation, whose ADAPTIVE thinking
+    // expands to fill max_tokens and returns an empty string. Haiku 4.5 has no
+    // adaptive thinking, so there is no budget to starve and nothing to cap.
+    // Measured 2026-09-01: with the parameter, every planner call 400'd and
+    // silently fell back to rules — which is how "בשיכון" reached the RPC.
     const resp = await aiCreate({
       model: "claude-haiku-4-5",
       max_tokens: 400,
       system: PLAN_SYSTEM,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ...({ output_config: { effort: "low" } } as any),
       messages: [{ role: "user", content: planPrompt(question, iso(today)) }],
     });
 
@@ -145,13 +164,21 @@ export async function planQuery(question: string, today: Date): Promise<AskPlan>
 
     const dateOk = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
+    // The model gets terms and mode. It does NOT get the date when the question
+    // states one: an explicit "החודש" is unambiguous, the rules resolve it
+    // exactly, and trusting the model here produced a 90-day window for every
+    // question — see timePhraseDays().
+    const from = timePhraseDays(question) !== null
+      ? fallback.from
+      : dateOk(parsed.from) ? parsed.from : fallback.from;
+
     return {
       mode,
       terms,
       compareWith: Array.isArray(parsed.compareWith)
         ? parsed.compareWith.filter((x: unknown) => typeof x === "string" && x.trim()).slice(0, 2)
         : [],
-      from: dateOk(parsed.from) ? parsed.from : fallback.from,
+      from,
       to: dateOk(parsed.to) ? parsed.to : null,
     };
   } catch (e) {
@@ -211,6 +238,21 @@ function detectSourceFromUrl(url: string): string | null {
 }
 
 const stripTags = (s: string) => (s || "").replace(/<[^>]*>/g, "").trim();
+
+/**
+ * Dates arrive in two shapes and only one of them is sliceable.
+ *
+ * DB rows carry ISO timestamps. Firecrawl news results carry RELATIVE strings
+ * ("17 hours ago", "3 weeks ago"), and slicing those to 10 chars silently
+ * produced "17 hours a" / "3 weeks ag" in the source list — measured on the
+ * first live probe.
+ */
+const normDate = (v: unknown): string | null => {
+  if (typeof v !== "string") return null;
+  const s = v.trim();
+  if (!s) return null;
+  return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : s;
+};
 const urlKey = (u: string) => String(u || "").toLowerCase().replace(/[#?].*$/, "").replace(/\/$/, "");
 
 /** One `search_news` call + the Hebrew gate. Returns rows, title-hits first. */
@@ -255,14 +297,29 @@ function toSource(r: any): AskSource {
     title: stripTags(r.title),
     source: detectSourceFromUrl(r.source_url) || r.source || "",
     url: r.source_url || "",
-    date: dateIso ? dateIso.slice(0, 10) : null,
+    date: normDate(dateIso),
     web: false,
   };
 }
 
+/**
+ * How long retrieval may spend before the answer must start streaming.
+ *
+ * Vercel's ceiling for this plan is 60s for the WHOLE request, and the answer
+ * itself streams for 15-25s. Measured 2026-09-01: a question with no internal
+ * coverage ("מה קרה בעיריית מצפה רמון") walked the full Firecrawl chain — news,
+ * trimmed news, then organic — and the request took 61.9s. On Vercel that is a
+ * truncated answer in front of a client, not a slow one.
+ *
+ * So the chain is a BUDGET, not a sequence: each further web attempt only runs
+ * if there is time left for it. Fewer web sources beats a severed stream.
+ */
+const RETRIEVE_BUDGET_MS = 20_000;
+
 /** Web top-up, cached 24h per query. Mirrors the archive: news mode, then a
- *  trimmed retry, then plain organic. */
-async function webTopUp(terms: string): Promise<AskSource[]> {
+ *  trimmed retry, then plain organic — each gated on the remaining budget. */
+async function webTopUp(terms: string, deadline: number): Promise<AskSource[]> {
+  const timeLeft = () => deadline - Date.now();
   const supabase = getSupabase();
   const cacheKey = `websearch|ask|v1|${terms.slice(0, 120)}`;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -284,12 +341,21 @@ async function webTopUp(terms: string): Promise<AskSource[]> {
     // News mode returns dated, recent coverage; organic answers a company name
     // with its homepage and Wikipedia. But news mode is brittle about extra
     // words, so one trimmed retry before falling back to organic.
-    web = await firecrawlSearchV2(terms, { limit: 8, news: true });
-    if (web.length === 0) {
+    // Each attempt needs roughly 8s of headroom; without the guard the three of
+    // them together pushed a single request to 61.9s against a 60s ceiling.
+    if (timeLeft() > 8_000) {
+      web = await firecrawlSearchV2(terms, { limit: 8, news: true });
+    }
+    if (web.length === 0 && timeLeft() > 8_000) {
       const trimmed = trimGenericTerms(terms);
       if (trimmed !== terms) web = await firecrawlSearchV2(trimmed, { limit: 8, news: true });
     }
-    if (web.length === 0) web = await firecrawlSearch(reWebQuery(terms), 8);
+    if (web.length === 0 && timeLeft() > 8_000) {
+      web = await firecrawlSearch(reWebQuery(terms), 8);
+    }
+    if (web.length === 0) {
+      console.error(`[ask] web fallback produced nothing for "${terms}" (${Math.round(timeLeft() / 1000)}s of budget left)`);
+    }
     if (web.length) {
       try {
         await supabase.from("narrative_cache").upsert(
@@ -304,7 +370,7 @@ async function webTopUp(terms: string): Promise<AskSource[]> {
     title: stripTags(String(w.title || "")),
     source: detectSourceFromUrl(String(w.url)) || hostLabel(String(w.url)),
     url: String(w.url || ""),
-    date: typeof w.date === "string" && w.date ? w.date.slice(0, 10) : null,
+    date: normDate(w.date),
     web: true,
   }));
 }
@@ -314,6 +380,7 @@ async function webTopUp(terms: string): Promise<AskSource[]> {
  * corpus is thin) one cached Firecrawl call.
  */
 export async function retrieveForPlan(plan: AskPlan): Promise<AskRetrieval> {
+  const deadline = Date.now() + RETRIEVE_BUDGET_MS;
   const limit = SCAN[plan.mode];
   let widenedTo: string | null = null;
 
@@ -351,6 +418,23 @@ export async function retrieveForPlan(plan: AskPlan): Promise<AskRetrieval> {
     }
   }
 
+  // Last resort: drop attached Hebrew prefixes. The RPC matches substrings, so
+  // "בשיכון" finds nothing while "שיכון" finds the coverage — and when the model
+  // planner is unavailable the rules fallback DOES emit prefixed terms (it takes
+  // the question's words as typed). Without this the feature degrades to "our
+  // corpus is empty" the moment the planner has a bad day, which is precisely
+  // what the first live probe looked like.
+  if (rows.length < 5 && queries.length === 1) {
+    const stripped = stripHebrewPrefixes(plan.terms);
+    if (stripped !== plan.terms) {
+      const wider = await searchGated(stripped, from, plan.to, limit);
+      if (wider.length >= Math.max(rows.length * 2, THIN)) {
+        rows = wider;
+        widenedTo = stripped;
+      }
+    }
+  }
+
   // Dedupe by URL, then by title — the same story syndicated to two outlets
   // would otherwise be counted twice in an analysis answer.
   const seenUrl = new Set<string>();
@@ -369,7 +453,7 @@ export async function retrieveForPlan(plan: AskPlan): Promise<AskRetrieval> {
   const internalCount = sources.length;
   let webCount = 0;
   if (internalCount < THIN) {
-    const web = await webTopUp(plan.terms);
+    const web = await webTopUp(plan.terms, deadline);
     for (const w of web) {
       const uk = urlKey(w.url);
       if (!w.title || !uk || seenUrl.has(uk)) continue;

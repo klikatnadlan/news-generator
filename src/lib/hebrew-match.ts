@@ -54,6 +54,38 @@ export const GENERIC_RE_TERMS = new Set([
   'נדל"ן', "נדל”ן", "נדלן", "דירות", "דירה", "פרויקט", "פרויקטים", "נכס", "נכסים",
 ]);
 
+// Letters that attach to the front of a Hebrew word (ה/ו/ב/כ/ל/מ/ש/ד).
+const PREFIX_LETTERS = "הובכלמשד";
+
+/**
+ * Drop one attached prefix letter per word.
+ *
+ * Why this exists: `search_news` matches SUBSTRINGS, so a query carrying a
+ * prefix finds almost nothing — no article contains the literal "בשיכון", and
+ * `בשיכון ובינוי` returned 1 row where `שיכון ובינוי` returns 6 in the same
+ * window (measured 2026-09-01). The gate in this file already tolerates a
+ * prefix when FILTERING; the RPC cannot when RETRIEVING.
+ *
+ * The stripped form is a strict superset for retrieval ("שיכון" ⊂ "בשיכון"), so
+ * this never loses a row. It can add noise — "מחירים" strips to "חירים",
+ * "בנייה" to "נייה" — which is why callers use it only as a LAST-RESORT retry
+ * on an already-thin result, and always re-gate on the stripped terms so the
+ * optional-prefix rule in `hebWordRe` accepts both forms.
+ *
+ * The 4-character floor is load-bearing, not arbitrary: `matchesAllWords` SKIPS
+ * words of 2 characters or fewer, so stripping a 3-letter word down to 2 would
+ * silently remove it from the gate and let unrelated articles through. Four in
+ * means three out, which is still gated. It also keeps "בית" and "של" whole.
+ * (Measured 2026-09-01: a floor of 5 left "ברני צים" un-stripped and the query
+ * returned 0 internal rows for a company we cover.)
+ */
+export function stripHebrewPrefixes(q: string): string {
+  return q
+    .split(/\s+/)
+    .map((w) => (w.length >= 4 && PREFIX_LETTERS.includes(w[0]) ? w.slice(1) : w))
+    .join(" ");
+}
+
 export function trimGenericTerms(q: string): string {
   const parts = q.trim().split(/\s+/);
   const kept = parts.filter((w) => !GENERIC_RE_TERMS.has(w));
