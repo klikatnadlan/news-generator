@@ -16,6 +16,7 @@ const LINKS = [
   { href: "/", label: "ראשי", emoji: "🏠" },
   { href: "/headlines", label: "כותרות", emoji: "🗞️" },
   { href: "/alerts", label: "תודעת השוק", emoji: "🧠" },
+  { href: "/ask", label: "שאל את לידרפיד", emoji: "💬" },
   { href: "/cities", label: "ערים", emoji: "🏙️" },
   { href: "/galil", label: "פורטל הגליל", emoji: "🌲" },
   { href: "/dashboard", label: "מדד אמון הציבור", emoji: "📊" },

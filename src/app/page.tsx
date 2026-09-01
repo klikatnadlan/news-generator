@@ -497,6 +497,20 @@ export default function HomePage() {
 
       <SiteNav />
 
+      {/* Entry point to the ask box. Slim by design — it sits above the hero, so
+          anything taller than the nav itself would push the hero down. */}
+      <div className="max-w-3xl mx-auto px-4 pt-3">
+        <Link href="/ask"
+          className="flex items-center gap-2 rounded-xl px-3 py-2 transition-colors hover:border-red-300"
+          style={{ background: "#fff", border: "1px solid #e5e7eb" }}>
+          <span className="text-[14px]">💬</span>
+          <span className="text-[12.5px] font-semibold" style={{ color: "#0f1419" }}>שאל את לידרפיד</span>
+          <span className="text-[10.5px] truncate" style={{ color: "#9ca3af" }}>
+            שאלה בעברית, תשובה עם מקורות
+          </span>
+        </Link>
+      </div>
+
       {showHero && phase === "select" && (
         <section className="lf-hero">
           <div className="lf-hero-grid" />

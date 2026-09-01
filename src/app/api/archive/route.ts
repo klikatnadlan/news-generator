@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { firecrawlSearch, firecrawlSearchV2, hostLabel, reWebQuery } from "@/lib/websearch";
+// The Hebrew word-boundary gate moved to lib — the ask layer needs the same one,
+// and a second copy would drift back into the "צים" ⊂ "מציצים" bug.
+import { matchesAllWords, trimGenericTerms } from "@/lib/hebrew-match";
 
 // Below this many internal hits a query is "thin" → top it up from the web.
 const THIN = 3;
@@ -30,52 +33,6 @@ function detectSourceFromUrl(url: string): string | null {
   return null;
 }
 
-
-
-// Generic real-estate words that add nothing once the query names a specific
-// company, project or street — and that are enough to empty a news search.
-// Only ever applied as a RETRY, never to the user's first attempt.
-const GENERIC_RE_TERMS = new Set([
-  'נדל"ן', "נדל”ן", "נדלן", "דירות", "דירה", "פרויקט", "פרויקטים", "נכס", "נכסים",
-]);
-function trimGenericTerms(q: string): string {
-  const parts = q.trim().split(/\s+/);
-  const kept = parts.filter((w) => !GENERIC_RE_TERMS.has(w));
-  // Never trim down to almost nothing — a 1-word query is a different search.
-  return kept.length >= 2 && kept.length < parts.length ? kept.join(" ") : q;
-}
-
-// ─── Hebrew word-boundary relevance gate ───────────────────────────────────
-//
-// The `search_news` RPC matches SUBSTRINGS, and in Hebrew that is catastrophic
-// because "-ים" pluralises almost everything. Measured 2026-08-25 on the live
-// corpus:
-//   "צים"          → 1,277 hits — מציצים, מתרחצים, לוחצים …
-//   "רני"          →   715 hits — ציפורניים
-//   "פינוי בינוי"  →   372 hits — "פינוי חוף מציצים", "פינוי המוני" (שריפות
-//                                  בנבאדה), "הודעת פינוי לעזתים"
-//   "רני צים"      → trade-war news, a dental ad, and sea turtles
-// This is the same trap that once emptied the home feed ("ירי" ⊂ "מחירים") and
-// was fixed in classify.ts — the archive search never got the same treatment.
-//
-// The gate: EVERY query word must appear at a Hebrew word boundary, allowing a
-// single attached prefix letter (ה/ו/ב/כ/ל/מ/ש/ד) so "אשקלון" still matches
-// "באשקלון", but never letting a token continue into more root letters.
-// Short words (1-2 chars) are skipped — they are prepositions, not signal.
-const HEB = "א-ת";
-function hebWordRe(word: string): RegExp {
-  // Strip anything that is not a letter or a digit instead of escaping regex
-  // metacharacters: the query is user text, and a stray "(" or "*" would other-
-  // wise build an invalid pattern and throw mid-request.
-  const safe = word.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
-  return new RegExp(`(?:^|[^${HEB}])[הובכלמשד]?${safe}(?![${HEB}])`, "u");
-}
-function matchesAllWords(text: string, q: string): boolean {
-  const words = q.toLowerCase().split(/[\s,"'׳״]+/).filter((w) => w.length > 2);
-  if (words.length === 0) return true; // nothing meaningful to test → keep
-  const t = text.toLowerCase();
-  return words.every((w) => hebWordRe(w).test(t));
-}
 
 // Sized like the other Firecrawl-touching routes (research is 45s). A cold
 // web fallback measured 31.9s before its 24h cache warmed; without this the
