@@ -566,11 +566,23 @@ export default function HeadlinesPage() {
               {arrangedNews.length === 0 && (
                 <div className="text-center py-12" style={{ color: "#9ca3af" }}>
                   <p className="text-[13px]">
+                    {/* Three branches, not two. "הכל" is not an ISO date, so the
+                        old two-branch version formatted it as one and rendered
+                        "ליום undefined (Invalid Date)". The header above always
+                        had this case; the empty state never did. */}
                     אין כותרות {tab} {selectedDay === "היום"
                       ? "להיום"
-                      : `ליום ${getHebrewDay(selectedDay)} (${new Date(selectedDay + "T12:00:00").toLocaleDateString("he-IL", { day: "numeric", month: "numeric" })})`}
+                      : selectedDay === "הכל"
+                        ? "ב-7 הימים האחרונים"
+                        : `ליום ${getHebrewDay(selectedDay)} (${new Date(selectedDay + "T12:00:00").toLocaleDateString("he-IL", { day: "numeric", month: "numeric" })})`}
                   </p>
-                  <button className="text-[12px] mt-2 underline" style={{ color: tabConfig.color }} onClick={() => setSelectedDay("הכל")}>הצג את הכל</button>
+                  {/* On "הכל" this button set the day that was already selected,
+                      so the only thing on a dead-end screen did nothing. */}
+                  {selectedDay === "הכל" ? (
+                    <a href="/archive" className="text-[12px] mt-2 underline inline-block" style={{ color: tabConfig.color }}>חפש בכל הארכיון</a>
+                  ) : (
+                    <button className="text-[12px] mt-2 underline" style={{ color: tabConfig.color }} onClick={() => setSelectedDay("הכל")}>הצג את הכל</button>
+                  )}
                 </div>
               )}
             </div>

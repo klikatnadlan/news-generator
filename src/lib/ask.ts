@@ -91,7 +91,13 @@ export function timePhraseDays(question: string): number | null {
 export function planQueryByRules(question: string, today: Date): AskPlan {
   const q = (question || "").trim();
 
-  const days = timePhraseDays(q) ?? 90;
+  // No time phrase means NO LOWER BOUND — search the whole archive.
+  //
+  // This used to default to 90 days, which quietly made LeaderFeed a
+  // three-month tool. The archive is the point: a question with no stated
+  // period should reach everything we hold, the way a search engine does.
+  // All-time queries measured 1.8-4.0s after the 2026-09-01 indexes.
+  const days = timePhraseDays(q);
 
   const terms = q
     .replace(/[?!.,;:()[\]]/g, " ")
@@ -102,7 +108,14 @@ export function planQueryByRules(question: string, today: Date): AskPlan {
     .filter((w) => w.length > 1)
     .join(" ");
 
-  return { mode: "what_happened", terms, compareWith: [], census: false, from: daysAgo(today, days), to: null };
+  return {
+    mode: "what_happened",
+    terms,
+    compareWith: [],
+    census: false,
+    from: days === null ? null : daysAgo(today, days),
+    to: null,
+  };
 }
 
 // Category words that name a CLASS rather than a subject. A question whose
@@ -146,8 +159,9 @@ function planPrompt(question: string, todayIso: string): string {
   "מה קורה בהתחדשות עירונית בבת ים" → terms = "התחדשות עירונית בת ים"
 
 כללי תאריך:
-- ביטוי זמן בשאלה → תרגם אותו ל-from.
-- אין ביטוי זמן → from = 90 יום לפני היום.
+- ביטוי זמן בשאלה ("החודש", "השבוע", "השנה") → תרגם אותו ל-from.
+- שנה מפורשת בשאלה ("ב-2016") → from = תחילת אותה שנה, to = סופה, **והשאר את השנה גם בתוך terms**. היא חלק ממה שמחפשים, לא רק פילטר.
+- **אין ביטוי זמן → from = null.** חיפוש בכל הארכיון, בלי גבול תחתון. אל תמציא חלון.
 - to = null אלא אם השאלה מגבילה במפורש עד תאריך.`;
 }
 
@@ -211,13 +225,19 @@ export async function planQuery(question: string, today: Date): Promise<AskPlan>
 
     const dateOk = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
-    // The model gets terms and mode. It does NOT get the date when the question
-    // states one: an explicit "החודש" is unambiguous, the rules resolve it
-    // exactly, and trusting the model here produced a 90-day window for every
-    // question — see timePhraseDays().
-    const from = timePhraseDays(question) !== null
+    // Date resolution, in priority order:
+    //  1. An explicit time phrase ("החודש") — the rules resolve it exactly, and
+    //     trusting the model here produced a 90-day window for EVERY question.
+    //  2. An explicit year ("ב-2016") — the model's from/to are right for that.
+    //  3. Neither — NO lower bound. The model likes to invent a window, and an
+    //     invented window silently turns the whole archive into three months.
+    const hasPhrase = timePhraseDays(question) !== null;
+    const hasYear = explicitYear(question) !== null;
+    const from = hasPhrase
       ? fallback.from
-      : dateOk(parsed.from) ? parsed.from : fallback.from;
+      : hasYear && dateOk(parsed.from)
+        ? parsed.from
+        : null;
 
     return {
       mode,
@@ -227,7 +247,7 @@ export async function planQuery(question: string, today: Date): Promise<AskPlan>
         : [],
       census,
       from,
-      to: dateOk(parsed.to) ? parsed.to : null,
+      to: hasYear && dateOk(parsed.to) ? parsed.to : null,
     };
   } catch (e) {
     console.error("[ask] planner failed → rules fallback:", e instanceof Error ? e.message : e);
@@ -251,6 +271,9 @@ export interface AskRetrieval {
   webCount: number;
   /** Set when the exact terms were too narrow and we dropped generic filler. */
   widenedTo: string | null;
+  /** Set when the question asked about a period older than the corpus, so the
+   *  answer came from the live web instead. Drives the honesty note. */
+  historical?: { year: string | null; corpusStart: string; webQuery: string };
 }
 
 // Per-mode scan budgets. Every number here is measured, not guessed:
@@ -364,6 +387,25 @@ function toSource(r: any): AskSource {
  */
 const RETRIEVE_BUDGET_MS = 20_000;
 
+/**
+ * The oldest article this corpus holds. Measured 2026-09-01 by browsing the
+ * archive by date with no query: 2015-2019 → 0 rows, 2020-2023 → 0, 2024-2025 →
+ * 0, Jan-Apr 2026 → 5,075, May 2026 onward → 34,694. The RSS scan only ever
+ * collected forward from when it was switched on.
+ *
+ * This is why "why can Google find it and we can't" has a real answer: Google
+ * crawled the web since 2015, our archive started this year. What closes the
+ * gap is the live web search below — as long as the QUESTION'S YEAR survives
+ * long enough to reach it.
+ */
+export const CORPUS_START = "2026-01-01";
+
+/** An explicit year named in the question ("מה קרה במחיר למשתכן ב-2016"). */
+export function explicitYear(question: string): string | null {
+  const m = /(?:^|[^\d])((?:19|20)\d{2})(?![\d])/.exec(question || "");
+  return m ? m[1] : null;
+}
+
 /** Web top-up, cached 24h per query. Mirrors the archive: news mode, then a
  *  trimmed retry, then plain organic — each gated on the remaining budget. */
 async function webTopUp(terms: string, deadline: number): Promise<AskSource[]> {
@@ -472,10 +514,38 @@ async function retrieveCensus(from: string | null): Promise<AskSource[]> {
   return dedupeStories(out);
 }
 
-export async function retrieveForPlan(plan: AskPlan): Promise<AskRetrieval> {
+export async function retrieveForPlan(plan: AskPlan, question = ""): Promise<AskRetrieval> {
   const deadline = Date.now() + RETRIEVE_BUDGET_MS;
   const limit = SCAN[plan.mode];
   let widenedTo: string | null = null;
+
+  // ─── Historical question: the archive cannot help, so go straight to the web ───
+  //
+  // Measured 2026-09-01: "מה קרה במחיר למשתכן ב-2016" planned terms="משתכן" and
+  // from="2016-01-01". The year became a DATE FILTER on a corpus that starts in
+  // 2026 (so: zero rows), and was STRIPPED from the search terms — so the web
+  // search that ran to rescue it searched for "משתכן" with no year and returned
+  // eight articles from 2026. The answer then correctly reported that none of
+  // its sources were about 2016.
+  //
+  // Google finds 2016 because the year is part of what you type. Here the year
+  // has to survive into the web query, and the corpus lookup has to be skipped
+  // rather than searched and found empty.
+  const year = explicitYear(question);
+  const asksBeforeCorpus = (year !== null && `${year}-12-31` < CORPUS_START)
+    || (!!plan.from && plan.from < CORPUS_START);
+
+  if (asksBeforeCorpus) {
+    const webQuery = [plan.terms, year].filter(Boolean).join(" ").trim();
+    const web = await webTopUp(webQuery || plan.terms, deadline);
+    return {
+      sources: web,
+      internalCount: 0,
+      webCount: web.length,
+      widenedTo: null,
+      historical: { year, corpusStart: CORPUS_START, webQuery },
+    };
+  }
 
   // A census has no subject to search for. Answering it from a keyword match
   // samples the corpus by vocabulary: "יזמים" hit 21 of the window's 11,661
@@ -485,12 +555,13 @@ export async function retrieveForPlan(plan: AskPlan): Promise<AskRetrieval> {
     return { sources, internalCount: sources.length, webCount: 0, widenedTo: null };
   }
 
-  // Analysis counts headlines, so cap its window even if the planner asked for
-  // more — 200 rows over a year is a slower query and a mushier answer.
+  // A census ranks "who stood out lately", so it stays bounded — spreading 200
+  // top headlines across the whole archive answers a different question. Every
+  // other mode now searches as far back as the archive goes.
   let from = plan.from;
-  if (plan.mode === "analysis" && from) {
+  if (plan.mode === "analysis" && plan.census) {
     const floor = daysAgo(new Date(), ANALYSIS_MAX_DAYS);
-    if (from < floor) from = floor;
+    if (!from || from < floor) from = floor;
   }
 
   const queries = [plan.terms, ...(plan.mode === "compare" ? plan.compareWith : [])].filter(Boolean);
@@ -589,9 +660,14 @@ export function buildAnswerPrompt(question: string, plan: AskPlan, r: AskRetriev
     : plan.mode === "analysis"
       ? `\nזו שאלת ספירה. פתח את התשובה במשפט שמצהיר על הבסיס: "על בסיס ${r.sources.length} כותרות${window}". אל תציג את הספירה כמדידה מדויקת.`
       : "";
-  const webLine = r.webCount
-    ? `\n${r.internalCount} מהמקורות הם מהמאגר שלנו ו-${r.webCount} מחיפוש חי ברשת. אם המאגר שלנו דל בנושא, אמור זאת במשפט אחד.`
-    : "";
+  const webLine = r.historical
+    ? `
+השאלה נוגעת לתקופה שקודמת לארכיון שלנו (הארכיון מתחיל ב-${r.historical.corpusStart}), ולכן כל ${r.sources.length} המקורות מגיעים מחיפוש חי ברשת.
+**בדוק את התאריך של כל מקור לפני שאתה מסתמך עליו.** אם המקורות אינם מהתקופה שנשאלה, אמור זאת במשפט הראשון בבירור, ואל תציג מידע מתקופה אחרת כאילו הוא עונה על השאלה.
+אם חלק מהמקורות כן עוסקים בתקופה שנשאלה, בנה עליהם את התשובה וציין שהיא מבוססת על מקורות מהרשת ולא על הארכיון שלנו.`
+    : r.webCount
+      ? `\n${r.internalCount} מהמקורות הם מהמאגר שלנו ו-${r.webCount} מחיפוש חי ברשת. אם המאגר שלנו דל בנושא, אמור זאת במשפט אחד.`
+      : "";
 
   return `אתה אנליסט נדל"ן שעונה על שאלה מתוך מאגר כתבות. ${windowLine}
 

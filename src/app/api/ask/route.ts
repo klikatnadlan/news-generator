@@ -88,7 +88,10 @@ export async function GET(request: NextRequest) {
 
         // ─── 2. Retrieve ───
         controller.enqueue(sse(encoder, "status", { phase: "searching", text: "מחפש במאגר…" }));
-        const r = await retrieveForPlan(plan);
+        // The question travels with the plan: the planner strips a year out of
+        // the terms, and retrieval needs it back to search the web the way a
+        // person would type it.
+        const r = await retrieveForPlan(plan, question);
 
         if (r.sources.length === 0) {
           controller.enqueue(sse(encoder, "status", { phase: "found", text: "לא נמצאו מקורות", count: 0 }));
@@ -102,7 +105,9 @@ export async function GET(request: NextRequest) {
         const outlets = new Set(r.sources.map((s) => s.source).filter(Boolean)).size;
         controller.enqueue(sse(encoder, "status", {
           phase: "found",
-          text: `${r.sources.length} כתבות מ-${outlets} מקורות`,
+          text: r.historical
+            ? `${r.sources.length} תוצאות מחיפוש ברשת (הארכיון מתחיל ב-${r.historical.corpusStart})`
+            : `${r.sources.length} כתבות מ-${outlets} מקורות`,
           count: r.sources.length,
           webCount: r.webCount,
         }));
