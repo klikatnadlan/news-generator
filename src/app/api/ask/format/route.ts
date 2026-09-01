@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
  * Not streamed: the output is a few lines, and a plain JSON response keeps the
  * client simple. It still consumes the daily quota — it is a paid call.
  */
-const FORMATS = new Set<AskFormat>(["whatsapp", "paragraph"]);
+const FORMATS = new Set<AskFormat>(["whatsapp", "paragraph", "article"]);
 
 export async function POST(request: NextRequest) {
   let body: {
@@ -49,7 +49,8 @@ export async function POST(request: NextRequest) {
     const text = await formatAskAnswer({
       question,
       answer,
-      sources: Array.isArray(body.sources) ? body.sources.slice(0, 12) : [],
+      // An article draft needs more of the record than a WhatsApp line does.
+      sources: Array.isArray(body.sources) ? body.sources.slice(0, format === "article" ? 20 : 12) : [],
       format,
     });
     if (!text) {
