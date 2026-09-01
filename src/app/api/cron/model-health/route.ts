@@ -72,6 +72,87 @@ export async function GET(request: NextRequest) {
   // 200 OK with an empty body — and nothing had ever raised an error, so the
   // home feed starved for weeks in silence. Checked here (03:40, before the
   // 04:00 scan) so a dead source is known before the day's run depends on it.
+  // ─── Data freshness ────────────────────────────────────────────────────────
+  //
+  // Every failure found in the 2026-08 audit returned HTTP 200: dead feeds
+  // answering with an empty body, gershayim silently voiding whole scoring
+  // batches, statement timeouts swallowed by empty catches, narratives coming
+  // back as an empty list. Not one raised an error, so no status-code monitor
+  // could ever have seen them. What they DID have in common is a visible
+  // symptom: the data stopped moving.
+  //
+  // So this alarm watches the OUTCOME, not the plumbing. Three questions the
+  // feed-health check cannot answer:
+  //   1. is anything still being ingested?
+  //   2. is anything still being scored?
+  //   3. does the home feed still have items in it?
+  // The scan runs daily, so 30h of silence means at least one run produced
+  // nothing at all.
+  const FRESH_LIMIT_H = 30;
+  const staleReasons: string[] = [];
+  try {
+    const { data: newest } = await supabase
+      .from("news_items").select("fetched_at")
+      .order("fetched_at", { ascending: false }).limit(1);
+    const lastIngest = newest?.[0]?.fetched_at ? new Date(newest[0].fetched_at) : null;
+    const ingestAgeH = lastIngest ? (Date.now() - lastIngest.getTime()) / 3_600_000 : Infinity;
+    if (ingestAgeH > FRESH_LIMIT_H) {
+      staleReasons.push(`לא נקלטה אף ידיעה כבר ${Math.round(ingestAgeH)} שעות`);
+    }
+
+    const { data: lastScore } = await supabase
+      .from("news_scores").select("scored_at")
+      .order("scored_at", { ascending: false }).limit(1);
+    const lastScored = lastScore?.[0]?.scored_at ? new Date(lastScore[0].scored_at) : null;
+    const scoreAgeH = lastScored ? (Date.now() - lastScored.getTime()) / 3_600_000 : Infinity;
+    if (scoreAgeH > FRESH_LIMIT_H) {
+      staleReasons.push(`לא דורגה אף ידיעה כבר ${Math.round(scoreAgeH)} שעות`);
+    }
+
+    // An empty home feed is the symptom the reader actually sees.
+    const weekStart = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
+    const { count } = await supabase
+      .from("news_scores").select("id", { count: "exact", head: true })
+      .gte("scan_date", weekStart).gte("score", 30);
+    if ((count ?? 0) === 0) staleReasons.push("אפס ידיעות בציון 30+ בשבוע האחרון");
+  } catch (e) {
+    // The check itself failing is also a signal worth sending.
+    staleReasons.push(`בדיקת הטריות עצמה נכשלה: ${e instanceof Error ? e.message : e}`);
+  }
+
+  if (staleReasons.length) {
+    const today = new Date().toISOString().slice(0, 10);
+    const key = `stale_alert|${today}`;
+    let alreadySent = false;
+    try {
+      const { data } = await supabase.from("narrative_cache").select("cache_key").eq("cache_key", key).maybeSingle();
+      alreadySent = !!data;
+    } catch { /* ignore */ }
+    if (!alreadySent) {
+      const rows = staleReasons.map((r) => `<li style="margin:4px 0">${r}</li>`).join("");
+      try {
+        await sendEmail({
+          to: "klikatnadlan@gmail.com",
+          subject: `🚨 לידרפיד: הנתונים לא זזים — ${staleReasons.length} סימנים`,
+          html: `<div dir="rtl" style="font-family:Arial;font-size:14px;color:#0f1419">
+            <h2>🚨 לידרפיד — הצינור נעצר</h2>
+            <p>הסריקה רצה כל יום. אם עברו יותר מ-${FRESH_LIMIT_H} שעות בלי תנועה,
+            לפחות ריצה אחת לא הביאה כלום.</p>
+            <ul>${rows}</ul>
+            <p style="color:#6b7280;font-size:12px">
+            <b>חשוב:</b> כשל כזה כמעט תמיד מחזיר 200 ולא זורק שגיאה, ולכן הוא לא
+            מופיע בשום מקום אחר. לבדוק ידנית:
+            <code>/api/feed-health</code> ואז <code>/api/cron/scan</code>.</p>
+          </div>`,
+        });
+        await supabase.from("narrative_cache").upsert(
+          { cache_key: key, narratives: { staleReasons }, count: staleReasons.length, created_at: new Date().toISOString() },
+          { onConflict: "cache_key" }
+        );
+      } catch (e) { console.error("stale alert failed:", e); }
+    }
+  }
+
   const feedReport = await checkFeeds();
 
   // TWO STRIKES before we email. Publishers block Vercel's IPs intermittently:
@@ -168,7 +249,8 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json({
-    ok: dead.length === 0 && feedReport.ok,
+    ok: dead.length === 0 && feedReport.ok && staleReasons.length === 0,
+    stale: staleReasons,
     checked,
     dead,
     feeds: {
