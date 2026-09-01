@@ -1,3 +1,3 @@
-מה קרה ברני צים                   30.3s  terms=ברני צים               from=2026-06-03  db=4   web=0   tot=4   chars=1062  OK
-מה קורה בהתחדשות עירונית בבת ים   31.5s  terms=התחדשות עירונית בבת ים from=2026-06-03  db=1   web=7   tot=8   chars=1138  OK
-(same question, cache path)        0.7s  cached=True  tot=4  chars=1062  OK
+מה קורה בהתחדשות עירונית בבת ים   33.0s  terms=התחדשות עירונית בת ים    widened=None                   db=52  web=0   tot=52  OK
+מה קרה בשיכון ובינוי החודש?       33.6s  terms=שיכון ובינוי             widened=None                   db=6   web=0   tot=6   OK
+מה חדש במחיר למשתכן?              24.6s  terms=מחיר למשתכן              widened=None                   db=16  web=0   tot=16  OK

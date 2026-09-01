@@ -1,0 +1,9 @@
+run 1 (40.2s): ok=True  warmed=7  skipped=0
+    narratives                         OK  34.9s 
+    ask:מה קרה בשיכון ובינוי החו       OK  0.7s 
+    ask:מה קורה בפינוי בינוי בחי       OK  0.9s 
+    ask:מי היזמים שהופיעו הכי הר       OK  0.9s 
+    ask:מה חדש במחיר למשתכן?           OK  0.2s 
+    ask:תשווה את הכיסוי של אשקלו       OK  0.9s 
+    ask:מה קרה בשוק המשכנתאות בח       OK  0.3s 
+    -> all warm

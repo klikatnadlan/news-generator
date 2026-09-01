@@ -63,6 +63,14 @@ export async function GET(request: NextRequest) {
     const started = Date.now();
     try {
       const r = await fetch(t.url, { cache: "no-store" });
+      // DRAIN THE BODY. fetch() resolves the moment the response headers land,
+      // and /api/ask is a stream — so without this a warm "succeeded" in 0.7s
+      // while the answer was still being written, and whether it reached the
+      // cache came down to whether the function survived long enough. Measured
+      // 2026-09-01 in production: of six questions reported warm, one was
+      // cached and the next took 40s. Reading the body makes the reported
+      // duration the real one and "warmed" mean warmed.
+      await r.text();
       results.push({
         label: t.label,
         ok: r.ok,
