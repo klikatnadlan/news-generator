@@ -16,19 +16,30 @@ interface Source {
 const CHIPS = SUGGESTED_QUESTIONS;
 
 /**
- * Render `**bold**` as bold and leave everything else as text.
+ * Render bold and leave everything else as text.
  *
- * The model reaches for markdown sub-headers whether or not the prompt asks for
- * them, and raw "**" in the middle of an answer looks broken on a screen someone
- * is presenting from. Done by splitting rather than by setting innerHTML: the
- * text is model output built from web sources, so it never becomes markup.
+ * Handles BOTH conventions on purpose. The answer arrives in markdown (`**x**`),
+ * because the model reaches for sub-headers whether the prompt asks or not; the
+ * WhatsApp output arrives in WhatsApp's own syntax (`*x*`), because that is what
+ * gets pasted into WhatsApp. Either way, raw asterisks on a screen someone is
+ * presenting from look broken.
+ *
+ * Copying is unaffected — the clipboard gets `output.text`, asterisks intact, so
+ * the message still bolds correctly once it lands in WhatsApp.
+ *
+ * Done by splitting rather than by setting innerHTML: this text is model output
+ * built from web sources, so it must never become markup.
  */
 function renderBold(text: string) {
-  return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
-    part.startsWith("**") && part.endsWith("**") && part.length > 4
-      ? <strong key={i}>{part.slice(2, -2)}</strong>
-      : <span key={i}>{part}</span>,
-  );
+  return text.split(/(\*\*[^*\n]+\*\*|\*[^*\n]+\*)/g).map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
+      return <strong key={i}>{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith("*") && part.endsWith("*") && part.length > 2) {
+      return <strong key={i}>{part.slice(1, -1)}</strong>;
+    }
+    return <span key={i}>{part}</span>;
+  });
 }
 
 export function AskPanel() {
