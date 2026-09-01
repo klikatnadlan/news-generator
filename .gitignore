@@ -8,3 +8,8 @@ node_modules/
 .vercel
 
 tsconfig.tsbuildinfo
+
+# MCP server
+mcp/node_modules/
+mcp/smoke-out.txt
+mcp/package-lock.json
