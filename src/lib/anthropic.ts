@@ -501,6 +501,75 @@ export async function generateWhatsAppText(
   return cleanupHebrewDashes(text);
 }
 
+export type AskFormat = "whatsapp" | "paragraph";
+
+/**
+ * Turn an /ask answer into something sendable.
+ *
+ * Lives here rather than in lib/ask.ts because this file owns the brand voice
+ * (VOICE_DNA_SYSTEM_CACHED) and every Claude call. The source shape is kept
+ * structural on purpose so this module never imports lib/ask.ts, which imports
+ * this one.
+ *
+ * Re-reads nothing: the answer and its sources are already on the client, so a
+ * format costs one short call and no retrieval.
+ */
+export async function formatAskAnswer(params: {
+  question: string;
+  answer: string;
+  sources: { title: string; source: string; url: string }[];
+  format: AskFormat;
+}): Promise<string> {
+  const { question, answer, sources, format } = params;
+  const list = sources
+    .slice(0, 12)
+    .map((s, i) => `[${i + 1}] ${s.title}${s.source ? ` (${s.source})` : ""}`)
+    .join("\n");
+
+  const instruction =
+    format === "whatsapp"
+      ? `הפוך את התשובה להודעת וואטסאפ שבן שולח לקבוצה.
+
+- פותחים בשורה אחת שתופסת. בלי "היי" ובלי הקדמות.
+- 3 עד 5 שורות, כל אחת עם מספר או עובדה. לא פסקה אחת ארוכה.
+- *כוכביות* לבולד בלבד. אימוג'י אחד או שניים לכל היותר, ורק אם הם עובדים.
+- בלי מספרי מקור בסוגריים מרובעים. זו הודעה, לא דוח.
+- בלי קישורים. אם צריך לייחס, מספיק לכתוב את שם המקור.
+- בלי מקפים ארוכים. אפילו אחד.
+- העברית צריכה להישמע כמו הודעה שנכתבה מהר, לא כמו מאמר.`
+      : `הפוך את התשובה לפסקה שאפשר להדביק לתוך כתבה.
+
+- פסקה אחת או שתיים, עברית עסקית רהוטה.
+- לשמור על כל המספרים, השמות והתאריכים בדיוק כפי שהם.
+- לשלב את שמות המקורות בתוך הטקסט ("לפי גלובס", "בדיווח של כלכליסט") במקום מספרים בסוגריים.
+- בלי כותרות, בלי נקודות תבליט, בלי מקפים ארוכים.
+- בלי מסקנה מסכמת ובלי המלצות. תיאור בלבד.`;
+
+  const response = await aiCreate({
+    model: MODEL,
+    max_tokens: 1200,
+    system: VOICE_DNA_SYSTEM_CACHED,
+    messages: [
+      {
+        role: "user",
+        content: `${instruction}
+
+השאלה שנשאלה: "${question}"
+
+התשובה שנכתבה:
+${answer}
+
+המקורות:
+${list}
+
+כתוב את הנוסח בלבד. בלי "הנה הנוסח:" ובלי הסברים.`,
+      },
+    ],
+  });
+
+  return cleanupHebrewDashes(firstText(response)).trim();
+}
+
 /** STREAMING WhatsApp text generator. Yields each text delta as Claude writes. */
 export async function* streamWhatsAppText(
   article: { title: string; summary: string; source: string; fullText?: string },

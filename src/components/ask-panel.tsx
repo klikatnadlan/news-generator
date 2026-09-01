@@ -42,12 +42,50 @@ export function AskPanel() {
   const [busy, setBusy] = useState(false);
   const lastAsked = useRef("");
 
+  // Stage 3: turn a finished answer into something sendable.
+  const [output, setOutput] = useState<{ kind: "whatsapp" | "paragraph"; text: string } | null>(null);
+  const [formatting, setFormatting] = useState<"whatsapp" | "paragraph" | null>(null);
+  const [copied, setCopied] = useState("");
+
+  const copy = useCallback(async (text: string, tag: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(tag);
+      setTimeout(() => setCopied(""), 1800);
+    } catch {
+      setCopied("");
+    }
+  }, []);
+
+  const makeOutput = useCallback(async (kind: "whatsapp" | "paragraph") => {
+    if (!answer || formatting) return;
+    setFormatting(kind);
+    setOutput(null);
+    try {
+      const res = await fetch("/api/ask/format", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: lastAsked.current, answer, sources, format: kind }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.text) throw new Error(data.error || "לא הצלחנו לנסח");
+      setOutput({ kind, text: data.text });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "לא הצלחנו לנסח כרגע.");
+    } finally {
+      setFormatting(null);
+    }
+    // `answer` and `sources` are read fresh on every click, so they belong here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [answer, sources, formatting]);
+
   const ask = useCallback(async (q: string, refresh = false) => {
     const text = q.trim();
     if (!text || busy) return;
     lastAsked.current = text;
     setBusy(true);
     setAnswer(""); setSources([]); setError(""); setBasis(""); setCached(false);
+    setOutput(null); setCopied("");
     setStatus("שולח…");
 
     try {
@@ -188,6 +226,56 @@ export function AskPanel() {
                 </button>
               </div>
             )}
+          </div>
+        )}
+
+        {/* output actions — only once an answer is finished */}
+        {answer && !busy && (
+          <div className="flex flex-wrap items-center gap-1.5 mb-4">
+            <button
+              onClick={() => makeOutput("whatsapp")}
+              disabled={!!formatting}
+              className="text-[11.5px] font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40"
+              style={{ background: "#fff", color: "#0f1419", border: "1px solid #e5e7eb" }}
+            >
+              {formatting === "whatsapp" ? "מנסח…" : "📱 הודעת וואטסאפ"}
+            </button>
+            <button
+              onClick={() => makeOutput("paragraph")}
+              disabled={!!formatting}
+              className="text-[11.5px] font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40"
+              style={{ background: "#fff", color: "#0f1419", border: "1px solid #e5e7eb" }}
+            >
+              {formatting === "paragraph" ? "מנסח…" : "📝 פסקה לכתבה"}
+            </button>
+            <button
+              onClick={() => copy(answer, "answer")}
+              className="text-[11.5px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
+              style={{ background: "#fff", color: "#0f1419", border: "1px solid #e5e7eb" }}
+            >
+              {copied === "answer" ? "✅ הועתק" : "📋 העתק תשובה"}
+            </button>
+          </div>
+        )}
+
+        {/* the produced output */}
+        {output && (
+          <div className="rounded-xl p-4 mb-4" style={{ background: "#fff", border: "1px solid #e5e7eb" }}>
+            <div className="flex items-center gap-2 mb-2.5">
+              <span className="text-[11px] font-bold" style={{ color: "#9ca3af" }}>
+                {output.kind === "whatsapp" ? "📱 מוכן לוואטסאפ" : "📝 פסקה לכתבה"}
+              </span>
+              <button
+                onClick={() => copy(output.text, "output")}
+                className="mr-auto text-[11px] font-bold px-2.5 py-1 rounded-md text-white"
+                style={{ background: "#dc2626" }}
+              >
+                {copied === "output" ? "✅ הועתק" : "📋 העתק"}
+              </button>
+            </div>
+            <p className="text-[13.5px] leading-[1.8] whitespace-pre-wrap" style={{ color: "#0f1419" }}>
+              {renderBold(output.text)}
+            </p>
           </div>
         )}
 
