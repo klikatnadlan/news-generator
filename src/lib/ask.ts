@@ -381,3 +381,39 @@ export async function retrieveForPlan(plan: AskPlan): Promise<AskRetrieval> {
 
   return { sources, internalCount, webCount, widenedTo };
 }
+
+// ─── The answer prompt ─────────────────────────────────────────────────────
+
+export function buildAnswerPrompt(question: string, plan: AskPlan, r: AskRetrieval): string {
+  const list = r.sources
+    .map((s, i) => {
+      const bits = [s.source, s.date].filter(Boolean).join(" · ");
+      return `[${i + 1}] ${s.title}${bits ? ` (${bits})` : ""}`;
+    })
+    .join("\n");
+
+  const windowLine = plan.from ? `החלון: מ-${plan.from} עד היום.` : "החלון: כל המאגר.";
+  const basisLine =
+    plan.mode === "analysis"
+      ? `\nזו שאלת ספירה. פתח את התשובה במשפט שמצהיר על הבסיס: "על בסיס ${r.sources.length} כותרות${plan.from ? ` מ-${plan.from}` : ""}". אל תציג את הספירה כמדידה מדויקת.`
+      : "";
+  const webLine = r.webCount
+    ? `\n${r.internalCount} מהמקורות הם מהמאגר שלנו ו-${r.webCount} מחיפוש חי ברשת. אם המאגר שלנו דל בנושא, אמור זאת במשפט אחד.`
+    : "";
+
+  return `אתה אנליסט נדל"ן שעונה על שאלה מתוך מאגר כתבות. ${windowLine}
+
+השאלה: "${question}"
+
+המקורות (${r.sources.length}, ממוספרים):
+${list}
+
+כתוב תשובה בעברית עסקית, עד 250 מילים.
+
+כללים מחייבים:
+1. התבסס אך ורק על המקורות שקיבלת. אל תמציא שם, מספר, תאריך או עובדה שלא מופיעים בהם.
+2. אחרי כל טענה ציין את מספר המקור בסוגריים מרובעים, לדוגמה [3]. טענה בלי מקור אסורה.
+3. אם המקורות לא מספיקים כדי לענות, אמור זאת במפורש ותאר מה כן ידוע. אל תמלא בניחושים.
+4. בלי מקפים ארוכים.
+5. בלי פתיחה מנומסת ובלי סיכום שחוזר על עצמו. תתחיל מהתשובה.${basisLine}${webLine}`;
+}
