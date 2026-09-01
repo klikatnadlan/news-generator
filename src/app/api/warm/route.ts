@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { SUGGESTED_QUESTIONS } from "@/lib/ask-questions";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
@@ -33,6 +34,16 @@ export async function GET(request: NextRequest) {
     targets.push({ label: `research:${city}`, url: `${base}/api/cities/research?city=${encodeURIComponent(city)}&topics=${encodeURIComponent(topics)}` });
   }
 
+  // The ask box's demo script. Each of these costs 5-10 agorot once and is then
+  // cached for six hours, so the chips answer instantly in front of a client.
+  // Opt-in via ?ask=1 — the standing rule is that Claude runs on a click, and
+  // this endpoint IS the click.
+  if (sp.get("ask") === "1") {
+    for (const q of SUGGESTED_QUESTIONS) {
+      targets.push({ label: `ask:${q.slice(0, 24)}`, url: `${base}/api/ask?q=${encodeURIComponent(q)}` });
+    }
+  }
+
   // Sequential on purpose: these are the heavy endpoints, and firing them at
   // once is the exact pattern that has already made Postgres cancel queries here
   // more than once today.
@@ -64,7 +75,7 @@ export async function GET(request: NextRequest) {
       warmed: results,
       hint: city
         ? "מוכן. פתח את העמוד — התשובות כבר בקאש."
-        : "מוכן. להוסיף עיר: /api/warm?city=אשקלון",
+        : "מוכן. להוסיף עיר: /api/warm?city=אשקלון · לחמם את תיבת השאלה: /api/warm?ask=1",
     },
     { status: allOk ? 200 : 207 }
   );
