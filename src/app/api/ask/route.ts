@@ -3,6 +3,7 @@ import { aiStream } from "@/lib/anthropic";
 import { getSupabase } from "@/lib/supabase";
 import { consumeAskQuota } from "@/lib/ask-quota";
 import { planQuery, retrieveForPlan, buildAnswerPrompt, type AskSource } from "@/lib/ask";
+import { SUGGESTED_QUESTIONS } from "@/lib/ask-questions";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
@@ -23,6 +24,12 @@ export const dynamic = "force-dynamic";
 // Answers about "this month" go stale. Six hours keeps a demo instant without
 // serving yesterday's news as today's.
 const CACHE_HOURS = 6;
+// The six demo chips get a longer shelf life. Measured 2026-09-02: seven hours
+// after a warm, 4 of the 6 chips answered cold at 21-35s — exactly the stall a
+// demo cannot afford, and nobody remembers to run /api/warm first. A day-old
+// answer to a "what happened this month" chip is an acceptable trade for a
+// guaranteed-instant demo path; everything else keeps the 6h freshness.
+const DEMO_CACHE_HOURS = 24;
 
 const normalize = (q: string) =>
   q.toLowerCase().replace(/[?!.,;:"'׳״()]/g, " ").replace(/\s+/g, " ").trim().slice(0, 160);
@@ -62,7 +69,10 @@ export async function GET(request: NextRequest) {
             const ageH = cached?.created_at
               ? (Date.now() - new Date(cached.created_at).getTime()) / 3_600_000
               : Infinity;
-            if (cached?.narratives?.answer && ageH < CACHE_HOURS) {
+            const ttl = SUGGESTED_QUESTIONS.some((s) => normalize(s) === normalize(question))
+              ? DEMO_CACHE_HOURS
+              : CACHE_HOURS;
+            if (cached?.narratives?.answer && ageH < ttl) {
               const c = cached.narratives;
               const n = c.sources?.length || 0;
               controller.enqueue(sse(encoder, "status", { phase: "found", text: `${n} מקורות (מהזיכרון)`, count: n }));

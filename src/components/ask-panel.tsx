@@ -110,11 +110,26 @@ export function AskPanel() {
   const copy = useCallback(async (text: string, tag: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      setCopied(tag);
-      setTimeout(() => setCopied(""), 1800);
     } catch {
-      setCopied("");
+      // Embedded webviews (WhatsApp's in-app browser on Android among them)
+      // sometimes deny the async Clipboard API outright. The legacy execCommand
+      // path still works in most of them, and Ben opens links from WhatsApp.
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        if (!ok) return;
+      } catch {
+        return;
+      }
     }
+    setCopied(tag);
+    setTimeout(() => setCopied(""), 1800);
   }, []);
 
   const makeOutput = useCallback(async (kind: OutKind) => {
