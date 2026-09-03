@@ -25,9 +25,17 @@ const SCORING_MODEL = "claude-haiku-4-5";
 // Layer 1: aiCreate() — non-streaming calls self-heal. If a model is retired
 //   (404 / not_found), it retries with the next live fallback automatically.
 // Layer 2: /api/cron/model-health pings these daily and emails on any death.
+// Ordered CHEAPEST-CAPABLE FIRST, not smartest first.
+//
+// Opus used to head this list. That meant the day claude-sonnet-5 went dark,
+// every call in the app would silently move to a model costing ~2.5x more per
+// token — and ~5x on the scoring path, which runs over hundreds of headlines a
+// day — with nobody told. A fallback exists to keep the app ALIVE, not to
+// upgrade it: reach for a same-tier or cheaper sibling first, and keep Opus as
+// the last resort it should be.
 export const MODEL_FALLBACKS: Record<string, string[]> = {
-  "claude-sonnet-5": ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"],
-  "claude-haiku-4-5": ["claude-sonnet-5", "claude-opus-4-8"],
+  "claude-sonnet-5": ["claude-sonnet-4-6", "claude-haiku-4-5", "claude-opus-4-8"],
+  "claude-haiku-4-5": ["claude-sonnet-4-6", "claude-sonnet-5"],
 };
 // The models actually used in the app + their first fallback, for the monitor.
 export const MONITORED_MODELS = [

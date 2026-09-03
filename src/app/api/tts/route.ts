@@ -6,8 +6,22 @@ const VOICE_ID = "bPFQW9IdOgp0dTMgOL0D"; // Ben Solomon v3
 export async function POST(request: NextRequest) {
   const { text } = await request.json();
 
-  if (!text) {
+  if (!text || typeof text !== "string") {
     return NextResponse.json({ error: "Missing text" }, { status: 400 });
+  }
+
+  // Hard length cap. This route is public and unauthenticated, and it speaks in
+  // Ben's CLONED voice on a metered ElevenLabs account — an unbounded body was
+  // an open invitation to generate audio in his voice, at his expense, in any
+  // quantity. ~4,800 characters is a long article read aloud; past that the
+  // request is REFUSED rather than truncated, so the caller learns why instead
+  // of getting a clipped recording.
+  const MAX_TTS_CHARS = 4800;
+  if (text.length > MAX_TTS_CHARS) {
+    return NextResponse.json(
+      { error: `הטקסט ארוך מדי להקראה: ${text.length.toLocaleString("he-IL")} תווים, המקסימום ${MAX_TTS_CHARS.toLocaleString("he-IL")}.` },
+      { status: 413 },
+    );
   }
 
   // Strip *bold* markers for cleaner speech

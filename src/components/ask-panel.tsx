@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { SUGGESTED_QUESTIONS } from "@/lib/ask-questions";
 import { VoiceRecordButton } from "@/components/voice-record-button";
 
@@ -90,8 +90,17 @@ function renderAnswer(text: string, sources: Source[]) {
   });
 }
 
-export function AskPanel() {
-  const [question, setQuestion] = useState("");
+interface AskPanelProps {
+  /** Question to run on mount — the hero passes one through ?q= so a question
+   *  typed on the home page lands here already answered. */
+  initialQuestion?: string;
+  /** Inside the floating drawer: drop the big header card and the page
+   *  background, since the drawer supplies its own chrome. */
+  embedded?: boolean;
+}
+
+export function AskPanel({ initialQuestion = "", embedded = false }: AskPanelProps = {}) {
+  const [question, setQuestion] = useState(initialQuestion);
   const [answer, setAnswer] = useState("");
   const [status, setStatus] = useState("");
   const [sources, setSources] = useState<Source[]>([]);
@@ -213,24 +222,38 @@ export function AskPanel() {
     }
   }, [busy]);
 
+  // A question arriving via ?q= (from the home-page hero) runs once on mount.
+  const autoRan = useRef(false);
+  useEffect(() => {
+    const q = initialQuestion.trim();
+    if (!q || autoRan.current) return;
+    autoRan.current = true;
+    ask(q);
+    // `ask` is stable enough here and re-running on its identity would re-ask.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialQuestion]);
+
   // The app is LIGHT (--lf-bg #f8f9fb / --lf-text #0f1419). Only the top nav and
   // per-page hero cards are dark. This panel follows the archive's idiom exactly:
   // a dark gradient header card over a light body of white cards.
   return (
-    <div dir="rtl" className="min-h-screen" style={{ background: "var(--lf-bg, #f8f9fb)" }}>
-      <div className="max-w-3xl mx-auto px-4 py-4">
-        {/* header card — same treatment as the deep-feed's */}
-        <div className="rounded-2xl px-6 py-6 mb-4 text-center relative overflow-hidden"
-          style={{ background: "linear-gradient(165deg, #0f1419 0%, #161e2b 55%, #1a2335 100%)" }}>
-          <div className="absolute inset-0 pointer-events-none"
-            style={{ background: "radial-gradient(circle at 75% 20%, rgba(220,38,38,0.14), transparent 45%)" }} />
-          <h1 className="relative text-[19px] font-extrabold text-white" style={{ fontFamily: "DM Sans, system-ui" }}>
-            שאל את לידרפיד
-          </h1>
-          <p className="relative text-[12.5px] mt-1.5" style={{ color: "rgba(255,255,255,0.55)" }}>
-            שאלה בעברית חופשית. התשובה נכתבת מהכתבות שבמאגר, עם קישור לכל מקור.
-          </p>
-        </div>
+    <div dir="rtl" className={embedded ? "" : "min-h-screen"} style={embedded ? undefined : { background: "var(--lf-bg, #f8f9fb)" }}>
+      <div className={embedded ? "px-4 py-3" : "max-w-3xl mx-auto px-4 py-4"}>
+        {/* header card — same treatment as the deep-feed's. The drawer brings its
+            own header, so it is dropped there rather than stacked. */}
+        {!embedded && (
+          <div className="rounded-2xl px-6 py-6 mb-4 text-center relative overflow-hidden"
+            style={{ background: "linear-gradient(165deg, #0f1419 0%, #161e2b 55%, #1a2335 100%)" }}>
+            <div className="absolute inset-0 pointer-events-none"
+              style={{ background: "radial-gradient(circle at 75% 20%, rgba(220,38,38,0.14), transparent 45%)" }} />
+            <h1 className="relative text-[19px] font-extrabold text-white" style={{ fontFamily: "DM Sans, system-ui" }}>
+              שאל את לידרפיד
+            </h1>
+            <p className="relative text-[12.5px] mt-1.5" style={{ color: "rgba(255,255,255,0.55)" }}>
+              שאלה בעברית חופשית. התשובה נכתבת מהכתבות שבמאגר, עם קישור לכל מקור.
+            </p>
+          </div>
+        )}
 
         {/* input */}
         <div className="flex items-center gap-2 rounded-xl px-3 h-12 mb-3"

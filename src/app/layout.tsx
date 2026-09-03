@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { SiteFooter } from "@/components/site-footer";
+import { AskLauncher } from "@/components/ask-launcher";
 
 export const metadata: Metadata = {
   title: "לידרפיד — לקרוא את הבאזז",
@@ -42,6 +43,8 @@ export default function RootLayout({
       <body className="antialiased" style={{ fontFamily: "Heebo, system-ui, sans-serif" }}>
         {children}
         <SiteFooter />
+        {/* Available from every screen, opens in place rather than navigating. */}
+        <AskLauncher />
       </body>
     </html>
   );

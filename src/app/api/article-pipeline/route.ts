@@ -69,6 +69,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Bail BEFORE the first paid call. Measured 2026-09-03: every request to
+    // this route failed at the 60s ceiling, and each had already spent up to
+    // five Sonnet calls (~75 agorot) writing an article out of nothing — a
+    // missing or unknown newsItemId with no fromNarrative leaves articleContext
+    // empty and the pipeline ran anyway. No UI calls this route, so every one
+    // of those spends bought a discarded result.
+    if (!articleContext.trim()) {
+      return NextResponse.json(
+        { error: "אין תוכן לכתוב ממנו: צריך newsItemId קיים או fromNarrative" },
+        { status: 400 },
+      );
+    }
+
     // Get Pulse context
     const pulseContext = await getPulseContext().catch(() => "");
 

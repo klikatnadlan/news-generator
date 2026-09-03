@@ -30,6 +30,8 @@ function getHebrewDay(dateStr: string): string {
 export default function HomePage() {
   const router = useRouter();
   const [heroQuery, setHeroQuery] = useState("");
+  // Ask is the default: it is the flagship feature, and the archive is one tap away.
+  const [heroMode, setHeroMode] = useState<"ask" | "search">("ask");
   const [allNews, setAllNews] = useState<WeekNews[]>([]);
   const [lastScan, setLastScan] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -497,20 +499,6 @@ export default function HomePage() {
 
       <SiteNav />
 
-      {/* Entry point to the ask box. Slim by design — it sits above the hero, so
-          anything taller than the nav itself would push the hero down. */}
-      <div className="max-w-3xl mx-auto px-4 pt-3">
-        <Link href="/ask"
-          className="flex items-center gap-2 rounded-xl px-3 py-2 transition-colors hover:border-red-300"
-          style={{ background: "#fff", border: "1px solid #e5e7eb" }}>
-          <span className="text-[14px]">💬</span>
-          <span className="text-[12.5px] font-semibold" style={{ color: "#0f1419" }}>שאל את לידרפיד</span>
-          <span className="text-[10.5px] truncate" style={{ color: "#9ca3af" }}>
-            שאלה בעברית, תשובה עם מקורות
-          </span>
-        </Link>
-      </div>
-
       {showHero && phase === "select" && (
         <section className="lf-hero">
           <div className="lf-hero-grid" />
@@ -566,26 +554,66 @@ export default function HomePage() {
               </p>
             </div>
 
-            {/* Smart search — jump straight into the archive */}
-            <form
-              onSubmit={(e) => { e.preventDefault(); const q = heroQuery.trim(); if (q) router.push(`/archive?q=${encodeURIComponent(q)}`); }}
-              className="mt-6 max-w-[520px] mx-auto lf-fade-in"
-              style={{ animationDelay: "1200ms" }}
-            >
-              <div className="flex items-center gap-2 rounded-full px-4 h-12 transition-colors"
-                style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.14)", backdropFilter: "blur(8px)" }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="shrink-0 opacity-70"><circle cx="11" cy="11" r="7" stroke="#fff" strokeWidth="2"/><path d="M21 21l-4-4" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg>
-                <input
-                  value={heroQuery}
-                  onChange={(e) => setHeroQuery(e.target.value)}
-                  placeholder="להבין את השוק במהירות"
-                  className="flex-1 bg-transparent text-[14px] text-white placeholder:text-white/45 focus:outline-none"
-                  dir="rtl"
-                />
-                <button type="submit" className="shrink-0 text-[13px] font-bold px-3 py-1.5 rounded-full transition-all hover:opacity-90"
-                  style={{ background: "#dc2626", color: "#fff" }}>חפש ←</button>
+            {/* One input, two modes.
+                There used to be a separate ask strip pinned ABOVE the hero, in
+                white, on a dark page — it read as a browser banner rather than
+                part of the product, and it sat 400px from a search box that
+                looked just like it. Merging them puts the flagship feature where
+                the eye already lands and removes the duplicate. */}
+            <div className="mt-6 max-w-[520px] mx-auto lf-fade-in" style={{ animationDelay: "1200ms" }}>
+              <div className="flex items-center justify-center gap-1.5 mb-2.5">
+                {([["ask", "שאל שאלה"], ["search", "חפש בארכיון"]] as const).map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setHeroMode(mode)}
+                    className="text-[11.5px] font-bold px-3.5 py-1.5 rounded-full transition-colors"
+                    style={heroMode === mode
+                      ? { background: "#dc2626", color: "#fff" }
+                      : { background: "transparent", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.18)" }}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
-            </form>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const q = heroQuery.trim();
+                  if (!q) return;
+                  router.push(heroMode === "ask" ? `/ask?q=${encodeURIComponent(q)}` : `/archive?q=${encodeURIComponent(q)}`);
+                }}
+              >
+                <div className="flex items-center gap-2 rounded-full px-4 h-12 transition-colors"
+                  style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.22)", backdropFilter: "blur(8px)" }}>
+                  {heroMode === "ask" ? (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 opacity-70" aria-hidden="true">
+                      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                    </svg>
+                  ) : (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="shrink-0 opacity-70" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="#fff" strokeWidth="2"/><path d="M21 21l-4-4" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg>
+                  )}
+                  <input
+                    value={heroQuery}
+                    onChange={(e) => setHeroQuery(e.target.value)}
+                    placeholder={heroMode === "ask" ? "מה קרה בשיכון ובינוי החודש?" : "להבין את השוק במהירות"}
+                    className="flex-1 min-w-0 bg-transparent text-[14px] text-white placeholder:text-white/45 focus:outline-none"
+                    dir="rtl"
+                  />
+                  {heroMode === "ask" && (
+                    <VoiceRecordButton onTranscript={(t) => { const q = t.trim(); if (q) router.push(`/ask?q=${encodeURIComponent(q)}`); }} />
+                  )}
+                  <button type="submit" className="shrink-0 text-[13px] font-bold px-3 py-1.5 rounded-full transition-all hover:opacity-90"
+                    style={{ background: "#dc2626", color: "#fff" }}>{heroMode === "ask" ? "שאל ←" : "חפש ←"}</button>
+                </div>
+              </form>
+              {heroMode === "ask" && (
+                <p className="text-[10.5px] mt-2" style={{ color: "rgba(255,255,255,0.35)" }}>
+                  תשובה כתובה עם קישור לכל מקור
+                </p>
+              )}
+            </div>
 
             {/* Stats — animated reveal */}
             <div
