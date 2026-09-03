@@ -4,6 +4,7 @@ import { matchesAllWords, trimGenericTerms, stripHebrewPrefixes } from "@/lib/he
 import { firecrawlSearch, firecrawlSearchV2, hostLabel, reWebQuery } from "@/lib/websearch";
 import { mapPool } from "@/lib/rss";
 import { isRealEstate, dedupeStories } from "@/lib/classify";
+import { getPulseFacts, pulseFactLines, questionWantsMarketFacts } from "@/lib/pulse";
 
 export type AskMode = "what_happened" | "analysis" | "compare";
 
@@ -274,6 +275,9 @@ export interface AskRetrieval {
   /** Set when the question asked about a period older than the corpus, so the
    *  answer came from the live web instead. Drives the honesty note. */
   historical?: { year: string | null; corpusStart: string; webQuery: string };
+  /** Official CBS / Bank of Israel / Chief Economist figures, when the question
+   *  is one they answer. Free, no tokens, each carrying its own period. */
+  marketFacts?: string[];
 }
 
 // Per-mode scan budgets. Every number here is measured, not guessed:
@@ -514,10 +518,29 @@ async function retrieveCensus(from: string | null): Promise<AskSource[]> {
   return dedupeStories(out);
 }
 
+/**
+ * The official figures, fetched only when the question is about them.
+ *
+ * Free and fast (one parallel HTTP round trip, no tokens), so it runs alongside
+ * retrieval rather than after it. Failure is never fatal: an answer built from
+ * articles alone is the old behaviour, not a regression.
+ */
+async function marketFactsFor(question: string): Promise<string[] | undefined> {
+  if (!questionWantsMarketFacts(question)) return undefined;
+  try {
+    const lines = pulseFactLines(await getPulseFacts());
+    return lines.length ? lines : undefined;
+  } catch (e) {
+    console.error("[ask] market facts failed:", e instanceof Error ? e.message : e);
+    return undefined;
+  }
+}
+
 export async function retrieveForPlan(plan: AskPlan, question = ""): Promise<AskRetrieval> {
   const deadline = Date.now() + RETRIEVE_BUDGET_MS;
   const limit = SCAN[plan.mode];
   let widenedTo: string | null = null;
+  const factsPromise = marketFactsFor(question);
 
   // ─── Historical question: the archive cannot help, so go straight to the web ───
   //
@@ -544,6 +567,7 @@ export async function retrieveForPlan(plan: AskPlan, question = ""): Promise<Ask
       webCount: web.length,
       widenedTo: null,
       historical: { year, corpusStart: CORPUS_START, webQuery },
+      marketFacts: await factsPromise,
     };
   }
 
@@ -552,7 +576,7 @@ export async function retrieveForPlan(plan: AskPlan, question = ""): Promise<Ask
   // articles, so the month's actual developers were invisible.
   if (plan.mode === "analysis" && plan.census) {
     const sources = await retrieveCensus(plan.from);
-    return { sources, internalCount: sources.length, webCount: 0, widenedTo: null };
+    return { sources, internalCount: sources.length, webCount: 0, widenedTo: null, marketFacts: await factsPromise };
   }
 
   // A census ranks "who stood out lately", so it stays bounded — spreading 200
@@ -565,7 +589,7 @@ export async function retrieveForPlan(plan: AskPlan, question = ""): Promise<Ask
   }
 
   const queries = [plan.terms, ...(plan.mode === "compare" ? plan.compareWith : [])].filter(Boolean);
-  if (queries.length === 0) return { sources: [], internalCount: 0, webCount: 0, widenedTo: null };
+  if (queries.length === 0) return { sources: [], internalCount: 0, webCount: 0, widenedTo: null, marketFacts: await factsPromise };
 
   // Bounded, NOT Promise.all. Firing every query at once is the exact pattern
   // that made Postgres cancel all nine dossier topics with 57014.
@@ -635,7 +659,7 @@ export async function retrieveForPlan(plan: AskPlan, question = ""): Promise<Ask
     }
   }
 
-  return { sources, internalCount, webCount, widenedTo };
+  return { sources, internalCount, webCount, widenedTo, marketFacts: await factsPromise };
 }
 
 // ─── The answer prompt ─────────────────────────────────────────────────────
@@ -669,12 +693,29 @@ export function buildAnswerPrompt(question: string, plan: AskPlan, r: AskRetriev
       ? `\n${r.internalCount} מהמקורות הם מהמאגר שלנו ו-${r.webCount} מחיפוש חי ברשת. אם המאגר שלנו דל בנושא, אמור זאת במשפט אחד.`
       : "";
 
+  // Official figures go ABOVE the articles and are marked as a different kind of
+  // evidence: they are measurements, not reporting, and each carries the month
+  // it belongs to. Without the period a July mortgage rate reads as "today" in
+  // December, which is exactly how a valuation tool loses trust.
+  const factsBlock = r.marketFacts?.length
+    ? `
+
+נתונים רשמיים (הלמ"ס / בנק ישראל / הכלכלן הראשי) — לא כתבות, אלא מדידות:
+${r.marketFacts.map((l) => `• ${l}`).join("\n")}
+
+כללים לנתונים האלה:
+- מותר להסתמך עליהם גם אם אף כתבה לא מזכירה אותם. הם מהמאגר שלנו.
+- **חובה לציין את התקופה** ליד כל מספר ("נכון למאי 2026"). אל תציג מספר מחודש קודם כאילו הוא של היום.
+- אין להם מספר מקור בסוגריים. יש לייחס אותם בשם ("לפי הלמ\"ס", "נתוני בנק ישראל").
+- אם הם סותרים כתבה, הצג את שניהם וציין מה מהם מדידה רשמית ומה דיווח.`
+    : "";
+
   return `אתה אנליסט נדל"ן שעונה על שאלה מתוך מאגר כתבות. ${windowLine}
 
 השאלה: "${question}"
 
 המקורות (${r.sources.length}, ממוספרים):
-${list}
+${list}${factsBlock}
 
 כתוב תשובה בעברית עסקית, עד 250 מילים.
 

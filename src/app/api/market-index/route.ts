@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getPulseFacts } from "@/lib/pulse";
 import { getSupabase } from "@/lib/supabase";
 import { calculateMarketConfidence } from "@/lib/anthropic";
 
@@ -60,27 +61,21 @@ export async function GET() {
       return NextResponse.json({ index: 50, trend: "stable", summary: "אין מספיק חדשות לחישוב מדד", date: today });
     }
 
-    // Try to get Pulse data
+    // Official figures. This used to query `change_pct` and `avg_rate` ordered by
+    // a `date` column — none of those three exist, so both calls answered HTTP
+    // 400, the catch swallowed it, and the index was computed without any market
+    // data for months. lib/pulse.ts owns the real column names now.
     let pulseData;
     try {
-      const PULSE_URL = "https://zkirtoefpwugcyybebed.supabase.co";
-      const PULSE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpraXJ0b2VmcHd1Z2N5eWJlYmVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMTMyNTQsImV4cCI6MjA4NTc4OTI1NH0.Fwwi0HNS4HxQNDCUFmK5XwPRWaaVVSeaqVQIuA66Ems";
-      const headers = { apikey: PULSE_KEY, Authorization: `Bearer ${PULSE_KEY}` };
-
-      const [priceRes, mortgageRes] = await Promise.all([
-        fetch(`${PULSE_URL}/rest/v1/housing_price_index?select=change_pct&order=date.desc&limit=1`, { headers }),
-        fetch(`${PULSE_URL}/rest/v1/mortgage_data?select=avg_rate&order=date.desc&limit=1`, { headers }),
-      ]);
-
-      const priceData = await priceRes.json();
-      const mortgageData = await mortgageRes.json();
-
+      const facts = await getPulseFacts();
       pulseData = {
-        priceIndexChange: priceData?.[0]?.change_pct,
-        mortgageRate: mortgageData?.[0]?.avg_rate,
+        priceIndexChange: facts.priceIndex?.annualChange ?? undefined,
+        priceIndexAsOf: facts.priceIndex?.period.label,
+        mortgageRate: facts.mortgage?.avgRate,
+        mortgageAsOf: facts.mortgage?.period.label,
       };
-    } catch {
-      // Pulse data is optional
+    } catch (e) {
+      console.error("[market-index] pulse facts failed:", e instanceof Error ? e.message : e);
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

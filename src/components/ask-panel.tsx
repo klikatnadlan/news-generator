@@ -270,7 +270,7 @@ export function AskPanel({ initialQuestion = "", embedded = false }: AskPanelPro
           />
           {/* Dictation. The component and /api/stt (ElevenLabs, Hebrew) already
               existed for the news cards — this just wires them to the question. */}
-          <VoiceRecordButton onTranscript={(t) => { const q = t.trim(); if (q) { setQuestion(q); ask(q); } }} />
+          <VoiceRecordButton shape="pill" onTranscript={(t) => { const q = t.trim(); if (q) { setQuestion(q); ask(q); } }} />
           <button
             onClick={() => ask(question)}
             disabled={busy || !question.trim()}

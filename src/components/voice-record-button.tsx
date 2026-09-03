@@ -4,9 +4,17 @@ import { useState, useRef, useCallback } from "react";
 
 interface VoiceRecordButtonProps {
   onTranscript: (text: string) => void;
+  /**
+   * "pill" for the fully-rounded inputs (the home hero, the ask box), where a
+   * square-cornered button inside a pill-shaped field reads as a foreign part.
+   * Defaults to the original rounded-md so the news-card toolbars, whose other
+   * buttons are rounded-md, are untouched.
+   */
+  shape?: "default" | "pill";
 }
 
-export function VoiceRecordButton({ onTranscript }: VoiceRecordButtonProps) {
+export function VoiceRecordButton({ onTranscript, shape = "default" }: VoiceRecordButtonProps) {
+  const radius = shape === "pill" ? "rounded-full" : "rounded-md";
   const [state, setState] = useState<"idle" | "recording" | "transcribing">("idle");
   const [seconds, setSeconds] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -86,7 +94,7 @@ export function VoiceRecordButton({ onTranscript }: VoiceRecordButtonProps) {
     return (
       <button
         disabled
-        className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-md border font-medium"
+        className={`flex items-center gap-1.5 text-xs px-3 py-2 ${radius} border font-medium`}
         style={{ borderColor: "#c084fc", color: "#7c3aed", backgroundColor: "#f8f0ff" }}
       >
         <span className="animate-spin">⏳</span> מתמלל...
@@ -98,7 +106,7 @@ export function VoiceRecordButton({ onTranscript }: VoiceRecordButtonProps) {
     return (
       <button
         onClick={stopRecording}
-        className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-md border font-medium animate-pulse"
+        className={`flex items-center gap-1.5 text-xs px-3 py-2 ${radius} border font-medium animate-pulse`}
         style={{ borderColor: "#dc2626", color: "#dc2626", backgroundColor: "#fef2f2" }}
       >
         🔴 {formatTime(seconds)} — לחץ לעצור
@@ -109,7 +117,7 @@ export function VoiceRecordButton({ onTranscript }: VoiceRecordButtonProps) {
   return (
     <button
       onClick={startRecording}
-      className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-md border font-medium transition-colors hover:bg-purple-50"
+      className={`flex items-center gap-1.5 text-xs px-3 py-2 ${radius} border font-medium transition-colors hover:bg-purple-50`}
       style={{ borderColor: "#c084fc", color: "#7c3aed", backgroundColor: "#faf5ff" }}
     >
       🎙️ הקלט

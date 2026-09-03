@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getPriceIndexAt } from "@/lib/pulse";
 import { getSupabase } from "@/lib/supabase";
 
 // Compare market state now vs X days ago
@@ -38,25 +39,25 @@ export async function GET(request: NextRequest) {
     .gte("fetched_at", new Date(Date.now() - (daysBack + 7) * 86400000).toISOString())
     .lte("fetched_at", new Date(Date.now() - daysBack * 86400000).toISOString());
 
-  // Try to get Pulse historical data
+  // Official price index, then and now.
+  //
+  // Was two queries against a `date` column that does not exist (the table keys
+  // on year+month integers), plus a malformed `lte.date=` filter. Both answered
+  // 400, the catch swallowed it, and this comparison never once appeared.
   let pulseComparison;
   try {
-    const PULSE_URL = "https://zkirtoefpwugcyybebed.supabase.co";
-    const PULSE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpraXJ0b2VmcHd1Z2N5eWJlYmVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMTMyNTQsImV4cCI6MjA4NTc4OTI1NH0.Fwwi0HNS4HxQNDCUFmK5XwPRWaaVVSeaqVQIuA66Ems";
-    const headers = { apikey: PULSE_KEY, Authorization: `Bearer ${PULSE_KEY}` };
-
-    const [currentPrice, pastPrice] = await Promise.all([
-      fetch(`${PULSE_URL}/rest/v1/housing_price_index?select=*&order=date.desc&limit=1`, { headers }).then(r => r.json()),
-      fetch(`${PULSE_URL}/rest/v1/housing_price_index?select=*&lte.date=${pastDate}&order=date.desc&limit=1`, { headers }).then(r => r.json()),
+    const past = new Date(pastDate);
+    const [now, then] = await Promise.all([
+      getPriceIndexAt(),
+      getPriceIndexAt(past.getFullYear(), past.getMonth() + 1),
     ]);
-
-    if (currentPrice?.[0] && pastPrice?.[0]) {
+    if (now && then && then.value) {
       pulseComparison = {
-        currentPriceIndex: currentPrice[0].index_value,
-        pastPriceIndex: pastPrice[0].index_value,
-        priceChange: currentPrice[0].index_value && pastPrice[0].index_value
-          ? ((currentPrice[0].index_value - pastPrice[0].index_value) / pastPrice[0].index_value * 100).toFixed(1)
-          : null,
+        currentPriceIndex: now.value,
+        currentAsOf: now.label,
+        pastPriceIndex: then.value,
+        pastAsOf: then.label,
+        priceChange: (((now.value - then.value) / then.value) * 100).toFixed(1),
       };
     }
   } catch { /* optional */ }

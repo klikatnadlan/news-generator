@@ -602,7 +602,7 @@ export default function HomePage() {
                     dir="rtl"
                   />
                   {heroMode === "ask" && (
-                    <VoiceRecordButton onTranscript={(t) => { const q = t.trim(); if (q) router.push(`/ask?q=${encodeURIComponent(q)}`); }} />
+                    <VoiceRecordButton shape="pill" onTranscript={(t) => { const q = t.trim(); if (q) router.push(`/ask?q=${encodeURIComponent(q)}`); }} />
                   )}
                   <button type="submit" className="shrink-0 text-[13px] font-bold px-3 py-1.5 rounded-full transition-all hover:opacity-90"
                     style={{ background: "#dc2626", color: "#fff" }}>{heroMode === "ask" ? "שאל ←" : "חפש ←"}</button>
