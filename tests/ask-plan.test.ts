@@ -64,3 +64,27 @@ describe("explicitYear", () => {
     expect(explicitYear("מה קרה בשיכון ובינוי")).toBe(null);
   });
 });
+
+describe("current-value questions", () => {
+  it('"מה ריבית בנק ישראל היום" widens past the literal day', () => {
+    // Measured 2026-09-03: "היום" was read as a one-day filter, so the search
+    // missed the rate decision of two days earlier and the answer could only say
+    // "lower than 3.5%" while five articles naming 3.25% sat in the archive.
+    // TODAY here is 2026-09-01, so the 45-day floor lands on 2026-07-18.
+    expect(planQueryByRules("מה ריבית בנק ישראל היום?", TODAY).from).toBe("2026-07-18");
+  });
+
+  it('"העדכני" carries no time phrase at all, so it searches everything', () => {
+    expect(planQueryByRules("מה מדד מחירי הדירות העדכני?", TODAY).from).toBe(null);
+  });
+
+  it("an events question keeps the literal day", () => {
+    // "what happened today" genuinely means today's articles — the event verb
+    // is what separates it from "what IS the rate today".
+    expect(planQueryByRules("מה קרה היום בשוק", TODAY).from).toBe("2026-08-31");
+  });
+
+  it("and so does the plain events form", () => {
+    expect(planQueryByRules("מה קורה היום", TODAY).from).toBe("2026-08-31");
+  });
+});

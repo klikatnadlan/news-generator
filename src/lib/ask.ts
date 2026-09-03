@@ -89,6 +89,38 @@ export function timePhraseDays(question: string): number | null {
   return null;
 }
 
+/**
+ * The smallest window a "what is it NOW" question may search.
+ *
+ * "מה ריבית בנק ישראל היום?" contains "היום", which the time-phrase table reads
+ * as a one-day filter — so on 2026-09-03 it searched only that day's articles
+ * and missed the rate decision of 2026-09-01 entirely. The answer could say
+ * only "lower than 3.5%, I cannot tell you by how much", while five articles
+ * naming 3.25% sat two days back in the same archive.
+ *
+ * "היום" in "what happened today" is a filter. "היום" in "what is the rate
+ * today" means *currently* — the value may well have last been reported weeks
+ * ago. A value question therefore gets a floor, not the literal day.
+ */
+const CURRENT_VALUE_FLOOR_DAYS = 45;
+
+/**
+ * Questions asking for a value's present state rather than for events.
+ *
+ * The event verbs are the discriminator: "מה קרה היום" wants today's articles
+ * and must keep the one-day window, while "מה הריבית היום" wants a number whose
+ * last reported value may be weeks old. Without this exclusion the widening
+ * swallowed every "what happened today" question too.
+ */
+const EVENT_VERBS = /קרה|קורה|התרחש|אירע|חדש בחדשות|פורסם|דווח/;
+
+function asksForCurrentValue(question: string): boolean {
+  const q = (question || "").trim();
+  if (EVENT_VERBS.test(q)) return false;
+  return /(?:^|\s)(?:מה|כמה)\s/.test(q)
+    && /היום|עכשיו|כרגע|נכון להיום|העדכני|העדכנית|הנוכחי|הנוכחית|כיום/.test(q);
+}
+
 export function planQueryByRules(question: string, today: Date): AskPlan {
   const q = (question || "").trim();
 
@@ -98,7 +130,12 @@ export function planQueryByRules(question: string, today: Date): AskPlan {
   // three-month tool. The archive is the point: a question with no stated
   // period should reach everything we hold, the way a search engine does.
   // All-time queries measured 1.8-4.0s after the 2026-09-01 indexes.
-  const days = timePhraseDays(q);
+  const phrase = timePhraseDays(q);
+  // A "what is it now" question is not asking to search today — see
+  // asksForCurrentValue. Widen it rather than answer from one day of articles.
+  const days = phrase !== null && asksForCurrentValue(q)
+    ? Math.max(phrase, CURRENT_VALUE_FLOOR_DAYS)
+    : phrase;
 
   const terms = q
     .replace(/[?!.,;:()[\]]/g, " ")
