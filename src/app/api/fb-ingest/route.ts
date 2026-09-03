@@ -15,9 +15,21 @@ function safeDate(v: any): string {
 }
 
 export async function POST(request: NextRequest) {
+  // This is the only PUBLIC WRITE path into news_items, and the server holds the
+  // service_role key, which bypasses RLS. Two holes were closed here on
+  // 2026-09-03 after a live probe got through:
+  //   1. `secret !== "manual"` let anyone in with ?secret=manual. A row written
+  //      here is a row the ask layer can later cite as a source to a client.
+  //   2. `if (cron && ...)` skipped the check entirely when CRON_SECRET was
+  //      unset — the gate failed OPEN exactly when it was least configured.
+  // It now fails closed, and there is no bypass value.
   const secret = new URL(request.url).searchParams.get("secret");
   const cron = process.env.CRON_SECRET;
-  if (cron && secret !== cron && secret !== "manual") {
+  if (!cron) {
+    console.error("[fb-ingest] CRON_SECRET is not set — refusing the write");
+    return NextResponse.json({ error: "not configured" }, { status: 503 });
+  }
+  if (secret !== cron) {
     return NextResponse.json({ error: "bad secret" }, { status: 401 });
   }
   const token = process.env.APIFY_TOKEN;

@@ -48,9 +48,18 @@ export async function GET(request: NextRequest) {
   // (this silently stalled FB content from 2026-06-12). Register the webhook
   // against the STABLE PUBLIC production domain instead.
   const origin = process.env.FB_INGEST_BASE_URL || "https://news-generator-seven.vercel.app";
+  // Was `secret || "manual"`, which paired with a matching bypass on the
+  // receiving side and left /api/fb-ingest — the only public write path into
+  // news_items — open to anyone who guessed the word. The bypass is gone; if
+  // there is no secret to send, say so here rather than register a webhook that
+  // will fail 401 later with no explanation.
+  if (!secret) {
+    console.error("[fb-scan] CRON_SECRET is not set — not registering the ingest webhook");
+    return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 503 });
+  }
   const webhook = [{
     eventTypes: ["ACTOR.RUN.SUCCEEDED"],
-    requestUrl: `${origin}/api/fb-ingest?secret=${encodeURIComponent(secret || "manual")}`,
+    requestUrl: `${origin}/api/fb-ingest?secret=${encodeURIComponent(secret)}`,
   }];
   const webhooksParam = Buffer.from(JSON.stringify(webhook)).toString("base64");
   const runUrl = `https://api.apify.com/v2/acts/${ACTOR}/runs?token=${token}&webhooks=${webhooksParam}`;
