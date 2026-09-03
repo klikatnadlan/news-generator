@@ -163,6 +163,22 @@ export async function getPriceIndexAt(
 const pct = (v: number | null) => (v === null ? null : `${v > 0 ? "+" : ""}${v}%`);
 
 /**
+ * How many months old a reading may be before it must be presented as possibly
+ * superseded rather than as the current figure.
+ *
+ * Two, because that is what caught us: on 2026-09-03 the newest mortgage row was
+ * July, carrying `boi_key_rate: 3.5%`, while five articles in our own archive
+ * from 2026-09-01 reported the Bank of Israel cutting to 3.25%. Labelling the
+ * number "נכון ליולי 2026" made the answer honest but still wrong for anyone
+ * asking what the rate is — and "לפי בנק ישראל" carries more authority than a
+ * headline, so the stale figure won.
+ */
+const STALE_AFTER_MONTHS = 2;
+
+const staleNote = (p: PulsePeriod) =>
+  p.monthsOld > STALE_AFTER_MONTHS ? ` ⚠️ הקריאה בת ${p.monthsOld} חודשים וייתכן שהתעדכנה מאז` : "";
+
+/**
  * The facts as prompt lines. Every line names its source and its period so the
  * model can attribute it and a reader can judge it.
  */
@@ -173,28 +189,34 @@ export function pulseFactLines(f: PulseFacts): string[] {
     const bits = [`מדד מחירי הדירות (הלמ"ס): ${p.value}`];
     if (p.annualChange !== null) bits.push(`שינוי שנתי ${pct(p.annualChange)}`);
     if (p.monthlyChange !== null) bits.push(`שינוי חודשי ${pct(p.monthlyChange)}`);
-    out.push(`${bits.join(", ")} — נכון ל${p.period.label}`);
+    out.push(`${bits.join(", ")} — נכון ל${p.period.label}${staleNote(p.period)}`);
   }
   if (f.mortgage) {
     const m = f.mortgage;
     const bits = [`ריבית משכנתא ממוצעת (בנק ישראל): ${m.avgRate}%`];
     if (m.boiRate !== null) bits.push(`ריבית בנק ישראל ${m.boiRate}%`);
     if (m.volumeBillions !== null) bits.push(`היקף חודשי ${m.volumeBillions} מיליארד ש"ח`);
-    out.push(`${bits.join(", ")} — נכון ל${m.period.label}`);
+    // The policy rate moves on announced decision dates, not gradually, so a
+    // month-old reading can already be wrong by a full step. Always flagged,
+    // even inside the staleness window.
+    const rateWarn = m.boiRate !== null
+      ? " ⚠️ ריבית בנק ישראל משתנה בהחלטות ריבית ולא בהדרגה — בדוק מול הכתבות אם הייתה החלטה מאז"
+      : "";
+    out.push(`${bits.join(", ")} — נכון ל${m.period.label}${staleNote(m.period)}${rateWarn}`);
   }
   if (f.transactions) {
     const t = f.transactions;
     const bits = [`עסקאות דירות (הכלכלן הראשי): ${t.total.toLocaleString("he-IL")}`];
     if (t.investors !== null) bits.push(`מתוכן ${t.investors.toLocaleString("he-IL")} משקיעים`);
     if (t.firstTime !== null) bits.push(`${t.firstTime.toLocaleString("he-IL")} דירה ראשונה`);
-    out.push(`${bits.join(", ")} — נכון ל${t.period.label}`);
+    out.push(`${bits.join(", ")} — נכון ל${t.period.label}${staleNote(t.period)}`);
   }
   if (f.rentalIndex) {
     const r = f.rentalIndex;
     const bits = ["מדד שכר הדירה (הלמ\"ס)"];
     if (r.annualChange !== null) bits.push(`שינוי שנתי ${pct(r.annualChange)}`);
     if (r.monthlyChange !== null) bits.push(`שינוי חודשי ${pct(r.monthlyChange)}`);
-    out.push(`${bits.join(", ")} — נכון ל${r.period.label}`);
+    out.push(`${bits.join(", ")} — נכון ל${r.period.label}${staleNote(r.period)}`);
   }
   return out;
 }
