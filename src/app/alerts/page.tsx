@@ -60,6 +60,10 @@ export default function AlertsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [articles, setArticles] = useState<Record<string, ScoredNews[]>>({});
   const [loadingArticles, setLoadingArticles] = useState<string | null>(null);
+  // What the fetched list is scoped to: a 90-day window by default, and a hard
+  // row cap. Both were invisible, so a watch reading 3,993 on its card opened
+  // to exactly 300 with nothing saying why.
+  const [articleMeta, setArticleMeta] = useState<Record<string, { windowDays: number | null; capped: boolean; limitUsed: number | null }>>({});
   // How many articles are revealed per alert (reveal in batches so a 100-match
   // alert doesn't flood the screen with full cards at once).
   const PAGE = 8;
@@ -142,6 +146,12 @@ export default function AlertsPage() {
       const res = await fetch(`/api/alerts/articles?${params.toString()}`);
       const data = await res.json();
       setArticles((prev) => ({ ...prev, [id]: data.articles || [] }));
+      // Keep the scope of what we just fetched, so the panel can say what this
+      // list actually is instead of letting its length pass for a total.
+      setArticleMeta((prev) => ({
+        ...prev,
+        [id]: { windowDays: data.windowDays ?? null, capped: !!data.capped, limitUsed: data.limitUsed ?? null },
+      }));
       setVisibleCount((prev) => ({ ...prev, [id]: PAGE }));
     } finally {
       setLoadingArticles(null);
@@ -401,7 +411,7 @@ export default function AlertsPage() {
                       <div className="flex items-center gap-3 shrink-0">
                         <div className="text-center">
                           <p className="text-[20px] font-extrabold leading-none" style={{ color: "#dc2626", fontFamily: "DM Sans" }}>{alert.matchCount}</p>
-                          <p className="text-[9px]" style={{ color: "#9ca3af" }}>באזים</p>
+                          <p className="text-[9px]" style={{ color: "#9ca3af" }}>באזים סה״כ</p>
                         </div>
                         <div className="text-center hidden sm:block">
                           <p className="text-[11px] font-semibold" style={{ color: "#0f1419" }}>{fmtDate(alert.latestDate)}</p>
@@ -469,8 +479,16 @@ export default function AlertsPage() {
                           <button onClick={() => applyDateRange(alert.id, "", "")} className="text-[11px] underline" style={{ color: "#9ca3af" }}>נקה</button>
                         )}
                         {loadingArticles !== alert.id && (
-                          <span className="mr-auto font-bold" style={{ color: "#dc2626" }}>
-                            {(articles[alert.id] || []).length} באזים{(dateRange[alert.id]?.from || dateRange[alert.id]?.to) ? " בטווח" : ""}
+                          <span className="mr-auto text-[11px] font-semibold" style={{ color: "#6b7280" }}>
+                            <span className="font-bold" style={{ color: "#dc2626" }}>
+                              {articleMeta[alert.id]?.capped ? "מציג " : ""}{(articles[alert.id] || []).length} באזים
+                            </span>
+                            {(dateRange[alert.id]?.from || dateRange[alert.id]?.to)
+                              ? " בטווח שבחרת"
+                              : articleMeta[alert.id]?.windowDays
+                                ? ` · ${articleMeta[alert.id]!.windowDays} הימים האחרונים`
+                                : ""}
+                            {articleMeta[alert.id]?.capped ? " · יש עוד, זו התקרה" : ""}
                           </span>
                         )}
                       </div>
@@ -497,7 +515,7 @@ export default function AlertsPage() {
                                 onClick={() => setVisibleCount((p) => ({ ...p, [alert.id]: shown + PAGE }))}
                                 className="lf-btn lf-btn-outline w-full !py-2.5 text-[13px] font-semibold"
                               >
-                                הצג עוד {Math.min(PAGE, all.length - shown)} באזים · נותרו {all.length - shown} מתוך {all.length}
+                                הצג עוד {Math.min(PAGE, all.length - shown)} באזים · נותרו {all.length - shown} מתוך {all.length}{articleMeta[alert.id]?.capped ? "+" : ""}
                               </button>
                             )}
                           </>

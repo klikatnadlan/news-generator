@@ -64,9 +64,10 @@ export async function GET(request: NextRequest) {
         ? new Date(Date.now() - DEFAULT_WINDOW_DAYS * 864e5).toISOString().slice(0, 10)
         : null);
 
+  let limitUsed = 300;
   let { data, error } = await supabase.rpc("match_alert_articles", {
     p_keywords: alert.keywords,
-    p_limit: 300,
+    p_limit: limitUsed,
     p_from: effectiveFrom,
     p_to: to || null,
   });
@@ -75,9 +76,10 @@ export async function GET(request: NextRequest) {
   // rows rather than a 500 that empties the panel.
   if (error) {
     console.error("match_alert_articles failed, retrying with a smaller limit:", error.message);
+    limitUsed = 100;
     const retry = await supabase.rpc("match_alert_articles", {
       p_keywords: alert.keywords,
-      p_limit: 100,
+      p_limit: limitUsed,
       p_from: effectiveFrom,
       p_to: to || null,
     });
@@ -102,9 +104,16 @@ export async function GET(request: NextRequest) {
 
   // Say when the result was scoped, so a short list reads as "last 90 days"
   // rather than "this watch has almost nothing".
+  //
+  // And say when it was CUT. Measured 2026-09-05: the broadest watch showed
+  // 3,993 on its card and exactly 300 when opened. 300 is this p_limit, not a
+  // fact about the world — but the panel printed it as "מתוך 300" and the
+  // difference read as data loss. A number that is a ceiling has to admit it.
   return NextResponse.json({
     alert,
     articles,
     windowDays: defaultedWindow ? DEFAULT_WINDOW_DAYS : null,
+    limitUsed,
+    capped: articles.length >= limitUsed,
   });
 }
