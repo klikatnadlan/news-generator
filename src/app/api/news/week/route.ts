@@ -78,10 +78,17 @@ export async function GET() {
 
   // Collapse the same story arriving from both its outlet feed and the
   // aggregate. Done after the score sort, so the better copy survives.
-  const deduped = dedupeStories(news).slice(0, 200);
+  const deduped = dedupeStories(news);
 
+  // `news` is the rendered list (capped at 200); `count` is the week's real
+  // total after the same filters. They are equal today (138) and the home page
+  // would have shown 200 for both on a busier week — a cap wearing the label
+  // "סה״כ השבוע". `capped` says the DB read itself hit its ceiling, so `count`
+  // is then a floor and the UI marks it with a plus.
   return NextResponse.json({
-    news: deduped,
+    news: deduped.slice(0, 200),
+    count: deduped.length,
+    capped: (data || []).length >= 400,
     lastScan: lastScan?.[0]?.fetched_at || null,
     weekStart,
     today,

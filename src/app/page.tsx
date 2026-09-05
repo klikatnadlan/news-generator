@@ -33,6 +33,8 @@ export default function HomePage() {
   // Ask is the default: it is the flagship feature, and the archive is one tap away.
   const [heroMode, setHeroMode] = useState<"ask" | "search">("ask");
   const [allNews, setAllNews] = useState<WeekNews[]>([]);
+  const [weekCount, setWeekCount] = useState<number | null>(null);
+  const [weekCapped, setWeekCapped] = useState(false);
   const [lastScan, setLastScan] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -65,6 +67,10 @@ export default function HomePage() {
       const res = await fetch("/api/news/week");
       const data = await res.json();
       setAllNews(data.news || []);
+      // The week's real total, which is not the same as the rendered list's
+      // length once the list is capped at 200.
+      setWeekCount(typeof data.count === "number" ? data.count : null);
+      setWeekCapped(!!data.capped);
       setLastScan(data.lastScan);
     } finally { setLoading(false); }
   }, []);
@@ -628,7 +634,7 @@ export default function HomePage() {
               </div>
               <div className="lf-stat-card-v2">
                 <p className="lf-stat-number">
-                  {loading ? "—" : allNews.length}
+                  {loading ? "—" : `${weekCount ?? allNews.length}${weekCapped ? "+" : ""}`}
                 </p>
                 <p className="lf-stat-label">סה״כ השבוע</p>
               </div>
