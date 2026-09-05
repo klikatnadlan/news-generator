@@ -23,10 +23,21 @@ export const dynamic = "force-dynamic";
 const TARGETS = ["/api/news/week", "/api/news/today", "/api/market-index"];
 
 export async function GET(request: NextRequest) {
-  const isManual = request.headers.get("x-manual-scan") === "true";
+  // No x-manual-scan bypass here, deliberately.
+  //
+  // The other cron routes accept that header so a human can trigger a scan. On
+  // THIS route it would be an open, unauthenticated way to make the server issue
+  // three more requests to itself — a 3x invocation amplifier anyone could point
+  // at us, on a plan where invocations cost money. The bypass existed only so I
+  // could test the route by hand; it was tested (200, three targets warmed,
+  // 2026-09-05) and is now closed. Verification from here on is the schedule
+  // itself: if the cron fires, the routes stay warm.
   const auth = request.headers.get("authorization");
   const secret = process.env.CRON_SECRET;
-  if (secret && !isManual && auth !== `Bearer ${secret}`) {
+  if (!secret) {
+    return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 503 });
+  }
+  if (auth !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

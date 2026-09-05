@@ -63,6 +63,7 @@ export async function GET() {
   let trendSource: "live" | "cache" | "none" = "live";
   let listSource: "live" | "overview" | "snapshot" = "live";
   let snapshotAt: string | null = null;
+  let snapshotArmed = false;
   const cachedTrends: Record<string, { cur7d: number; prev7d: number }> = {};
   if (error) {
     console.error("alert_radar failed, falling back to alert_overview:", error.message);
@@ -117,12 +118,17 @@ export async function GET() {
     // paid for a 64-watch RPC. Failure here must never break the response —
     // this is a backup, not the answer.
     try {
-      await supabase.from("narrative_cache").upsert(
-        { cache_key: "alert_trends", narratives: data, count: data.length, created_at: new Date().toISOString() },
+      const stamp = new Date().toISOString();
+      const { error: upErr } = await supabase.from("narrative_cache").upsert(
+        { cache_key: "alert_trends", narratives: data, count: data.length, created_at: stamp },
         { onConflict: "cache_key" }
       );
+      // Report whether the net is actually armed rather than assuming it. A
+      // silently-failing backup is worse than none, because nobody looks.
+      if (!upErr) { snapshotAt = stamp; snapshotArmed = true; }
+      else console.error("alert snapshot refresh failed (non-fatal):", upErr.message);
     } catch (e) {
-      console.error("alert snapshot refresh failed (non-fatal):", e instanceof Error ? e.message : e);
+      console.error("alert snapshot refresh threw (non-fatal):", e instanceof Error ? e.message : e);
     }
   }
   const alerts = (data || []).map((a: { id: string; name: string; emoji: string; keywords: string[]; match_count: number; latest_published: string | null; cur_7d: number; prev_7d: number }) => {
@@ -151,7 +157,11 @@ export async function GET() {
     trendUnavailable: degraded && trendSource === "none",
     trendSource,
     listSource,
-    snapshotAt: listSource === "snapshot" ? snapshotAt : null,
+    // On the snapshot path this is the age of what you are looking at. On the
+    // live path it is when the backup was last refreshed — the page ignores it,
+    // but it makes "the net is armed" checkable from outside.
+    snapshotAt,
+    snapshotArmed,
   });
 }
 
