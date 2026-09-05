@@ -141,6 +141,10 @@ export async function GET(request: NextRequest) {
           widenedTo: r.widenedTo,
           webCount: r.webCount,
           internalCount: r.internalCount,
+          // The official figures that were handed to the model, so a reader (or a
+          // probe) can see them. Was missing from the payload, so every check
+          // reported null while the numbers were in fact in the answer.
+          marketFacts: r.marketFacts ?? null,
           // What we ACTUALLY searched for, surfaced rather than hidden. The
           // planner rewrites the question, so without this a thin answer is
           // indistinguishable from thin coverage — which is exactly how the

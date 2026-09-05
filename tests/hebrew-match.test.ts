@@ -45,6 +45,33 @@ describe("trimGenericTerms", () => {
   });
 });
 
+describe("acronyms", () => {
+  // Reproduced 2026-09-03 on the live gate: every one of these matched
+  // "מזג האוויר מחר", because the tokenizer split on the quote and threw away
+  // both halves as too short — leaving nothing to test, so everything passed.
+  it('ת"א no longer matches unrelated text', () => {
+    expect(matchesAllWords("חיסול בתחנת דלק בחולון", 'ת"א')).toBe(false);
+  });
+  it('ת"א matches ת"א, בת"א, and the Hebrew-gershayim spelling', () => {
+    expect(matchesAllWords('פרויקט חדש בת"א', 'ת"א')).toBe(true);
+    expect(matchesAllWords("מחירי הדירות בת״א", 'ת"א')).toBe(true);
+  });
+  it("a short acronym keeps its gershayim: רמ״י is not רמי לוי", () => {
+    expect(matchesAllWords("רמי לוי מכר 7 דירות", 'רמ"י')).toBe(false);
+    expect(matchesAllWords('מכרז חדש של רמ"י בבאר שבע', 'רמ"י')).toBe(true);
+  });
+  it("a long acronym accepts both spellings: נדל״ן and נדלן", () => {
+    expect(matchesAllWords('מחירי נדל"ן עלו', 'נדל"ן')).toBe(true);
+    expect(matchesAllWords("שוק הנדלן מתייצב", 'נדל"ן')).toBe(true);
+    expect(matchesAllWords("טורניר כדורגל בנתניה", 'נדל"ן')).toBe(false);
+  });
+  it("a name with a geresh works whichever mark the text used", () => {
+    expect(matchesAllWords("האחים חג'ג' מכרו 149 דירות", "חג'ג'")).toBe(true);
+    expect(matchesAllWords("האחים חג׳ג׳ מכרו 149 דירות", "חג'ג'")).toBe(true);
+    expect(matchesAllWords("מזג האוויר מחר", "חג'ג'")).toBe(false);
+  });
+});
+
 describe("stripHebrewPrefixes", () => {
   it("drops the attached prefix that made the RPC return nothing", () => {
     // Measured 2026-09-01: `בשיכון ובינוי` → 1 row, `שיכון ובינוי` → 6, same window.

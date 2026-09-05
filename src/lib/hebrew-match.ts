@@ -40,11 +40,51 @@ export function hebWordRe(word: string): RegExp {
   return new RegExp(`(?:^|[^${HEB}])[הובכלמשד]?${safe}(?![${HEB}])`, "u");
 }
 
+// ─── Acronyms: ת"א, רמ"י, תמ"א, נדל"ן, and names like חג'ג' ──────────────
+//
+// Before 2026-09-03 the tokenizer split on quote marks, so ת"א became the
+// tokens "ת" and "א" — both too short to test — and the gate, left with nothing
+// to check, returned TRUE FOR EVERY TEXT. Measured: every one of ת"א, רמ"י,
+// תמ"א, מע"מ and חג'ג' matched "מזג האוויר מחר". A search for ת"א returned a
+// shooting at a petrol station in Holon at the top, with zero rows filtered.
+//
+// Fix: a quote mark BETWEEN two Hebrew letters is part of the word. Both the
+// query and the text are normalised to one canonical gershayim (״) so that
+// ASCII ", Hebrew ״, ASCII ' and Hebrew ׳ all compare equal — the same trap that
+// made an earlier hand-count of חג'ג' come back zero.
+const ACRONYM_MARK = /([א-ת])["״'׳]([א-ת])/g;
+const HAS_ACRONYM = /[א-ת]["״'׳][א-ת]/;
+export const canonAcronyms = (s: string) => s.replace(ACRONYM_MARK, "$1״$2");
+
+/**
+ * Word-boundary regex for a canonicalised acronym such as רמ״י.
+ *
+ * Short acronyms keep the gershayim REQUIRED: רמ״י must not match רמי לוי, and
+ * ת״א must not match תא. From four letters up it becomes optional, because
+ * outlets write both נדל״ן and נדלן and a four-letter collision is rare.
+ */
+function acronymRe(canon: string): RegExp {
+  const letters = canon.replace(/״/g, "");
+  const body = letters.length >= 4 ? canon.replace(/״/g, "״?") : canon;
+  return new RegExp(`(?:^|[^${HEB}])[הובכלמשד]?${body}(?![${HEB}])`, "u");
+}
+
 export function matchesAllWords(text: string, q: string): boolean {
-  const words = q.toLowerCase().split(/[\s,"'׳״]+/).filter((w) => w.length > 2);
-  if (words.length === 0) return true; // nothing meaningful to test → keep
-  const t = text.toLowerCase();
-  return words.every((w) => hebWordRe(w).test(t));
+  const tests: RegExp[] = [];
+  for (const tok of q.toLowerCase().split(/[\s,]+/)) {
+    if (!tok) continue;
+    if (HAS_ACRONYM.test(tok)) {
+      // Keep letters, digits and the canonical mark; drop everything else.
+      const canon = canonAcronyms(tok).replace(/[^\p{L}\p{N}״]/gu, "");
+      if (canon.replace(/״/g, "").length >= 2) tests.push(acronymRe(canon));
+      continue;
+    }
+    // Plain words: the original rule — split any stray quotes, skip ≤2 chars.
+    for (const w of tok.split(/["'׳״]+/)) if (w.length > 2) tests.push(hebWordRe(w));
+  }
+  if (tests.length === 0) return true; // nothing meaningful to test → keep
+  const t = canonAcronyms(text.toLowerCase());
+  return tests.every((re) => re.test(t));
 }
 
 // Generic real-estate words that add nothing once the query names a specific
