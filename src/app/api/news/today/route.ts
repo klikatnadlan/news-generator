@@ -38,7 +38,10 @@ export async function GET() {
       .eq("scan_date", today)
       .gte("score", 30)
       .order("score", { ascending: false })
-      .limit(30),
+      // 200, not 30: the response now carries a real count of the day, and a
+      // count computed off a 30-row window would silently cap on a busy day.
+      // Today's scored rows are a few dozen, so this stays one cheap read.
+      .limit(200),
     supabase
       .from("news_items")
       .select("fetched_at")
@@ -68,10 +71,18 @@ export async function GET() {
 
   // Dedupe BEFORE the slice — otherwise a duplicated story eats one of the six
   // visible slots and the strip shows the same headline twice.
-  const deduped = dedupeStories(news).slice(0, 6);
+  const deduped = dedupeStories(news);
 
+  // `news` is the six-item strip; `count` is how many stories the day actually
+  // has. They are different numbers and were being confused: the dashboard
+  // printed news.length under the label "ידיעות היום" and so reported 6 on a
+  // day the home page reported 17. Same day, same filters, two answers — the
+  // difference was purely the display cap. The count uses the identical
+  // definition as the home feed (score ≥ 30, real-estate, deduped) so the two
+  // screens agree.
   return NextResponse.json({
-    news: deduped,
+    news: deduped.slice(0, 6),
+    count: deduped.length,
     lastScan: lastScan?.[0]?.fetched_at || null,
   });
 }

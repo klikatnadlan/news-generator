@@ -106,6 +106,24 @@ export async function GET() {
       listSource = "overview";
       trendSource = Object.keys(cachedTrends).length ? "cache" : "none";
     }
+  } else if (Array.isArray(data) && data.length) {
+    // Live call worked — refresh the safety net with what we just read.
+    //
+    // Relying on the nightly cron alone leaves two holes: the snapshot can be
+    // up to 24h stale, and on the day this shipped there was no usable snapshot
+    // at all until the cron next ran. Writing here means the fallback is never
+    // older than the last successful page view, and it arms itself the first
+    // time anyone opens the page. One small upsert on a request that already
+    // paid for a 64-watch RPC. Failure here must never break the response —
+    // this is a backup, not the answer.
+    try {
+      await supabase.from("narrative_cache").upsert(
+        { cache_key: "alert_trends", narratives: data, count: data.length, created_at: new Date().toISOString() },
+        { onConflict: "cache_key" }
+      );
+    } catch (e) {
+      console.error("alert snapshot refresh failed (non-fatal):", e instanceof Error ? e.message : e);
+    }
   }
   const alerts = (data || []).map((a: { id: string; name: string; emoji: string; keywords: string[]; match_count: number; latest_published: string | null; cur_7d: number; prev_7d: number }) => {
     // alert_overview carries no window counts, so on the degraded path fall

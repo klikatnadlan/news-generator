@@ -36,6 +36,10 @@ export default function DashboardPage() {
       setComputing(false);
     }
   };
+  // The day's true story count. `news` is only the top six shown below, so
+  // rendering news.length as "ידיעות היום" understated the day (6 vs the home
+  // page's 17 for the same date).
+  const [todayCount, setTodayCount] = useState<number | null>(null);
   const [isEmptyDay, setIsEmptyDay] = useState(false);
   const [emptyDayMessage, setEmptyDayMessage] = useState("");
   const [lastScan, setLastScan] = useState<string | null>(null);
@@ -51,6 +55,7 @@ export default function DashboardPage() {
     ])
       .then(([newsData, indexData]) => {
         setNews(newsData.news || []);
+        setTodayCount(typeof newsData.count === "number" ? newsData.count : null);
         setLastScan(newsData.lastScan);
         setIsEmptyDay(newsData.isEmptyDay || false);
         setEmptyDayMessage(newsData.emptyDayMessage || "");
@@ -189,7 +194,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 gap-3 mb-4">
           <div className="lf-card p-3.5">
             <p className="text-[11px] mb-0.5" style={{ color: "#9ca3af" }}>ידיעות היום</p>
-            <p className="text-[24px] font-extrabold leading-none" style={{ color: "#0f1419", fontFamily: "DM Sans" }}>{news.length}</p>
+            <p className="text-[24px] font-extrabold leading-none" style={{ color: "#0f1419", fontFamily: "DM Sans" }}>{todayCount ?? news.length}</p>
           </div>
           <div className="lf-card p-3.5">
             <p className="text-[11px] mb-0.5" style={{ color: "#9ca3af" }}>סריקה אחרונה</p>
