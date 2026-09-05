@@ -700,7 +700,11 @@ export default function HomePage() {
 
       <div className="max-w-3xl mx-auto px-4 py-5">
         {phase === "select" && (<>
-          <ScanStatus lastScan={lastScan} onScanComplete={fetchNews} hasNews={allNews.length > 0} />
+          {/* `loading` matters: while the first fetch is in flight allNews is []
+              and hasNews reads false, so the component used to render the full
+              "no news arrived" state plus the mock digest for the whole wait —
+              on a cold Vercel start that was 60+ seconds of a dead-looking page. */}
+          <ScanStatus lastScan={lastScan} onScanComplete={fetchNews} hasNews={allNews.length > 0} loading={loading} />
           {generateError && <div className="mt-3 rounded-lg p-3 text-center text-[13px] font-medium" style={{ background: "var(--lf-red-soft)", color: "var(--lf-red)", border: "1px solid #fecaca" }}>{generateError}</div>}
 
           <div className={`mt-4 space-y-2.5 ${selected.size > 0 ? "pb-28" : "pb-8"}`}>

@@ -36,12 +36,16 @@ interface ScanStatusProps {
   lastScan: string | null;
   onScanComplete: () => void;
   hasNews?: boolean;
+  /** True while the parent's first fetch is still in flight. Without it an empty
+   *  allNews reads as "no news arrived" for the whole wait. */
+  loading?: boolean;
 }
 
 export function ScanStatus({
   lastScan,
   onScanComplete,
   hasNews = true,
+  loading = false,
 }: ScanStatusProps) {
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState<string | null>(null);
@@ -108,6 +112,20 @@ export function ScanStatus({
       minute: "2-digit",
       timeZone: "Asia/Jerusalem",
     });
+
+  // Still loading: say so, quietly. Do NOT fall through to the empty state —
+  // measured 2026-09-03, a cold Vercel start held the first fetch for 66s and
+  // this component spent all of it showing "השרת ער. רק חדשות עוד לא הגיעו",
+  // three "—" cards and a mock digest, while 8 items existed. Loading and
+  // genuinely-empty are different facts and must look different.
+  if (loading && !hasNews) {
+    return (
+      <div className="flex items-center justify-center gap-2 py-6 text-[13px]" style={{ color: "#6b7280" }}>
+        <span className="w-3.5 h-3.5 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "#dc2626", borderTopColor: "transparent" }} />
+        טוען את הידיעות…
+      </div>
+    );
+  }
 
   // Large prominent button when no news
   if (!hasNews) {

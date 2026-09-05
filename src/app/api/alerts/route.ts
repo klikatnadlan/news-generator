@@ -9,6 +9,22 @@ import { supabase } from "@/lib/supabase";
 
 // Trend radar (token-free): cur = articles in last 7d, prev = the 7d before.
 // 🔥 surging, 📈 rising, 📉 cooling — so you catch a story while it heats up.
+// One cached watch as the nightly precompute writes it. The bare cur7d/prev7d
+// pair is the older shape and is still read, so a cache row written before
+// 2026-09-05 keeps feeding the arrows.
+type SnapshotRow = {
+  id: string;
+  name?: string;
+  emoji?: string;
+  keywords?: string[];
+  match_count?: number;
+  latest_published?: string | null;
+  cur_7d?: number;
+  prev_7d?: number;
+  cur7d?: number;
+  prev7d?: number;
+};
+
 function trendOf(cur: number, prev: number): "surge" | "rising" | "cooling" | "" {
   if (cur >= 4 && cur >= 2 * Math.max(prev, 1)) return "surge";
   if (cur > prev && cur >= 2) return "rising";
@@ -35,29 +51,61 @@ export async function GET() {
   // "alert_trends", so on a day the live call times out we still show yesterday's
   // arrows instead of none. Live first (always current when it works), cache
   // second, no arrows only if both are unavailable.
+  //
+  // Third rung, added 2026-09-05: alert_overview can time out too — it reads the
+  // same table under the same pressure — and then the page showed a bare error.
+  // The nightly precompute now stores the FULL row, not just the two counts, so
+  // the last resort is the whole list as of last night, stamped with its age.
+  // A day-old list beats an empty screen; an unlabelled day-old list does not,
+  // hence snapshotAt travels with it.
   let { data, error } = await supabase.rpc("alert_radar");
   let degraded = false;
   let trendSource: "live" | "cache" | "none" = "live";
-  let cachedTrends: Record<string, { cur7d: number; prev7d: number }> = {};
+  let listSource: "live" | "overview" | "snapshot" = "live";
+  let snapshotAt: string | null = null;
+  const cachedTrends: Record<string, { cur7d: number; prev7d: number }> = {};
   if (error) {
     console.error("alert_radar failed, falling back to alert_overview:", error.message);
-    const fb = await supabase.rpc("alert_overview");
-    if (fb.error) {
-      return NextResponse.json({ error: fb.error.message }, { status: 500 });
-    }
-    data = fb.data;
-    degraded = true;
-    trendSource = "none";
+    // Read the snapshot once, up front: it serves both as the trend source on
+    // the degraded path and as the whole list if alert_overview dies as well.
+    let snapRows: SnapshotRow[] = [];
     try {
-      const { data: cached } = await supabase.from("narrative_cache").select("narratives").eq("cache_key", "alert_trends").maybeSingle();
+      const { data: cached } = await supabase
+        .from("narrative_cache")
+        .select("narratives, created_at")
+        .eq("cache_key", "alert_trends")
+        .maybeSingle();
       const rows = cached?.narratives as unknown;
       if (Array.isArray(rows)) {
-        for (const r of rows as { id: string; cur7d: number; prev7d: number }[]) {
-          cachedTrends[r.id] = { cur7d: r.cur7d, prev7d: r.prev7d };
+        snapRows = rows as SnapshotRow[];
+        snapshotAt = (cached?.created_at as string) ?? null;
+        for (const r of snapRows) {
+          cachedTrends[r.id] = { cur7d: Number(r.cur7d ?? r.cur_7d) || 0, prev7d: Number(r.prev7d ?? r.prev_7d) || 0 };
         }
-        if (Object.keys(cachedTrends).length) trendSource = "cache";
       }
     } catch { /* no cache yet — arrows simply stay hidden */ }
+
+    const fb = await supabase.rpc("alert_overview");
+    if (fb.error) {
+      // Both RPCs are down. Serve last night's snapshot if it has names in it —
+      // a trends-only row from before this change has no `name`, and a list of
+      // nameless watches is worse than an honest error.
+      const usable = snapRows.filter((r) => r && r.name);
+      if (usable.length === 0) {
+        console.error("alert_overview failed too and no usable snapshot:", fb.error.message);
+        return NextResponse.json({ error: fb.error.message }, { status: 500 });
+      }
+      console.error(`alert_overview failed too — serving snapshot of ${usable.length} watches from ${snapshotAt}`);
+      data = usable;
+      degraded = true;
+      listSource = "snapshot";
+      trendSource = "cache";
+    } else {
+      data = fb.data;
+      degraded = true;
+      listSource = "overview";
+      trendSource = Object.keys(cachedTrends).length ? "cache" : "none";
+    }
   }
   const alerts = (data || []).map((a: { id: string; name: string; emoji: string; keywords: string[]; match_count: number; latest_published: string | null; cur_7d: number; prev_7d: number }) => {
     // alert_overview carries no window counts, so on the degraded path fall
@@ -84,6 +132,8 @@ export async function GET() {
     alerts,
     trendUnavailable: degraded && trendSource === "none",
     trendSource,
+    listSource,
+    snapshotAt: listSource === "snapshot" ? snapshotAt : null,
   });
 }
 

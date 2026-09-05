@@ -82,6 +82,10 @@ export default function AlertsPage() {
 
   // "🆕 חדש במעקבים" — fresh hits per watch, last 3 days (token-free).
   type NewGroup = { alertName: string; emoji: string; total: number; items: { title: string; summary: string; source: string; url: string; date: string | null }[] };
+  // Set only when the counts on screen came from the nightly snapshot because
+  // both live queries timed out. Shown to the user — a day-old number that
+  // looks live is the failure mode this guards against.
+  const [snapshotAt, setSnapshotAt] = useState<string | null>(null);
   const [whatsNew, setWhatsNew] = useState<NewGroup[]>([]);
   const [whatsNewTotal, setWhatsNewTotal] = useState(0);
   const [whatsNewOpen, setWhatsNewOpen] = useState(false);
@@ -117,6 +121,9 @@ export default function AlertsPage() {
       const res = await fetch("/api/alerts");
       const data = await res.json();
       setAlerts(data.alerts || []);
+      // Only set when the API says the live counts were unavailable and it fell
+      // all the way back to last night's snapshot. Silence means live.
+      setSnapshotAt(data.listSource === "snapshot" ? data.snapshotAt || null : null);
     } finally {
       setLoading(false);
     }
@@ -318,6 +325,18 @@ export default function AlertsPage() {
             </div>
           )}
         </div>
+
+        {/* Snapshot notice — the DB was too slow for the live counts. */}
+        {snapshotAt && !loading && (
+          <div className="lf-card p-3 mb-3" style={{ borderRight: "3px solid #d97706", background: "#fffbeb" }}>
+            <p className="text-[12px] font-semibold" style={{ color: "#92400e" }}>
+              ⏳ המסד היה עמוס. המספרים כאן מעודכנים ל-{new Date(snapshotAt).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jerusalem" })}
+            </p>
+            <button onClick={fetchAlerts} className="text-[11px] font-semibold underline mt-1" style={{ color: "#92400e" }}>
+              נסה לטעון מחדש
+            </button>
+          </div>
+        )}
 
         {/* Alerts list */}
         {loading ? (

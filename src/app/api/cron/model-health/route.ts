@@ -235,14 +235,34 @@ export async function GET(request: NextRequest) {
     if (radarErr) {
       console.error("alert_radar precompute failed (cache keeps yesterday's arrows):", radarErr.message);
     } else if (Array.isArray(radar)) {
-      const trends = (radar as { id: string; cur_7d: number; prev_7d: number }[]).map((a) => ({
-        id: a.id, cur7d: Number(a.cur_7d) || 0, prev7d: Number(a.prev_7d) || 0,
+      // Store the WHOLE row, not just the two counts. The arrows were only the
+      // first casualty: if alert_overview times out as well — same table, same
+      // pressure — the page has nothing to render at all. With a full snapshot
+      // it can still show the list, labelled with its age, instead of an error.
+      // cur7d/prev7d are kept next to cur_7d/prev_7d so the trend-only reader in
+      // /api/alerts keeps working against the same cache row unchanged.
+      const rows = radar as {
+        id: string; name: string; emoji: string; keywords: string[];
+        match_count: number; latest_published: string | null;
+        cur_7d: number; prev_7d: number;
+      }[];
+      const snapshot = rows.map((a) => ({
+        id: a.id,
+        name: a.name,
+        emoji: a.emoji,
+        keywords: a.keywords,
+        match_count: Number(a.match_count) || 0,
+        latest_published: a.latest_published ?? null,
+        cur_7d: Number(a.cur_7d) || 0,
+        prev_7d: Number(a.prev_7d) || 0,
+        cur7d: Number(a.cur_7d) || 0,
+        prev7d: Number(a.prev_7d) || 0,
       }));
       await supabase.from("narrative_cache").upsert(
-        { cache_key: "alert_trends", narratives: trends, count: trends.length, created_at: new Date().toISOString() },
+        { cache_key: "alert_trends", narratives: snapshot, count: snapshot.length, created_at: new Date().toISOString() },
         { onConflict: "cache_key" }
       );
-      console.log(`alert_radar precomputed: ${trends.length} trends cached`);
+      console.log(`alert_radar precomputed: ${snapshot.length} watches cached (full snapshot)`);
     }
   } catch (e) {
     console.error("alert_radar precompute threw:", e instanceof Error ? e.message : e);

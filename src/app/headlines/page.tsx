@@ -198,7 +198,7 @@ export default function HeadlinesPage() {
     setAutoSwitchedDay(true);
   }, [autoSwitchedDay, loading, allNews, selectedDay]);
 
-  const fetchNarratives = async (category?: string, range?: NarrativeRange, topic?: string | null) => {
+  const fetchNarratives = async (category?: string, range?: NarrativeRange, topic?: string | null, force: boolean = false) => {
     setNarrativesLoading(true);
     setNarrativeDiff(null); // new narrative context invalidates the old diff
     try {
@@ -207,6 +207,7 @@ export default function HeadlinesPage() {
       const t = topic !== undefined ? topic : selectedTopic;
       const params = new URLSearchParams({ category: cat, range: r as string });
       if (t) params.set("topic", t);
+      if (force) params.set("refresh", "1"); // 🔄 only — everything else reads the cache
       const res = await fetch(`/api/narratives?${params.toString()}`);
       const data = await res.json();
       setNarratives(data.narratives || []);
@@ -387,7 +388,11 @@ export default function HeadlinesPage() {
 
       <div className="max-w-3xl mx-auto px-4 py-5">
         {/* ═══ Category Tabs ═══ */}
-        <div className="flex gap-1.5 mb-4 overflow-x-auto no-scrollbar">
+        {/* Wraps instead of scrolling. At 375px the four tabs total 431px inside a
+            343px container; with overflow-x-auto + a hidden scrollbar the נרטיב
+            tab sat at left=-72px — 5 of its 77 pixels visible, and nothing to
+            hint that the row scrolled. Desktop is wide enough that nothing moves. */}
+        <div className="flex flex-wrap gap-1.5 mb-4">
           {TAB_CONFIG.map((t) => {
             const isActive = tab === t.id;
             const count = t.id !== "נרטיב" ? categoryCounts[t.id as keyof typeof categoryCounts] : null;
@@ -680,7 +685,8 @@ export default function HeadlinesPage() {
                       {narrativesCopyLabel || "📋 העתק"}
                     </button>
                   )}
-                  <button className="lf-btn lf-btn-dark text-[11px] !py-1 !px-2" onClick={() => fetchNarratives(lastCategory, narrativeRange, selectedTopic)} disabled={narrativesLoading}>
+                  <button className="lf-btn lf-btn-dark text-[11px] !py-1 !px-2" onClick={() => fetchNarratives(lastCategory, narrativeRange, selectedTopic, true)} disabled={narrativesLoading}
+                    title="בנה את הנרטיבים מחדש עכשיו (קריאת Claude, כ-30 שניות)">
                     {narrativesLoading ? "⏳" : "🔄"}
                   </button>
                 </div>

@@ -3,7 +3,63 @@ import { getPulseFacts } from "@/lib/pulse";
 import { getSupabase } from "@/lib/supabase";
 import { calculateMarketConfidence } from "@/lib/anthropic";
 
+const DISCLAIMER = "המדד מבוסס על ניתוח באזים ונתוני ממשלה. אינו מהווה המלצת השקעה.";
+
+/**
+ * GET — read only. Serves today's cached index, or the most recent one marked
+ * as stale. It NEVER calls Claude.
+ *
+ * The dashboard fetches this on every load, and the owner's rule is that AI
+ * runs only on an explicit click. Before this split the compute lived here:
+ * measured 2026-09-03, the first visitor of the day waited 19.7s on a blank
+ * screen while a Sonnet call ran on page load, and every day's first load paid
+ * for it. Computing is now POST, wired to a button that appears only when
+ * today's value is missing. One DB round-trip, no dependency between reads.
+ */
 export async function GET() {
+  try {
+    const supabase = getSupabase();
+    const today = new Date().toISOString().split("T")[0];
+    const { data: history } = await supabase
+      .from("market_index_history")
+      .select("index_value, trend, summary, date")
+      .order("date", { ascending: false })
+      .limit(5);
+    const rows = (history || []) as { index_value: number; trend: string; summary: string; date: string }[];
+    if (rows.length === 0) {
+      return NextResponse.json({ index: null, needsCompute: true, date: today, disclaimer: DISCLAIMER });
+    }
+    const latest = rows[0];
+    const values = rows.map((h) => h.index_value);
+    const movingAvg = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
+    const stale = latest.date !== today;
+    return NextResponse.json({
+      index: latest.index_value,
+      trend: latest.trend,
+      summary: latest.summary,
+      // The date the number belongs to, not today's — a reader must be able to
+      // tell "computed this morning" from "last computed on Tuesday".
+      date: latest.date,
+      stale,
+      needsCompute: stale,
+      movingAvg,
+      range: { min: Math.min(...values), max: Math.max(...values) },
+      historyDays: values.length,
+      cached: true,
+      disclaimer: DISCLAIMER,
+    });
+  } catch (error) {
+    console.error("Market index read error:", error);
+    return NextResponse.json({ index: null, needsCompute: true, error: "שגיאה בקריאת המדד" }, { status: 500 });
+  }
+}
+
+/**
+ * POST — compute today's index with Claude and store it. Click-only: the
+ * dashboard's "חשב מדד להיום" button is the sole caller. Idempotent: if today's
+ * value already exists it is returned without a new model call.
+ */
+export async function POST() {
   try {
     const supabase = getSupabase();
     const today = new Date().toISOString().split("T")[0];

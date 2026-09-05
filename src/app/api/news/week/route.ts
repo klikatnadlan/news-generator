@@ -37,14 +37,23 @@ export async function GET() {
   const today = new Date().toISOString().split("T")[0];
   const weekStart = getWeekStart();
 
-  const { data, error } = await supabase
-    .from("news_scores")
-    .select("*, news_items(*)")
-    .gte("scan_date", weekStart)
-    .lte("scan_date", today)
-    .gte("score", 30)
-    .order("score", { ascending: false })
-    .limit(400);
+  // The last-scan lookup is independent of the scores query — fired together so
+  // the response waits for ONE DB round-trip, not two in series.
+  const [{ data, error }, { data: lastScan }] = await Promise.all([
+    supabase
+      .from("news_scores")
+      .select("*, news_items(*)")
+      .gte("scan_date", weekStart)
+      .lte("scan_date", today)
+      .gte("score", 30)
+      .order("score", { ascending: false })
+      .limit(400),
+    supabase
+      .from("news_items")
+      .select("fetched_at")
+      .order("fetched_at", { ascending: false })
+      .limit(1),
+  ]);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -63,19 +72,13 @@ export async function GET() {
         scan_date: s.scan_date,
       };
     })
-    // Hard filter: home feed is real-estate only
-    .filter((n: any) => isRealEstate(n.title || "", n.summary || "", n.source));
+    // Hard filter: home feed is real-estate only. The score rides along so a
+    // high-confidence item is not dropped for lacking a keyword.
+    .filter((n: any) => isRealEstate(n.title || "", n.summary || "", n.source, n.score));
 
   // Collapse the same story arriving from both its outlet feed and the
   // aggregate. Done after the score sort, so the better copy survives.
   const deduped = dedupeStories(news).slice(0, 200);
-
-  // Get last scan time
-  const { data: lastScan } = await supabase
-    .from("news_items")
-    .select("fetched_at")
-    .order("fetched_at", { ascending: false })
-    .limit(1);
 
   return NextResponse.json({
     news: deduped,

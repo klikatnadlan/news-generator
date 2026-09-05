@@ -13,35 +13,67 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+const NAME_KEY = "news-gen-username";
+// Session-scoped on purpose: a skip hides the dialog for this tab (reloads and
+// page changes included), but a brand-new visit gets one more chance to opt in.
+// The name is pure attribution — the "נשלח ע״י" column in /history — and every
+// consumer is already null-safe, so nothing needs it to be REQUIRED. Before
+// 2026-09-03 this dialog was the first thing every new visitor saw, with no
+// close control and no Escape on mobile: a form standing between a client and
+// the product.
+const SKIP_KEY = "news-gen-username-skipped";
+
+function rememberSkip() {
+  try { sessionStorage.setItem(SKIP_KEY, "1"); } catch { /* private mode etc. */ }
+}
+
 export function UsernameDialog() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
 
   useEffect(() => {
-    const stored = localStorage.getItem("news-gen-username");
-    if (!stored) {
-      setOpen(true);
-    }
+    try {
+      const stored = localStorage.getItem(NAME_KEY);
+      const skipped = sessionStorage.getItem(SKIP_KEY);
+      if (!stored && !skipped) {
+        setOpen(true);
+      }
+    } catch { /* storage unavailable: stay closed, never block the page */ }
   }, []);
+
+  // Escape closes (same idiom as the SiteNav menu).
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { rememberSkip(); setOpen(false); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
 
   const handleSave = () => {
     if (name.trim()) {
-      localStorage.setItem("news-gen-username", name.trim());
+      try { localStorage.setItem(NAME_KEY, name.trim()); } catch { /* ignore */ }
       setOpen(false);
     }
   };
 
+  const handleSkip = () => {
+    rememberSkip();
+    setOpen(false);
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent onClose={() => setOpen(false)}>
+      <DialogContent onClose={handleSkip} role="dialog" aria-modal="true" aria-labelledby="username-dialog-title">
         <DialogHeader>
-          <DialogTitle className="text-2xl">
+          <DialogTitle id="username-dialog-title" className="text-2xl">
             ברוכים הבאים! 👋
           </DialogTitle>
           <DialogDescription className="text-sm leading-relaxed mt-2">
-            המערכת מייצרת כותרות ופרשנות יומית לוואטסאפ.
+            לידרפיד עוקב אחרי חדשות הנדל״ן בזמן אמת. אפשר לקרוא, לחפש בארכיון ולשאול שאלות בלי להזדהות.
             <br />
-            מה השם שלך?
+            איך לקרוא לך? לא חובה. השם משמש רק לסימון מי שיתף נוסח.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
@@ -58,14 +90,22 @@ export function UsernameDialog() {
             />
           </div>
         </div>
-        <DialogFooter>
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleSkip}
+            className="w-full sm:w-auto"
+          >
+            לא עכשיו
+          </Button>
           <Button
             onClick={handleSave}
             disabled={!name.trim()}
             className="w-full sm:w-auto text-white font-bold"
             style={{ backgroundColor: "#1d3557" }}
           >
-            כניסה למערכת
+            המשך
           </Button>
         </DialogFooter>
       </DialogContent>

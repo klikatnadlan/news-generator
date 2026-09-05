@@ -127,7 +127,24 @@ export function dedupeStories<T extends { title?: string | null }>(items: T[]): 
   return kept.map((k) => k.item);
 }
 
-export function isRealEstate(title: string, summary: string, source: string): boolean {
+// A scored item this confident is real-estate news by the scorer's own judgment.
+// The scorer (Haiku, over the full item) already asked "is this housing news";
+// requiring a keyword on top of that was double-gating, and it dropped the two
+// highest-scored stories of the week of 2026-09-01.
+const TRUST_SCORE_FROM = 80;
+
+// Anchors the keyword list lacked. Measured 2026-09-03 with a faithful port of
+// this function: "בנק ישראל הוריד את הריבית ל-3.25%" (score 88) and "ביהמ"ש
+// עצר את הגרלת הזכויות בגוש הגדול" (score 91) were BOTH dropped at the include
+// step — not vetoed — because neither "ריבית" alone, "קרקע" nor "מתחם" is a
+// keyword. "ריבית" stays out on purpose (it leaks general finance); the central
+// bank by name does not.
+const RE_ANCHORS_ADDED = [
+  "בנק ישראל", "ריבית בנק ישראל", "ריבית הפריים",
+  "קרקע", "קרקעות", "מתחם", "מתחמים", "הגרלת", "בעלי הזכויות",
+];
+
+export function isRealEstate(title: string, summary: string, source: string, score?: number): boolean {
   if (REALESTATE_SOURCES.has(source)) return true;
 
   const text = `${title} ${summary || ""}`.toLowerCase();
@@ -138,8 +155,15 @@ export function isRealEstate(title: string, summary: string, source: string): bo
     if (vetoMatch(text, kw)) return false;
   }
 
+  // A high score from the real-estate scorer is itself the signal. Applied
+  // AFTER the veto, so a stock-market piece the scorer liked is still refused.
+  if (typeof score === "number" && score >= TRUST_SCORE_FROM) return true;
+
   // Include: at least one real-estate signal must be present
   for (const kw of REALESTATE_KEYWORDS) {
+    if (text.includes(kw.toLowerCase())) return true;
+  }
+  for (const kw of RE_ANCHORS_ADDED) {
     if (text.includes(kw.toLowerCase())) return true;
   }
 

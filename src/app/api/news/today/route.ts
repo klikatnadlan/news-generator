@@ -28,14 +28,23 @@ function detectSourceFromUrl(url: string): string | null {
 export async function GET() {
   const today = new Date().toISOString().split("T")[0];
 
-  // Pull more than we need so the real-estate filter doesn't shrink the top-N
-  const { data, error } = await supabase
-    .from("news_scores")
-    .select("*, news_items(*)")
-    .eq("scan_date", today)
-    .gte("score", 30)
-    .order("score", { ascending: false })
-    .limit(30);
+  // Pull more than we need so the real-estate filter doesn't shrink the top-N.
+  // The last-scan lookup is independent of the scores query — fired together so
+  // the response waits for ONE DB round-trip, not two in series.
+  const [{ data, error }, { data: lastScan }] = await Promise.all([
+    supabase
+      .from("news_scores")
+      .select("*, news_items(*)")
+      .eq("scan_date", today)
+      .gte("score", 30)
+      .order("score", { ascending: false })
+      .limit(30),
+    supabase
+      .from("news_items")
+      .select("fetched_at")
+      .order("fetched_at", { ascending: false })
+      .limit(1),
+  ]);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -53,19 +62,13 @@ export async function GET() {
         score_id: s.id,
       };
     })
-    // Real-estate-only on the dashboard "ידיעות מובילות" strip
-    .filter((n: any) => isRealEstate(n.title || "", n.summary || "", n.source));
+    // Real-estate-only on the dashboard "ידיעות מובילות" strip. The score rides
+    // along so a high-confidence item is not dropped for lacking a keyword.
+    .filter((n: any) => isRealEstate(n.title || "", n.summary || "", n.source, n.score));
 
   // Dedupe BEFORE the slice — otherwise a duplicated story eats one of the six
   // visible slots and the strip shows the same headline twice.
   const deduped = dedupeStories(news).slice(0, 6);
-
-  // Get last scan time
-  const { data: lastScan } = await supabase
-    .from("news_items")
-    .select("fetched_at")
-    .order("fetched_at", { ascending: false })
-    .limit(1);
 
   return NextResponse.json({
     news: deduped,

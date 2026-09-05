@@ -71,6 +71,9 @@ export async function GET(request: NextRequest) {
   const category = searchParams.get("category") || "";
   const range = searchParams.get("range") || "week";
   const topic = searchParams.get("topic") || ""; // optional: filter by predefined topic
+  // ?refresh=1 — the panel's 🔄 button. Skips the cache READ (never the write),
+  // same idiom as /api/ask and /api/cities/summary.
+  const refresh = searchParams.get("refresh") === "1";
 
   const days = rangeToDays(range);
   const now = new Date();
@@ -81,18 +84,20 @@ export async function GET(request: NextRequest) {
 
   // ─── Cache check ───
   // Narrative synthesis is the slowest call in the app (Sonnet over dozens of
-  // headlines). Memoize per (category|range|topic) with a 15-minute TTL so a
-  // second viewer — or the same user toggling tabs — gets an instant result
-  // and we skip both the headlines query and the Claude call.
+  // headlines, ~35s cold, ~1s cached). Memoize per (category|range|topic).
+  // TTL is 6 HOURS, not 15 minutes: the underlying scan (/api/cron/scan at
+  // 07:00 Israel) refreshes once a day, so a 15-minute TTL bought nothing and
+  // cost one Sonnet call (~10 agorot, ~35s) per expiry. Anyone who needs it
+  // sooner clicks 🔄, which sends ?refresh=1 and rebuilds.
   const cacheKey = `${category}|${range}|${topic}`;
-  const TTL_MS = 15 * 60 * 1000;
+  const TTL_MS = 6 * 60 * 60 * 1000;
   try {
     const { data: cached } = await supabase
       .from("narrative_cache")
       .select("narratives, count, created_at")
       .eq("cache_key", cacheKey)
       .maybeSingle();
-    if (cached && now.getTime() - new Date(cached.created_at).getTime() < TTL_MS) {
+    if (!refresh && cached && now.getTime() - new Date(cached.created_at).getTime() < TTL_MS) {
       return NextResponse.json({
         narratives: cached.narratives || [],
         range,
@@ -284,7 +289,7 @@ ${headlineList}
   }
 
   // Write-through cache. Only store non-empty results so a transient empty
-  // generation doesn't get pinned for 15 minutes.
+  // generation doesn't get pinned for six hours.
   if (narratives.length > 0) {
     try {
       await supabase

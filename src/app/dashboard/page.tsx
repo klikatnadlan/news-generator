@@ -14,12 +14,28 @@ interface NewsItem {
 export default function DashboardPage() {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [marketIndex, setMarketIndex] = useState<{
-    index: number;
+    index: number | null;
     trend: string;
     summary: string;
     movingAvg?: number;
     range?: { min: number; max: number };
+    /** The day the number was computed for — may not be today. */
+    date?: string;
+    stale?: boolean;
+    needsCompute?: boolean;
   } | null>(null);
+  // GET /api/market-index is read-only now; computing today's value is a click.
+  const [computing, setComputing] = useState(false);
+  const computeIndex = async () => {
+    setComputing(true);
+    try {
+      await fetch("/api/market-index", { method: "POST" });
+      const fresh = await fetch("/api/market-index").then((r) => r.json());
+      setMarketIndex(fresh);
+    } finally {
+      setComputing(false);
+    }
+  };
   const [isEmptyDay, setIsEmptyDay] = useState(false);
   const [emptyDayMessage, setEmptyDayMessage] = useState("");
   const [lastScan, setLastScan] = useState<string | null>(null);
@@ -90,8 +106,12 @@ export default function DashboardPage() {
     );
   }
 
-  const verbal = marketIndex ? getVerbal(marketIndex.movingAvg || marketIndex.index) : null;
-  const indexVal = marketIndex ? (marketIndex.movingAvg || marketIndex.index) : 0;
+  const hasIndex = !!marketIndex && marketIndex.index !== null;
+  const verbal = hasIndex ? getVerbal(marketIndex!.movingAvg || (marketIndex!.index as number)) : null;
+  const indexVal = hasIndex ? (marketIndex!.movingAvg || (marketIndex!.index as number)) : 0;
+  const indexDateLabel = marketIndex?.date
+    ? new Date(marketIndex.date + "T12:00:00").toLocaleDateString("he-IL", { day: "numeric", month: "numeric" })
+    : "";
 
   return (
     <div dir="rtl" className="min-h-screen" style={{ background: "var(--lf-bg, #f8f9fb)" }}>
@@ -101,7 +121,7 @@ export default function DashboardPage() {
       <div className="max-w-3xl mx-auto px-4 py-6">
 
         {/* Market Index */}
-        {marketIndex && verbal && (
+        {marketIndex && hasIndex && verbal && (
           <div className="lf-card p-5 mb-4" style={{ borderRight: `3px solid ${verbal.color}` }}>
             <div className="flex items-center justify-between">
               <div className="flex-1">
@@ -118,6 +138,22 @@ export default function DashboardPage() {
                   <p className="text-[11px]" style={{ color: "#9ca3af" }}>טווח שבועי: {marketIndex.range.min}–{marketIndex.range.max}</p>
                 )}
                 <p className="text-[10px] mt-1" style={{ color: "#d1d5db" }}>מבוסס ניתוח NLP על באזי השבוע · לא המלצת השקעה</p>
+                {/* The date the number belongs to, and — only when today's is
+                    missing — the click that computes it. The page load itself
+                    never calls Claude anymore. */}
+                {marketIndex.stale && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-[11px]" style={{ color: "#9ca3af" }}>נכון ל-{indexDateLabel}</span>
+                    <button
+                      onClick={computeIndex}
+                      disabled={computing}
+                      className="text-[11px] font-semibold px-2.5 py-1 rounded-md border disabled:opacity-50"
+                      style={{ borderColor: "#e5e7eb", color: "#0f1419", background: "#fff" }}
+                    >
+                      {computing ? "⏳ מחשב…" : "חשב מדד להיום"}
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="text-center mr-4">
                 <div className="text-[36px] font-extrabold leading-none" style={{ color: verbal.color, fontFamily: "DM Sans, system-ui" }}>
@@ -128,6 +164,24 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* No index computed yet (fresh install, or history table empty). */}
+        {marketIndex && !hasIndex && (
+          <div className="lf-card p-4 mb-4 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[13px] font-bold" style={{ color: "#0f1419" }}>מד אמון השוק</p>
+              <p className="text-[12px]" style={{ color: "#6b7280" }}>עדיין לא חושב להיום.</p>
+            </div>
+            <button
+              onClick={computeIndex}
+              disabled={computing}
+              className="text-[11px] font-semibold px-3 py-1.5 rounded-md border disabled:opacity-50"
+              style={{ borderColor: "#e5e7eb", color: "#0f1419", background: "#fff" }}
+            >
+              {computing ? "⏳ מחשב…" : "חשב מדד להיום"}
+            </button>
           </div>
         )}
 
