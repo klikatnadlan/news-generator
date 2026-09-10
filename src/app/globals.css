@@ -275,6 +275,15 @@
   box-shadow: 0 0 0 1px var(--lf-navy);
 }
 
+/* Two lines of summary, then an ellipsis. Enough to tell whether the story is
+   worth the click, without a card that grows to whatever the feed sent. */
+.lf-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 /* ═══ Stat Pills ═══ */
 .lf-stat-pill {
   background: rgba(255,255,255,0.06);

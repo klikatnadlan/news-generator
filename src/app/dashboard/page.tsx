@@ -9,6 +9,10 @@ interface NewsItem {
   title: string;
   source: string;
   score: number;
+  // The API already returned these; the card just never asked for them, so the
+  // strip was three unreadable, unclickable headlines.
+  summary?: string | null;
+  source_url?: string | null;
 }
 
 export default function DashboardPage() {
@@ -217,15 +221,34 @@ export default function DashboardPage() {
             <p className="text-[12px] font-semibold mb-1" style={{ color: "#9ca3af" }}>ידיעות מובילות</p>
             {news.slice(0, 3).map((item) => {
               const scoreColor = item.score >= 80 ? "#059669" : item.score >= 60 ? "#d97706" : "#dc2626";
+              // The card is a link when we have somewhere to go, and a plain box
+              // when we don't. A card that looks clickable and isn't is worse
+              // than one that never invited the click.
+              const Card = item.source_url ? "a" : "div";
+              const linkProps = item.source_url
+                ? { href: item.source_url, target: "_blank", rel: "noopener noreferrer" }
+                : {};
               return (
-                <div key={item.id} className="lf-card p-3 flex items-center gap-3">
-                  <span className="text-[16px] font-extrabold shrink-0 w-8 text-center" style={{ color: scoreColor, fontFamily: "DM Sans" }}>
+                <Card
+                  key={item.id}
+                  {...linkProps}
+                  className={`lf-card p-3 flex items-start gap-3 ${item.source_url ? "block transition-shadow hover:shadow-md" : ""}`}
+                >
+                  <span className="text-[16px] font-extrabold shrink-0 w-8 text-center pt-0.5" style={{ color: scoreColor, fontFamily: "DM Sans" }}>
                     {item.score}
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className="text-[13px] font-bold leading-[1.4]" style={{ color: "#0f1419" }}>{item.title}</p>
+                    {item.summary && (
+                      <p className="text-[12px] leading-[1.5] mt-1 lf-clamp-2" style={{ color: "#6b7280" }}>
+                        {item.summary}
+                      </p>
+                    )}
+                    <p className="text-[10px] mt-1.5" style={{ color: "#9ca3af" }}>
+                      {item.source}{item.source_url ? " · לכתבה המלאה ↗" : ""}
+                    </p>
                   </div>
-                </div>
+                </Card>
               );
             })}
           </div>

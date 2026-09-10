@@ -60,6 +60,12 @@ export async function GET() {
       return {
         ...item,
         source: realSource,
+        // The dashboard now renders the summary as text, so any markup the feed
+        // carried would show up as literal <p> on screen. Today's three items
+        // are clean; the feeds are not all the same. Same strip as
+        // /api/alerts/articles.
+        title: (item.title || "").replace(/<[^>]*>/g, ""),
+        summary: (item.summary || "").replace(/<[^>]*>/g, ""),
         score: s.score,
         reasoning: s.reasoning,
         score_id: s.id,
