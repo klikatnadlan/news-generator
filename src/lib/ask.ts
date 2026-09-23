@@ -301,6 +301,10 @@ export interface AskSource {
   url: string;
   date: string | null;
   web: boolean;
+  /** Only on a pinned story. Answers are normally built from headlines alone
+   *  (many sources, low cost); the one story being asked about also brings its
+   *  lead, or the model can only restate the headline. */
+  summary?: string | null;
 }
 
 export interface AskRetrieval {
@@ -315,6 +319,8 @@ export interface AskRetrieval {
   /** Official CBS / Bank of Israel / Chief Economist figures, when the question
    *  is one they answer. Free, no tokens, each carrying its own period. */
   marketFacts?: string[];
+  /** True when sources[0] is the story the question was asked from. */
+  pinned?: boolean;
 }
 
 // Per-mode scan budgets. Every number here is measured, not guessed:
@@ -599,7 +605,7 @@ export async function pinStory(r: AskRetrieval, storyId: string | null): Promise
     .eq("id", storyId)
     .maybeSingle();
   if (error || !data) return r;
-  const pinned = toSource(data);
+  const pinned: AskSource = { ...toSource(data), summary: stripTags(data.summary || "").slice(0, 600) || null };
   const key = urlKey(pinned.url);
   const rest = r.sources.filter((s) => !(key && urlKey(s.url) === key));
   const alreadyInternal = rest.length !== r.sources.length;
@@ -607,6 +613,7 @@ export async function pinStory(r: AskRetrieval, storyId: string | null): Promise
     ...r,
     sources: [pinned, ...rest],
     internalCount: alreadyInternal ? r.internalCount : r.internalCount + 1,
+    pinned: true,
   };
 }
 
@@ -742,9 +749,13 @@ export function buildAnswerPrompt(question: string, plan: AskPlan, r: AskRetriev
   const list = r.sources
     .map((s, i) => {
       const bits = [s.source, s.date].filter(Boolean).join(" · ");
-      return `[${i + 1}] ${s.title}${bits ? ` (${bits})` : ""}`;
+      const lead = s.summary ? `\n    תקציר: ${s.summary}` : "";
+      return `[${i + 1}] ${s.title}${bits ? ` (${bits})` : ""}${lead}`;
     })
-    .join("\n");
+    .join("\n")
+    + (r.pinned
+      ? "\n\nהשאלה נשאלה מתוך הידיעה [1]. היא הנושא: פתח ממה שהיא מדווחת, ואז הוסף את מה שהמקורות האחרים מוסיפים. אם אין מקורות נוספים על אותו אירוע, אמור זאת במשפט אחד בסוף."
+      : "");
 
   const windowLine = plan.from ? `החלון: מ-${plan.from} עד היום.` : "החלון: כל המאגר.";
   const window = plan.from ? ` מ-${plan.from}` : "";

@@ -61,8 +61,10 @@ export async function GET(request: NextRequest) {
 
   const encoder = new TextEncoder();
   const supabase = getSupabase();
-  // A pinned story changes the answer, so it is part of the key.
-  const cacheKey = `ask|v1|${normalize(question)}${storyId ? `|story:${storyId}` : ""}`;
+  // A pinned story changes the answer, so it is part of the key. "pin2": the
+  // first pinned answers (2026-09-23, an hour) were built from the headline
+  // alone; bumping the tag keeps those from being served for their 6 hours.
+  const cacheKey = `ask|v1|${normalize(question)}${storyId ? `|pin2:${storyId}` : ""}`;
 
   const stream = new ReadableStream({
     async start(controller) {
