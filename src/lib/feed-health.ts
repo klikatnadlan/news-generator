@@ -27,6 +27,34 @@ export interface FeedHealth {
   items: number;
   scorable: boolean;
   error?: string;
+  /** Age in days of the newest item the feed carries; null when it has no dates. */
+  newestAgeDays?: number | null;
+}
+
+/**
+ * A feed can be full and dead at once. Measured 2026-09-23: "וואלה עסקים ונדל״ן"
+ * answered 30 items every day, and the newest was 113 days old — the channel had
+ * stopped publishing around June. This monitor counted 30, called it healthy,
+ * and the scan's 72-hour window silently dropped all 30, so for months not one
+ * Walla real-estate item reached the feed. Counting items is not enough; the
+ * age of the newest one is the signal.
+ *
+ * Four days: long enough for a holiday weekend (two days of חג against a
+ * Shabbat) not to page anyone, short enough that a dead channel is named within
+ * the week, especially with the two-strikes rule on top.
+ */
+export const STALE_AFTER_DAYS = 4;
+
+export function newestItemAgeDays(
+  items: { pubDate?: string; isoDate?: string }[],
+  now: number = Date.now()
+): number | null {
+  let newest = -Infinity;
+  for (const it of items) {
+    const t = Date.parse(it.isoDate || it.pubDate || "");
+    if (Number.isFinite(t) && t > newest) newest = t;
+  }
+  return Number.isFinite(newest) ? Math.max(0, (now - newest) / 86_400_000) : null;
 }
 
 export interface FeedHealthReport {
@@ -61,14 +89,22 @@ async function probe(feed: (typeof RSS_FEEDS)[number]): Promise<FeedHealth> {
       parsed = await parserFor(feed.userAgent).parseString(raw);
     }
     const items = (parsed.items || []).length;
+    const newestAgeDays = newestItemAgeDays(parsed.items || []);
+    const stale = items > 0 && newestAgeDays !== null && newestAgeDays > STALE_AFTER_DAYS;
     return {
       name: feed.name,
       url: feed.url,
-      ok: items > 0,
+      ok: items > 0 && !stale,
       items,
       scorable,
-      // An empty feed throws no error, so say plainly what happened.
-      error: items === 0 ? "פיד ריק — 200 OK אבל אפס פריטים" : undefined,
+      newestAgeDays: newestAgeDays === null ? null : Math.round(newestAgeDays * 10) / 10,
+      // Neither an empty feed nor a frozen one throws, so say plainly which it is.
+      error:
+        items === 0
+          ? "פיד ריק — 200 OK אבל אפס פריטים"
+          : stale
+            ? `פיד תקוע — ${items} פריטים, אבל החדש שבהם בן ${Math.round(newestAgeDays!)} ימים`
+            : undefined,
     };
   } catch (err) {
     return {

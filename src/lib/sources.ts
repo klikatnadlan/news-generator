@@ -84,11 +84,19 @@ export const RSS_FEEDS: RSSFeedConfig[] = [
   // section page contains no feed reference at all. Bizportal items still arrive
   // via the rss.app aggregate below. Left as a record.
   {
-    // 2026-08-16: feed/6 answered 200 with a valid but EMPTY channel (no items,
-    // blank title). feed/13111 is the live "עסקים כלכלה ונדל״ן" channel
-    // (verified: 30 items, all User-Agents).
-    name: "וואלה עסקים ונדל״ן",
-    url: "https://rss.walla.co.il/feed/13111",
+    // 2026-08-16: feed/6 answered 200 with a valid but EMPTY channel. It was
+    // replaced by feed/13111, which in fact is Walla's LOCAL-news business
+    // channel ("כל החדשות המקומיות בתחום עסקים כלכלה ונדל"ן") and which then
+    // froze: on 2026-09-23 it still served 30 items, the newest 113 days old,
+    // so the 72h ingest window dropped every one and feed-health (counting
+    // items, not their age) called it healthy. Walla has no live real-estate
+    // channel of its own; found from rss.walla.co.il's own index, feed/557 is
+    // "וואלה כסף — חדשות": fresh (newest minutes old), finance.walla.co.il,
+    // and 9 of its 30 items were real estate (דירה בהנחה, דירות זעירות,
+    // משכנתא, מחירי הדירות). feed/2 "וואלה כסף" looked right by name but serves
+    // general news.walla.co.il items — rejected.
+    name: "וואלה כסף",
+    url: "https://rss.walla.co.il/feed/557",
     category: "כלכלה",
   },
 
