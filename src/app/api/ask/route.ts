@@ -45,11 +45,13 @@ export async function GET(request: NextRequest) {
   // Sound tags out first ("[קולות של פעולות]" was once answered with eight
   // sources). A question with no words left is refused here, before any model
   // call, quota unit or cache write.
-  const question = stripSoundTags((sp.get("q") || "").trim()).slice(0, 300);
+  const raw = (sp.get("q") || "").trim();
+  const question = stripSoundTags(raw).slice(0, 300);
   const refresh = sp.get("refresh") === "1";
 
   if (!question || !hasWords(question)) {
-    return new Response(JSON.stringify({ error: question ? "לא זוהתה שאלה" : "חסרה שאלה" }), {
+    // "Missing" only when nothing was sent; anything else was noise.
+    return new Response(JSON.stringify({ error: raw ? "לא זוהתה שאלה" : "חסרה שאלה" }), {
       status: 400,
       headers: { "Content-Type": "application/json" },
     });

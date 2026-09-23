@@ -158,8 +158,11 @@ export const RSS_FEEDS: RSSFeedConfig[] = [
   { name: "YCOM - חדשות מקומיות", url: "https://ycom.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "חדשות טבריה", url: "https://www.tiberiasnews.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "צפת.נט", url: "https://zefat.net/feed/", category: "מקומי", ingestOnly: true },
-  // 2026-09-23: timed out for the bot UA and answered a browser UA at once, from
-  // the same connection — a User-Agent block, not an IP one.
+  // 2026-09-23: from an Israeli connection it times out for the bot UA and
+  // answers a browser UA at once, so it got the browser UA. From our server it
+  // STILL times out with it: it also blocks servers outside Israel, like the 12
+  // local papers that answer 403 there. The UA stays (harmless, and right for
+  // any fetch from inside Israel); fixing it for the server would cost money.
   { name: "בית שאן - ארץ המעיינות", url: "https://bet-shean.org.il/feed/", category: "מקומי", ingestOnly: true, userAgent: BROWSER_UA },
   { name: "מקומונט השרון", url: "https://inhasharon.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "שרון אונליין", url: "https://sharonline.co.il/feed/", category: "מקומי", ingestOnly: true },
