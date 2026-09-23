@@ -4,6 +4,7 @@ import { getSupabase } from "@/lib/supabase";
 import { consumeAskQuota } from "@/lib/ask-quota";
 import { planQuery, retrieveForPlan, buildAnswerPrompt, type AskSource } from "@/lib/ask";
 import { SUGGESTED_QUESTIONS } from "@/lib/ask-questions";
+import { stripSoundTags, hasWords } from "@/lib/transcript";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
@@ -41,11 +42,14 @@ function sse(encoder: TextEncoder, event: string | null, payload: unknown): Uint
 
 export async function GET(request: NextRequest) {
   const sp = new URL(request.url).searchParams;
-  const question = (sp.get("q") || "").trim().slice(0, 300);
+  // Sound tags out first ("[קולות של פעולות]" was once answered with eight
+  // sources). A question with no words left is refused here, before any model
+  // call, quota unit or cache write.
+  const question = stripSoundTags((sp.get("q") || "").trim()).slice(0, 300);
   const refresh = sp.get("refresh") === "1";
 
-  if (!question) {
-    return new Response(JSON.stringify({ error: "חסרה שאלה" }), {
+  if (!question || !hasWords(question)) {
+    return new Response(JSON.stringify({ error: question ? "לא זוהתה שאלה" : "חסרה שאלה" }), {
       status: 400,
       headers: { "Content-Type": "application/json" },
     });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, type MouseEvent } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { ScoredNews } from "@/lib/types";
@@ -210,6 +211,18 @@ export function NewsCard({ news, selected, onSelect, showDate, readOnly }: NewsC
         {actionsOpen && (
         <div className="flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
           <button onClick={async (e) => { e.stopPropagation(); await navigator.clipboard.writeText(`${news.title}${news.summary ? `\n${news.summary}` : ""}`); setCopyLabel("✓"); setTimeout(() => setCopyLabel(null), 1500); }} className="text-[11px] font-medium h-[30px] px-3 rounded-md border transition-colors" style={copyLabel ? { background: "#f0fdf4", borderColor: "#059669", color: "#059669" } : { borderColor: "#e5e7eb", color: "#6b7280", background: "#fff" }}>{copyLabel || "📋 העתק תכלס"}</button>
+          {/* The ask box, one tap from the story you are already reading. Measured
+              2026-09-23: no question had been asked since 09-10 — the tool
+              worked, but it lived on a page nobody opened. The question arrives
+              filled in and runs on arrival; that tap is the click that pays. */}
+          <Link
+            href={`/ask?q=${encodeURIComponent(`מה עוד ידוע על: ${news.title.replace(/<[^>]*>/g, "").slice(0, 200)}`)}`}
+            onClick={(e) => e.stopPropagation()}
+            className="text-[11px] font-semibold h-[30px] px-3 rounded-md border inline-flex items-center transition-colors"
+            style={{ borderColor: "#fecaca", color: "#b91c1c", background: "#fff" }}
+          >
+            💬 שאל על זה
+          </Link>
           {!isPaywalled && !readOnly && (
             <>
               <button onClick={(e) => generate("message", e)} disabled={generating !== null} className="text-[11px] font-semibold h-[30px] px-3.5 rounded-md text-white disabled:opacity-40 transition-colors" style={{ background: "#0f1419" }}>{generating === "message" ? "⏳ מייצר..." : "📝 צור הודעה"}</button>

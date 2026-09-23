@@ -16,6 +16,10 @@ interface VoiceRecordButtonProps {
 export function VoiceRecordButton({ onTranscript, shape = "default" }: VoiceRecordButtonProps) {
   const radius = shape === "pill" ? "rounded-full" : "rounded-md";
   const [state, setState] = useState<"idle" | "recording" | "transcribing">("idle");
+  // Shown for a moment when the recording held no words. Before, an empty (or
+  // noise-only) recording did nothing at all, and a noise tag was sent on as if
+  // it were a question.
+  const [heardNothing, setHeardNothing] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -57,6 +61,9 @@ export function VoiceRecordButton({ onTranscript, shape = "default" }: VoiceReco
           const data = await res.json();
           if (data.text) {
             onTranscript(data.text);
+          } else if (data.noSpeech || res.ok) {
+            setHeardNothing(true);
+            setTimeout(() => setHeardNothing(false), 2500);
           }
         } catch {
           // silent
@@ -120,7 +127,7 @@ export function VoiceRecordButton({ onTranscript, shape = "default" }: VoiceReco
       className={`flex items-center gap-1.5 text-xs px-3 py-2 ${radius} border font-medium transition-colors hover:bg-purple-50`}
       style={{ borderColor: "#c084fc", color: "#7c3aed", backgroundColor: "#faf5ff" }}
     >
-      🎙️ הקלט
+      {heardNothing ? "🤷 לא נשמעה שאלה, נסו שוב" : "🎙️ הקלט"}
     </button>
   );
 }

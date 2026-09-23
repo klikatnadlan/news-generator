@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cleanTranscript, hasWords } from "@/lib/transcript";
 
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY!;
 
@@ -37,5 +38,9 @@ export async function POST(request: NextRequest) {
   }
 
   const result = await response.json();
-  return NextResponse.json({ text: result.text || "" });
+  // Drop the transcriber's sound tags ("[קולות של פעולות]"). When nothing that
+  // looks like words is left, say so explicitly, so the button can tell the
+  // user it heard nothing instead of sending a tag off as a question.
+  const text = cleanTranscript(result.text || "");
+  return NextResponse.json({ text: hasWords(text) ? text : "", noSpeech: !hasWords(text) });
 }
