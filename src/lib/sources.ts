@@ -138,7 +138,9 @@ export const RSS_FEEDS: RSSFeedConfig[] = [
   { name: "כאן דרום - אשקלון", url: "https://www.kan-ashkelon.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "חדשות אפס שמונה 08", url: "https://www.news08.net/feed/", category: "מקומי", ingestOnly: true },
   { name: "אשדודי", url: "https://ashdodi.com/feed/", category: "מקומי", ingestOnly: true },
-  { name: "אשקלון ניוז", url: "https://ashkelon.news/rss/news", category: "מקומי", ingestOnly: true },
+  // 2026-09-23: /rss/news now answers 404 (500 from our server). The live feed,
+  // found from the site's own page, is /rss.xml: 50 items, newest under a day.
+  { name: "אשקלון ניוז", url: "https://ashkelon.news/rss.xml", category: "מקומי", ingestOnly: true },
   { name: "רחובות ניוז", url: "https://rehovot.news/feed/", category: "מקומי", ingestOnly: true },
   { name: "בראש החדשות — טירת כרמל", url: "https://www.tcnews.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "מיטב - חדשות בית שמש", url: "https://rbs-news.com/feed/", category: "מקומי", ingestOnly: true },
@@ -156,15 +158,24 @@ export const RSS_FEEDS: RSSFeedConfig[] = [
   { name: "YCOM - חדשות מקומיות", url: "https://ycom.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "חדשות טבריה", url: "https://www.tiberiasnews.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "צפת.נט", url: "https://zefat.net/feed/", category: "מקומי", ingestOnly: true },
-  { name: "בית שאן - ארץ המעיינות", url: "https://bet-shean.org.il/feed/", category: "מקומי", ingestOnly: true },
+  // 2026-09-23: timed out for the bot UA and answered a browser UA at once, from
+  // the same connection — a User-Agent block, not an IP one.
+  { name: "בית שאן - ארץ המעיינות", url: "https://bet-shean.org.il/feed/", category: "מקומי", ingestOnly: true, userAgent: BROWSER_UA },
   { name: "מקומונט השרון", url: "https://inhasharon.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "שרון אונליין", url: "https://sharonline.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "קול כפר סבא", url: "https://kfarsabanews.com/feed", category: "מקומי", ingestOnly: true },
   { name: "רעננה ניוז", url: "https://raanana.news/feed/", category: "מקומי", ingestOnly: true },
   { name: "הוד השרון ניוז", url: "https://hodhasharon.news/feed/", category: "מקומי", ingestOnly: true },
   { name: "ירוק - רשת מקומונים בשרון", url: "https://hoha.co.il/?feed=rss2", category: "מקומי", ingestOnly: true },
-  { name: "רחובות בשבילנו", url: "https://rehovot.org.il/feed/", category: "מקומי", ingestOnly: true },
-  { name: "מקומונט רמת גן", url: "https://www.rmgcity.co.il/feed/", category: "מקומי", ingestOnly: true },
+  // Replaced 2026-09-23: "רחובות בשבילנו" (rehovot.org.il/feed/) had published
+  // nothing for 615 days — the site itself, not just the feed — which left
+  // Rehovot with no live local source (רחובות ניוז is alive but blocks servers
+  // outside Israel). BE106's Rehovot channel, found from be106.net's own page:
+  // 40 items, newest minutes old, 35 of 40 name the city.
+  { name: "BE106 רחובות", url: "https://www.be106.net/rss/city/233/posts.xml", category: "מקומי", ingestOnly: true },
+  // The site publishes daily, but its page cache served a copy of the feed 21
+  // days old; any fresh query parameter returns the live one (see cacheBust).
+  { name: "מקומונט רמת גן", url: "https://www.rmgcity.co.il/feed/", category: "מקומי", ingestOnly: true, cacheBust: true },
   { name: "מקומונט גבעתיים", url: "https://rgcity.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "רמת גן גבעתיים NEWS", url: "https://www.rgg-news.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "רמת גן גבעתיים אונליין", url: "https://rgonline.co.il/feed/", category: "מקומי", ingestOnly: true },
@@ -182,7 +193,11 @@ export const RSS_FEEDS: RSSFeedConfig[] = [
   { name: "JNEWS חדשות ירושלים", url: "https://jerusalemnews.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "RBSN חדשות בית שמש", url: "https://rbsn.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "חדשות העיר בית שמש", url: "https://city-news-bs.co.il/feed/", category: "מקומי", ingestOnly: true },
-  { name: "ביתר 24 - חדשות ביתר עילית", url: "https://beitar24.co.il/feed/", category: "מקומי", ingestOnly: true },
+  // Replaced 2026-09-23: "ביתר 24" (beitar24.co.il/feed/) — the site's last post
+  // was 44 days old, leaving Beitar Illit with no live local source. JDN's
+  // Beitar Illit category feed, found from its own category page: newest a day
+  // old, 5 of its 8 items name the city.
+  { name: "JDN ביתר עילית", url: "https://www.jdn.co.il/category/municipal/betar-illit/feed/", category: "מקומי", ingestOnly: true },
   { name: "מקומונט דרום", url: "https://dcity.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "חדשות אשדוד - אשדוד10", url: "https://ashdod10.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "שדרונט", url: "https://sderonet.co.il/feed/", category: "מקומי", ingestOnly: true },

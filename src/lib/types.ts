@@ -69,4 +69,10 @@ export interface RSSFeedConfig {
   // can work around. Costs ~1 Firecrawl credit per refresh, so it is opt-in per
   // feed and only ever runs after a direct attempt has already failed.
   viaFirecrawlOnBlock?: boolean;
+  // Add a one-off query parameter on every fetch. For a site whose page cache
+  // serves a frozen copy of its feed: measured 2026-09-23, rmgcity.co.il/feed/
+  // answered with items 21 days old while the site had published that morning,
+  // and the same URL with any fresh parameter returned the live feed. One
+  // request a day either way — this only changes which copy we are handed.
+  cacheBust?: boolean;
 }

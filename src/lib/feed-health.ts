@@ -1,5 +1,5 @@
 import { RSS_FEEDS } from "./sources";
-import { parserFor, mapPool, FEED_CONCURRENCY } from "./rss";
+import { parserFor, mapPool, FEED_CONCURRENCY, fetchUrlFor } from "./rss";
 import { firecrawlFetchRaw } from "./websearch";
 
 /**
@@ -86,7 +86,7 @@ async function probe(feed: (typeof RSS_FEEDS)[number]): Promise<FeedHealth> {
   try {
     let parsed;
     try {
-      parsed = await parserFor(feed.userAgent).parseURL(feed.url);
+      parsed = await parserFor(feed.userAgent).parseURL(fetchUrlFor(feed));
     } catch (directErr) {
       // Mirror fetchAllFeeds exactly. Without this the monitor would report a
       // feed as dead that the scan actually ingests fine through Firecrawl —

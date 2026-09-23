@@ -121,6 +121,17 @@ function detectSourceFromUrl(url: string): string | null {
 }
 
 /**
+ * The URL to actually request. Normally the feed URL itself; for a feed marked
+ * `cacheBust` (a site whose page cache hands out a frozen copy of its feed) a
+ * one-off parameter is added so we get the live one. Shared by the scan and by
+ * feed-health, so the monitor judges exactly what the scan receives.
+ */
+export function fetchUrlFor(feed: { url: string; cacheBust?: boolean }): string {
+  if (!feed.cacheBust) return feed.url;
+  return `${feed.url}${feed.url.includes("?") ? "&" : "?"}lf=${Date.now()}`;
+}
+
+/**
  * @param opts.scorableOnly fetch only the feeds that get scored. The morning
  *   catch-up run uses this: it needs the scored feeds' current links to find
  *   what the main run had no time to score, not another pass over the ~95
@@ -135,7 +146,7 @@ export async function fetchAllFeeds(opts: { scorableOnly?: boolean } = {}): Prom
     try {
       let parsed;
       try {
-        parsed = await parserFor(feed.userAgent).parseURL(feed.url);
+        parsed = await parserFor(feed.userAgent).parseURL(fetchUrlFor(feed));
       } catch (directErr) {
         // Some publishers block our SERVER's IP, which no header can fix —
         // מעריב נדל״ן went from 20 items/day to a flat 403 on 2026-08-25 while
