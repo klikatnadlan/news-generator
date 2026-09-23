@@ -376,13 +376,22 @@ async function searchGated(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<any[]> {
   const supabase = getSupabase();
-  const { data, error } = await supabase.rpc("search_news", {
+  const call = () => supabase.rpc("search_news", {
     p_query: terms,
     p_from: from,
     p_to: to,
     p_limit: limit,
     p_offset: 0,
   });
+  let { data, error } = await call();
+  if (error) {
+    // One retry. Measured 2026-09-23: an eleven-word question failed here once
+    // with a 500 and answered in 1.1s on each of the next two tries. That one
+    // transient failure became "our archive has nothing" and the answer was
+    // built from the web — about a story that sat in our own feed.
+    await new Promise((res) => setTimeout(res, 800));
+    ({ data, error } = await call());
+  }
   if (error) {
     // A swallowed RPC error here would read as "this topic has no coverage",
     // which is exactly how the city briefing reported "אין מספיק באזים" for
@@ -571,6 +580,34 @@ async function marketFactsFor(question: string): Promise<string[] | undefined> {
     console.error("[ask] market facts failed:", e instanceof Error ? e.message : e);
     return undefined;
   }
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * "💬 שאל על זה" on a news card sends the story's id with the question. That
+ * story is the subject, so it is source [1] no matter what the search finds —
+ * without this, a transient search failure answered a question about a story
+ * in our own feed with "my sources do not clearly cover this event".
+ * Returns the retrieval unchanged when the id is missing, malformed or unknown.
+ */
+export async function pinStory(r: AskRetrieval, storyId: string | null): Promise<AskRetrieval> {
+  if (!storyId || !UUID_RE.test(storyId)) return r;
+  const { data, error } = await getSupabase()
+    .from("news_items")
+    .select("title, summary, source, source_url, published_at, fetched_at")
+    .eq("id", storyId)
+    .maybeSingle();
+  if (error || !data) return r;
+  const pinned = toSource(data);
+  const key = urlKey(pinned.url);
+  const rest = r.sources.filter((s) => !(key && urlKey(s.url) === key));
+  const alreadyInternal = rest.length !== r.sources.length;
+  return {
+    ...r,
+    sources: [pinned, ...rest],
+    internalCount: alreadyInternal ? r.internalCount : r.internalCount + 1,
+  };
 }
 
 export async function retrieveForPlan(plan: AskPlan, question = ""): Promise<AskRetrieval> {

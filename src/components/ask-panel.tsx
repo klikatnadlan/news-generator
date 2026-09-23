@@ -97,9 +97,12 @@ interface AskPanelProps {
   /** Inside the floating drawer: drop the big header card and the page
    *  background, since the drawer supplies its own chrome. */
   embedded?: boolean;
+  /** The news item "💬 שאל על זה" was pressed on. Sent with the initial
+   *  question only, so the story is source [1]; a new question drops it. */
+  storyId?: string;
 }
 
-export function AskPanel({ initialQuestion = "", embedded = false }: AskPanelProps = {}) {
+export function AskPanel({ initialQuestion = "", embedded = false, storyId = "" }: AskPanelProps = {}) {
   const [question, setQuestion] = useState(initialQuestion);
   const [answer, setAnswer] = useState("");
   const [status, setStatus] = useState("");
@@ -173,7 +176,9 @@ export function AskPanel({ initialQuestion = "", embedded = false }: AskPanelPro
     setStatus("שולח…");
 
     try {
-      const url = `/api/ask?q=${encodeURIComponent(text)}${refresh ? "&refresh=1" : ""}`;
+      // The pinned story belongs to the question it came with, and only to it.
+      const pin = storyId && text === initialQuestion.trim() ? `&story=${encodeURIComponent(storyId)}` : "";
+      const url = `/api/ask?q=${encodeURIComponent(text)}${refresh ? "&refresh=1" : ""}${pin}`;
       const res = await fetch(url);
       if (!res.body) throw new Error("אין תשובה מהשרת");
 
@@ -220,7 +225,7 @@ export function AskPanel({ initialQuestion = "", embedded = false }: AskPanelPro
       setBusy(false);
       setStatus("");
     }
-  }, [busy]);
+  }, [busy, storyId, initialQuestion]);
 
   // A question arriving via ?q= (from the home-page hero) runs once on mount.
   const autoRan = useRef(false);

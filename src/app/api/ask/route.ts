@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { aiStream } from "@/lib/anthropic";
 import { getSupabase } from "@/lib/supabase";
 import { consumeAskQuota } from "@/lib/ask-quota";
-import { planQuery, retrieveForPlan, buildAnswerPrompt, type AskSource } from "@/lib/ask";
+import { planQuery, retrieveForPlan, pinStory, buildAnswerPrompt, type AskSource } from "@/lib/ask";
 import { SUGGESTED_QUESTIONS } from "@/lib/ask-questions";
 import { stripSoundTags, hasWords } from "@/lib/transcript";
 
@@ -48,6 +48,8 @@ export async function GET(request: NextRequest) {
   const raw = (sp.get("q") || "").trim();
   const question = stripSoundTags(raw).slice(0, 300);
   const refresh = sp.get("refresh") === "1";
+  // Set by "💬 שאל על זה" on a news card: that story is the subject (pinStory).
+  const storyId = (sp.get("story") || "").trim() || null;
 
   if (!question || !hasWords(question)) {
     // "Missing" only when nothing was sent; anything else was noise.
@@ -59,7 +61,8 @@ export async function GET(request: NextRequest) {
 
   const encoder = new TextEncoder();
   const supabase = getSupabase();
-  const cacheKey = `ask|v1|${normalize(question)}`;
+  // A pinned story changes the answer, so it is part of the key.
+  const cacheKey = `ask|v1|${normalize(question)}${storyId ? `|story:${storyId}` : ""}`;
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -107,7 +110,7 @@ export async function GET(request: NextRequest) {
         // The question travels with the plan: the planner strips a year out of
         // the terms, and retrieval needs it back to search the web the way a
         // person would type it.
-        const r = await retrieveForPlan(plan, question);
+        const r = await pinStory(await retrieveForPlan(plan, question), storyId);
 
         if (r.sources.length === 0) {
           controller.enqueue(sse(encoder, "status", { phase: "found", text: "לא נמצאו מקורות", count: 0 }));

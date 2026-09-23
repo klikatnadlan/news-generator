@@ -216,7 +216,7 @@ export function NewsCard({ news, selected, onSelect, showDate, readOnly }: NewsC
               worked, but it lived on a page nobody opened. The question arrives
               filled in and runs on arrival; that tap is the click that pays. */}
           <Link
-            href={`/ask?q=${encodeURIComponent(`מה עוד ידוע על: ${news.title.replace(/<[^>]*>/g, "").slice(0, 200)}`)}`}
+            href={`/ask?q=${encodeURIComponent(`מה עוד ידוע על: ${news.title.replace(/<[^>]*>/g, "").slice(0, 200)}`)}${news.id ? `&story=${encodeURIComponent(news.id)}` : ""}`}
             onClick={(e) => e.stopPropagation()}
             className="text-[11px] font-semibold h-[30px] px-3 rounded-md border inline-flex items-center transition-colors"
             style={{ borderColor: "#fecaca", color: "#b91c1c", background: "#fff" }}
