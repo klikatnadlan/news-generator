@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { newestItemAgeDays, STALE_AFTER_DAYS } from "@/lib/feed-health";
+import { newestItemAgeDays, STALE_AFTER_DAYS, INGEST_ONLY_STALE_AFTER_DAYS } from "@/lib/feed-health";
 
 const NOW = Date.parse("2026-09-23T12:00:00Z");
 
@@ -29,5 +29,10 @@ describe("feed freshness — a full feed can still be dead", () => {
 
   it("does not page anyone over a holiday weekend", () => {
     expect(STALE_AFTER_DAYS).toBeGreaterThanOrEqual(3);
+  });
+
+  it("does not call a weekly local paper dead", () => {
+    // "סוגרים שבוע" was 6 days quiet and alive on the first run of this check.
+    expect(INGEST_ONLY_STALE_AFTER_DAYS).toBeGreaterThan(7);
   });
 });

@@ -45,6 +45,14 @@ export interface FeedHealth {
  */
 export const STALE_AFTER_DAYS = 4;
 
+/**
+ * Local papers (all ingest-only) are often weekly: on the first run of this
+ * check, "סוגרים שבוע" and "הוד השרון ניוז" were 6 and 4.4 days quiet and alive.
+ * Two weeks separates a weekly paper from a dead one — and the dead ones are not
+ * close: "הד העיר" 1,540 days, "רחובות בשבילנו" 615, "אשדודי" 541.
+ */
+export const INGEST_ONLY_STALE_AFTER_DAYS = 14;
+
 export function newestItemAgeDays(
   items: { pubDate?: string; isoDate?: string }[],
   now: number = Date.now()
@@ -90,7 +98,8 @@ async function probe(feed: (typeof RSS_FEEDS)[number]): Promise<FeedHealth> {
     }
     const items = (parsed.items || []).length;
     const newestAgeDays = newestItemAgeDays(parsed.items || []);
-    const stale = items > 0 && newestAgeDays !== null && newestAgeDays > STALE_AFTER_DAYS;
+    const staleAfter = scorable ? STALE_AFTER_DAYS : INGEST_ONLY_STALE_AFTER_DAYS;
+    const stale = items > 0 && newestAgeDays !== null && newestAgeDays > staleAfter;
     return {
       name: feed.name,
       url: feed.url,
