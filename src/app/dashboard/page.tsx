@@ -17,29 +17,25 @@ interface NewsItem {
 
 export default function DashboardPage() {
   const [news, setNews] = useState<NewsItem[]>([]);
+  // מד אמון השוק is now arithmetic over the tone the morning scoring marks on
+  // each story (lib/market-tone). It refreshes itself, so there is no compute
+  // button any more, and every number on the card can be traced to stories.
   const [marketIndex, setMarketIndex] = useState<{
     index: number | null;
-    trend: string;
-    summary: string;
-    movingAvg?: number;
-    range?: { min: number; max: number };
-    /** The day the number was computed for — may not be today. */
-    date?: string;
+    collecting?: boolean;
+    collected?: number;
+    minStories?: number;
+    summary?: string;
+    counts?: { positive: number; negative: number; neutral: number; total: number };
+    /** The same index for the seven days before this window. */
+    previous?: number | null;
+    trend?: string | null;
+    topPositive?: { title: string; url: string | null } | null;
+    topNegative?: { title: string; url: string | null } | null;
+    /** Newest day with data — may be yesterday before the morning scan. */
+    date?: string | null;
     stale?: boolean;
-    needsCompute?: boolean;
   } | null>(null);
-  // GET /api/market-index is read-only now; computing today's value is a click.
-  const [computing, setComputing] = useState(false);
-  const computeIndex = async () => {
-    setComputing(true);
-    try {
-      await fetch("/api/market-index", { method: "POST" });
-      const fresh = await fetch("/api/market-index").then((r) => r.json());
-      setMarketIndex(fresh);
-    } finally {
-      setComputing(false);
-    }
-  };
   // The day's true story count. `news` is only the top six shown below, so
   // rendering news.length as "ידיעות היום" understated the day (6 vs the home
   // page's 17 for the same date).
@@ -115,12 +111,13 @@ export default function DashboardPage() {
     );
   }
 
-  const hasIndex = !!marketIndex && marketIndex.index !== null;
-  const verbal = hasIndex ? getVerbal(marketIndex!.movingAvg || (marketIndex!.index as number)) : null;
-  const indexVal = hasIndex ? (marketIndex!.movingAvg || (marketIndex!.index as number)) : 0;
+  const hasIndex = !!marketIndex && typeof marketIndex.index === "number";
+  const verbal = hasIndex ? getVerbal(marketIndex!.index as number) : null;
+  const indexVal = hasIndex ? (marketIndex!.index as number) : 0;
   const indexDateLabel = marketIndex?.date
     ? new Date(marketIndex.date + "T12:00:00").toLocaleDateString("he-IL", { day: "numeric", month: "numeric" })
     : "";
+  const trendArrow = marketIndex?.trend === "עולה" ? "▲" : marketIndex?.trend === "יורד" ? "▼" : "";
 
   return (
     <div dir="rtl" className="min-h-screen" style={{ background: "var(--lf-bg, #f8f9fb)" }}>
@@ -133,36 +130,42 @@ export default function DashboardPage() {
         {marketIndex && hasIndex && verbal && (
           <div className="lf-card p-5 mb-4" style={{ borderRight: `3px solid ${verbal.color}` }}>
             <div className="flex items-center justify-between">
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 mb-1">
                   <p className="text-[13px] font-bold" style={{ color: "#0f1419" }}>מד אמון השוק</p>
                   <span
                     className="text-[10px] text-white font-bold rounded-full w-4 h-4 inline-flex items-center justify-center cursor-help"
                     style={{ background: "#9ca3af" }}
-                    title="ציון 0–100 שמסכם את הטון של באזי הנדל״ן השבוע. 75+ = אופטימי, 55–74 = חיובי, 40–54 = מעורב, 25–39 = סוער, 0–24 = חששות. עדכון יומי."
+                    title="כל בוקר כל ידיעת נדל״ן שנכנסת לפיד מסומנת: מחזקת את האמון בשוק, מחלישה אותו, או ניטרלית. המדד הוא המאזן של שבעת הימים האחרונים, מ-0 (הכל שלילי) עד 100 (הכל חיובי), ו-50 כשהכל ניטרלי. 75+ = אופטימי, 55–74 = חיובי, 40–54 = מעורב, 25–39 = סוער, 0–24 = חששות."
                   >?</span>
                 </div>
                 <p className="text-[12px] leading-[1.5] mb-1" style={{ color: "#6b7280" }}>{marketIndex.summary}</p>
-                {marketIndex.range && (
-                  <p className="text-[11px]" style={{ color: "#9ca3af" }}>טווח שבועי: {marketIndex.range.min}–{marketIndex.range.max}</p>
+                {typeof marketIndex.previous === "number" && (
+                  <p className="text-[11px]" style={{ color: "#9ca3af" }}>
+                    לפני שבוע: {marketIndex.previous} {trendArrow}
+                  </p>
                 )}
-                <p className="text-[10px] mt-1" style={{ color: "#d1d5db" }}>מבוסס ניתוח NLP על באזי השבוע · לא המלצת השקעה</p>
-                {/* The date the number belongs to, and — only when today's is
-                    missing — the click that computes it. The page load itself
-                    never calls Claude anymore. */}
-                {marketIndex.stale && (
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="text-[11px]" style={{ color: "#9ca3af" }}>נכון ל-{indexDateLabel}</span>
-                    <button
-                      onClick={computeIndex}
-                      disabled={computing}
-                      className="text-[11px] font-semibold px-2.5 py-1 rounded-md border disabled:opacity-50"
-                      style={{ borderColor: "#e5e7eb", color: "#0f1419", background: "#fff" }}
-                    >
-                      {computing ? "⏳ מחשב…" : "חשב מדד להיום"}
-                    </button>
-                  </div>
+                {/* The two stories that pull hardest each way — what makes the
+                    number explainable rather than just a number. */}
+                {marketIndex.topNegative && (
+                  <p className="text-[11px] mt-1 truncate" style={{ color: "#6b7280" }} title={marketIndex.topNegative.title}>
+                    <span style={{ color: "#dc2626" }}>▼</span>{" "}
+                    {marketIndex.topNegative.url ? (
+                      <a href={marketIndex.topNegative.url} target="_blank" rel="noopener noreferrer" className="hover:underline">{marketIndex.topNegative.title}</a>
+                    ) : marketIndex.topNegative.title}
+                  </p>
                 )}
+                {marketIndex.topPositive && (
+                  <p className="text-[11px] mt-0.5 truncate" style={{ color: "#6b7280" }} title={marketIndex.topPositive.title}>
+                    <span style={{ color: "#059669" }}>▲</span>{" "}
+                    {marketIndex.topPositive.url ? (
+                      <a href={marketIndex.topPositive.url} target="_blank" rel="noopener noreferrer" className="hover:underline">{marketIndex.topPositive.title}</a>
+                    ) : marketIndex.topPositive.title}
+                  </p>
+                )}
+                <p className="text-[10px] mt-1.5" style={{ color: "#9ca3af" }}>
+                  {indexDateLabel ? `נכון ל-${indexDateLabel} · ` : ""}שבעת הימים האחרונים · לא המלצת השקעה
+                </p>
               </div>
               <div className="text-center mr-4">
                 <div className="text-[36px] font-extrabold leading-none" style={{ color: verbal.color, fontFamily: "DM Sans, system-ui" }}>
@@ -176,21 +179,14 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* No index computed yet (fresh install, or history table empty). */}
+        {/* Not enough stories in the window yet: say how many there are rather
+            than print a number built on three headlines. */}
         {marketIndex && !hasIndex && (
-          <div className="lf-card p-4 mb-4 flex items-center justify-between gap-3">
-            <div>
-              <p className="text-[13px] font-bold" style={{ color: "#0f1419" }}>מד אמון השוק</p>
-              <p className="text-[12px]" style={{ color: "#6b7280" }}>עדיין לא חושב להיום.</p>
-            </div>
-            <button
-              onClick={computeIndex}
-              disabled={computing}
-              className="text-[11px] font-semibold px-3 py-1.5 rounded-md border disabled:opacity-50"
-              style={{ borderColor: "#e5e7eb", color: "#0f1419", background: "#fff" }}
-            >
-              {computing ? "⏳ מחשב…" : "חשב מדד להיום"}
-            </button>
+          <div className="lf-card p-4 mb-4">
+            <p className="text-[13px] font-bold" style={{ color: "#0f1419" }}>מד אמון השוק</p>
+            <p className="text-[12px] leading-[1.5]" style={{ color: "#6b7280" }}>
+              המדד נאסף מהטון של ידיעות הנדל״ן. עד עכשיו {marketIndex.collected ?? 0} ידיעות, והמספר יופיע כשיהיו {marketIndex.minStories ?? 15}. זה מתעדכן לבד כל בוקר.
+            </p>
           </div>
         )}
 

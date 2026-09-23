@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { normalizeTone } from "./market-tone";
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -203,6 +204,10 @@ interface ScoringResult {
   index: number;
   score: number;
   reasoning: string;
+  /** 1 strengthens confidence in the housing market, -1 weakens it, 0 neither.
+   *  Feeds מד אמון השוק (lib/market-tone). Optional: a missing or malformed
+   *  tone never costs the item its score. */
+  tone?: -1 | 0 | 1;
 }
 
 // Scoring system prompt (kept short + cached for cost savings on every scan)
@@ -227,7 +232,13 @@ const SCORING_SYSTEM = `אתה מנתח חדשות נדל"ן בכיר. אתה מ
 - 80-100: חדשה חובה
 - 60-79: חדשה טובה
 - 40-59: בינונית
-- מתחת ל-40: לא רלוונטי`;
+- מתחת ל-40: לא רלוונטי
+
+בנוסף לציון, סמן לכל ידיעה tone: איך היא משפיעה על האמון בשוק הנדל"ן.
+- 1 = מחזקת אמון: ביקוש או מכירות עולים, מחירים עולים, הורדת ריבית, הקלה במס או ברגולציה, אישור או תנופה של פרויקטים, עסקה גדולה.
+- -1 = מחלישה אמון: מכירות או מחירים יורדים, מבצעים ומימון נואש של קבלנים, עיכובים, תביעות וסכסוכים, העלאת ריבית או מס, קשיים של חברות.
+- 0 = עובדתית, או שאין לה השפעה ברורה על השוק.
+ה-tone לא תלוי בציון: ידיעה חשובה יכולה להיות ניטרלית.`;
 
 /**
  * Repair the one way Hebrew reliably breaks JSON: gershayim.
@@ -304,8 +315,8 @@ async function scoreChunk(
 הידיעות:
 ${articleList}
 
-החזר JSON array בלבד, אחד לכל ידיעה לפי הסדר. reasoning קצר (משפט אחד):
-[{ "index": 0, "score": 85, "reasoning": "..." }]`,
+החזר JSON array בלבד, אחד לכל ידיעה לפי הסדר. reasoning קצר (משפט אחד), tone הוא 1, 0 או -1:
+[{ "index": 0, "score": 85, "tone": -1, "reasoning": "..." }]`,
       },
     ],
   });
@@ -340,10 +351,11 @@ ${articleList}
     }
   }
 
-  // Adjust indices back to the original article order
+  // Adjust indices back to the original article order. Tone is normalised
+  // here and dropped (not the item) when the model sent anything but 1/0/-1.
   return parsed
     .filter((r) => typeof r?.index === "number" && typeof r?.score === "number")
-    .map((r) => ({ ...r, index: r.index + indexOffset }));
+    .map((r) => ({ ...r, tone: normalizeTone(r.tone), index: r.index + indexOffset }));
 }
 
 /**

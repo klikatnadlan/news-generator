@@ -37,6 +37,12 @@ export const REALESTATE_SOURCES = new Set([
   "מדלן",
   "הומלס",
   "דירה",
+  // Our own outlet. Measured 2026-09-23: of 58 klikatnadlan.co.il articles
+  // ingested in the prior two weeks only 17 ever got a score, and the ones that
+  // did still had to pass the keyword/veto gate — so a piece about a new
+  // "הצעת חוק" on purchase tax could be vetoed as politics. Everything this site
+  // publishes is real estate by definition.
+  'קליקת הנדל"ן',
 ]);
 
 // Strong signals that the item is NOT a real-estate story even if it touches
@@ -143,6 +149,20 @@ const RE_ANCHORS_ADDED = [
   "בנק ישראל", "ריבית בנק ישראל", "ריבית הפריים",
   "קרקע", "קרקעות", "מתחם", "מתחמים", "הגרלת", "בעלי הזכויות",
 ];
+
+/**
+ * Does the text carry ANY real-estate word? No veto, no score.
+ *
+ * Used only to ORDER the scoring queue (likely-real-estate first), never to drop
+ * an item: the keyword gate is exactly what once hid the Bank of Israel rate cut
+ * from the feed, so an item without a keyword still gets scored — just later.
+ */
+export function hasRealEstateSignal(title: string, summary?: string | null): boolean {
+  const text = `${title} ${summary || ""}`.toLowerCase();
+  for (const kw of REALESTATE_KEYWORDS) if (text.includes(kw.toLowerCase())) return true;
+  for (const kw of RE_ANCHORS_ADDED) if (text.includes(kw.toLowerCase())) return true;
+  return false;
+}
 
 export function isRealEstate(title: string, summary: string, source: string, score?: number): boolean {
   if (REALESTATE_SOURCES.has(source)) return true;

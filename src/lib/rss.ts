@@ -113,14 +113,25 @@ function detectSourceFromUrl(url: string): string | null {
   if (lower.includes("madlan.co.il")) return "מדלן";
   if (lower.includes("homeless.co.il")) return "הומלס";
   if (lower.includes("dira.co.il")) return "דירה";
+  // Our own site. Without this, an article of ours that arrived through the
+  // rss.app aggregate was stored under the aggregate's name, "קליקת חדשות
+  // (מאוחד)", and missed the real-estate whitelist.
+  if (lower.includes("klikatnadlan.co.il")) return 'קליקת הנדל"ן';
   return null;
 }
 
-export async function fetchAllFeeds(): Promise<FeedArticle[]> {
+/**
+ * @param opts.scorableOnly fetch only the feeds that get scored. The morning
+ *   catch-up run uses this: it needs the scored feeds' current links to find
+ *   what the main run had no time to score, not another pass over the ~95
+ *   ingest-only local feeds that ate that time in the first place.
+ */
+export async function fetchAllFeeds(opts: { scorableOnly?: boolean } = {}): Promise<FeedArticle[]> {
   const articles: FeedArticle[] = [];
   const cutoff = new Date(Date.now() - INGEST_WINDOW_HOURS * 60 * 60 * 1000);
+  const feeds = opts.scorableOnly ? RSS_FEEDS.filter((f) => !f.ingestOnly) : RSS_FEEDS;
 
-  const results = await mapPool(RSS_FEEDS, FEED_CONCURRENCY, async (feed) => {
+  const results = await mapPool(feeds, FEED_CONCURRENCY, async (feed) => {
     try {
       let parsed;
       try {

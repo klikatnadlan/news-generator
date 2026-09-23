@@ -9,6 +9,10 @@
       "schedule": "0 4 * * *"
     },
     {
+      "path": "/api/cron/score-catchup",
+      "schedule": "20 4 * * *"
+    },
+    {
       "path": "/api/cron/fb-scan",
       "schedule": "0 5 * * 0"
     },
