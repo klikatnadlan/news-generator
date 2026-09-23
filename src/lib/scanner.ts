@@ -3,7 +3,7 @@ import { scoreNews } from "./anthropic";
 import { supabase } from "./supabase";
 import { isRealEstate } from "./classify";
 import { orderForScoring } from "./score-queue";
-import { recordTone, computeMarketTone, persistDailyIndex, type ToneEntry } from "./market-tone";
+import { recordTone, computeMarketTone, persistDailyIndex, isOwnPublication, type ToneEntry } from "./market-tone";
 import type { ScoredNews } from "./types";
 
 export interface ScanResult {
@@ -36,6 +36,20 @@ export type ScanMode = "full" | "catchup";
  * bad day now costs what a good day always cost — never more.
  */
 const DAILY_SCORE_CAP = 75;
+
+/**
+ * Recompute today's מד אמון השוק from stored tone and write it to the daily
+ * history the time machine reads. Plain DB arithmetic, no AI. Runs on every
+ * scan — including one with nothing to score — so the stored day always matches
+ * the current method. Never allowed to fail the scan.
+ */
+async function refreshDailyIndex(today: string, mode: ScanMode): Promise<void> {
+  try {
+    await persistDailyIndex(supabase, today, await computeMarketTone(supabase, today));
+  } catch (e) {
+    console.error(`[scan:${mode}] daily index refresh failed (scores are safe):`, e instanceof Error ? e.message : e);
+  }
+}
 
 export async function runScan(opts: { mode?: ScanMode } = {}): Promise<ScanResult> {
   const mode: ScanMode = opts.mode || "full";
@@ -198,6 +212,7 @@ export async function runScan(opts: { mode?: ScanMode } = {}): Promise<ScanResul
       score: s.score,
       reasoning: s.reasoning,
     }));
+    await refreshDailyIndex(today, mode);
     return { scanned: articles.length, scored: 0, top3: top3Mapped, ingestFailedRows, ...runStats };
   }
 
@@ -232,8 +247,9 @@ export async function runScan(opts: { mode?: ScanMode } = {}): Promise<ScanResul
   }
 
   // Step 4b: מד אמון השוק. The tone came back on the same call as the score;
-  // keep it only for stories that reach the home feed (same filter), so the
-  // index counts exactly what a reader sees. Never allowed to fail the scan.
+  // keep it only for stories that reach the home feed (same filter), minus our
+  // own articles, which are on the feed but do not vote. Never allowed to fail
+  // the scan.
   let toned = 0;
   try {
     const toneEntries: ToneEntry[] = [];
@@ -241,17 +257,17 @@ export async function runScan(opts: { mode?: ScanMode } = {}): Promise<ScanResul
       const item = toScoreItems[s.index];
       if (!item || s.tone === undefined || s.score < 30) continue;
       if (!isRealEstate(item.title || "", item.summary || "", item.source, s.score)) continue;
-      toneEntries.push({ id: item.id, tone: s.tone, score: s.score, title: item.title, url: item.source_url, source: item.source });
+      const entry: ToneEntry = { id: item.id, tone: s.tone, score: s.score, title: item.title, url: item.source_url, source: item.source };
+      if (isOwnPublication(entry)) continue; // on the feed, but not a vote — see market-tone
+      toneEntries.push(entry);
     }
     toned = toneEntries.length;
-    if (toned > 0) {
-      await recordTone(supabase, today, toneEntries);
-      await persistDailyIndex(supabase, today, await computeMarketTone(supabase, today));
-    }
+    if (toned > 0) await recordTone(supabase, today, toneEntries);
     console.log(`[scan:${mode}] toned ${toned} real-estate stories @${since()}`);
   } catch (e) {
     console.error(`[scan:${mode}] market tone step failed (scores are safe):`, e instanceof Error ? e.message : e);
   }
+  await refreshDailyIndex(today, mode);
 
   // Step 5: Return top 3
   const { data: top3 } = await supabase

@@ -43,6 +43,18 @@ describe("מד אמון השוק — arithmetic over story tone", () => {
     expect(s.topNegative?.title).toBe("קבלן בקשיים");
   });
 
+  it("keeps our own articles on the feed but out of the vote", () => {
+    // First live run: 12 of 27 votes were our own explainers.
+    const market = stories(Array(MIN_STORIES).fill(-1));
+    const ours: ToneEntry[] = Array.from({ length: 12 }, (_, i) => ({
+      id: `own${i}`, tone: 1, score: 80, title: `מדריך ${i} לקונים`, url: `https://klikatnadlan.co.il/guide-${i}/`,
+    }));
+    const bySource: ToneEntry = { id: "own-src", tone: 1, score: 80, title: "ניתוח", source: 'קליקת הנדל"ן' };
+    const s = summarizeTone([...market, ...ours, bySource]);
+    expect(s.total).toBe(MIN_STORIES);
+    expect(s.index).toBe(0);
+  });
+
   it("accepts only 1, 0 and -1 as tone", () => {
     expect(normalizeTone(1)).toBe(1);
     expect(normalizeTone("-1")).toBe(-1);

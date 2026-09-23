@@ -40,6 +40,19 @@ export const WINDOW_DAYS = 7;
 export const MIN_STORIES = 15;
 const TREND_STEP = 5;
 
+/**
+ * Our own articles appear on the feed but do not vote in the index.
+ *
+ * Measured on the first live run, 2026-09-23: 12 of the 27 votes were ours, and
+ * they are guides and data explainers ("תשואה של מודעה היא לא תשואה", a buyers'
+ * group spec explainer), which the model tends to read as neutral-to-positive.
+ * Left in, the index would partly measure the tone of our own writing. The
+ * market's confidence is what the rest of the press is reporting.
+ */
+export function isOwnPublication(e: { url?: string | null; source?: string | null }): boolean {
+  return /klikatnadlan\.co\.il/i.test(e.url || "") || e.source === 'קליקת הנדל"ן';
+}
+
 export function normalizeTone(v: unknown): Tone | undefined {
   const n = typeof v === "string" ? Number(v.trim()) : v;
   return n === 1 || n === 0 || n === -1 ? (n as Tone) : undefined;
@@ -58,12 +71,12 @@ export interface ToneSummary {
 /**
  * One vote per story. The same story reaches us from its outlet and from the
  * aggregate under two URLs, so it is collapsed by title as well as by id — the
- * same rule the home feed uses, so the index counts exactly what is on screen.
- * All-positive → 100, all-negative → 0, all-neutral → 50.
+ * same rule the home feed uses — and our own articles do not vote
+ * (isOwnPublication). All-positive → 100, all-negative → 0, all-neutral → 50.
  */
 export function summarizeTone(entries: ToneEntry[]): ToneSummary {
   const byId = new Map<string, ToneEntry>();
-  for (const e of entries) if (e && !byId.has(e.id)) byId.set(e.id, e);
+  for (const e of entries) if (e && !isOwnPublication(e) && !byId.has(e.id)) byId.set(e.id, e);
   const stories = dedupeStories([...byId.values()].sort((a, b) => b.score - a.score));
   let pos = 0, neg = 0, neu = 0;
   let topPositive: ToneEntry | null = null;
