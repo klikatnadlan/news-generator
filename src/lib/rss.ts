@@ -213,15 +213,20 @@ export async function fetchServiceFeeds(
   } else if (due.length) {
     const t0 = Date.now();
     const cutoff = new Date(Date.now() - INGEST_WINDOW_HOURS * 60 * 60 * 1000);
+    // Worst case must still end inside the 60s function: no new fetch after
+    // 28s, and each fetch capped at 15s → 43s, plus the reads and the upsert.
+    // Measured 2026-09-28: with a 40s start cutoff and the default 30s fetch
+    // timeout, a second pass hung on one slow paper and was killed at 60s —
+    // the credits were spent and nothing was stored.
     const lists = await mapPool(due, 2, async (feed) => {
-      if (Date.now() - t0 > 40_000) {
+      if (Date.now() - t0 > 28_000) {
         results.set(feed.name, carry(feed.name, "דולג: נגמר זמן הריצה, ייאסף בריצה הבאה"));
         return [];
       }
       const at = new Date().toISOString();
       fetched++;
       try {
-        const raw = await firecrawlFetchRaw(fetchUrlFor(feed));
+        const raw = await firecrawlFetchRaw(fetchUrlFor(feed), 15_000);
         if (!raw) throw new Error("השירות החזיר תשובה ריקה");
         const parsed = await parserFor(feed.userAgent).parseString(raw);
         const all = parsed.items || [];

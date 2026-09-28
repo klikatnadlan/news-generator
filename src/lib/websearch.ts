@@ -154,14 +154,16 @@ export function hostLabel(url: string): string {
  * items (measured). Costs ~1 credit per call — one blocked feed refreshed once
  * a day is ~30 credits/month out of the 1,000 free ones.
  */
-export async function firecrawlFetchRaw(url: string): Promise<string | null> {
+export async function firecrawlFetchRaw(url: string, timeoutMs = 30000): Promise<string | null> {
   const key = process.env.FIRECRAWL_API_KEY;
   if (!key || !url) return null;
+  // The service's own timeout is set just under ours, so a slow site makes the
+  // service give up instead of leaving our function waiting past its deadline.
   const d = await fcPost(
     "https://api.firecrawl.dev/v2/scrape",
-    { url, formats: ["rawHtml"] },
+    { url, formats: ["rawHtml"], timeout: Math.max(5000, timeoutMs - 2000) },
     key,
-    30000
+    timeoutMs
   );
   const raw = d?.data?.rawHtml;
   return typeof raw === "string" && raw.length > 0 ? raw : null;
