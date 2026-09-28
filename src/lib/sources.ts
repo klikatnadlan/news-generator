@@ -161,9 +161,11 @@ export const RSS_FEEDS: RSSFeedConfig[] = [
   // 2026-09-23: from an Israeli connection it times out for the bot UA and
   // answers a browser UA at once, so it got the browser UA. From our server it
   // STILL times out with it: it also blocks servers outside Israel, like the 12
-  // local papers that answer 403 there. From 2026-09-28 all 13 are collected
-  // through the paid service in their own daily run (serviceOnly, Ori's call).
-  { name: "בית שאן - ארץ המעיינות", url: "https://bet-shean.org.il/feed/", category: "מקומי", ingestOnly: true, userAgent: BROWSER_UA, serviceOnly: true },
+  // local papers that answer 403 there. On 2026-09-28 the other 12 moved to the
+  // paid service (serviceOnly, Ori's call); this one was tried there too and the
+  // service came back empty — it blocks the service's network as well. Left as
+  // a plain feed: failing here costs nothing, failing through the service would.
+  { name: "בית שאן - ארץ המעיינות", url: "https://bet-shean.org.il/feed/", category: "מקומי", ingestOnly: true, userAgent: BROWSER_UA },
   { name: "מקומונט השרון", url: "https://inhasharon.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "שרון אונליין", url: "https://sharonline.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "קול כפר סבא", url: "https://kfarsabanews.com/feed", category: "מקומי", ingestOnly: true },

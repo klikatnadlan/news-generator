@@ -8,8 +8,10 @@ import { RSS_FEEDS } from "@/lib/sources";
 describe("which run fetches which feeds", () => {
   const service = feedsForRun("service");
 
-  it("the paid run fetches exactly the 13 papers Ori approved on 2026-09-28", () => {
-    expect(service).toHaveLength(13);
+  it("the paid run fetches exactly the 12 papers the service can reach", () => {
+    // Ori approved 13 on 2026-09-28; בית שאן came back empty through the service
+    // on the first run and was taken off the paid list the same day.
+    expect(service).toHaveLength(12);
   });
 
   it("the main scan and the catch-up never fetch a paid feed", () => {
