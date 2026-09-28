@@ -151,7 +151,13 @@ export interface ServiceFeedResult {
   items: number;
   newestAgeDays: number | null;
   error?: string;
+  /** When this feed was last attempted, and last collected successfully. */
+  at?: string | null;
+  okAt?: string | null;
 }
+
+/** A feed collected this recently is not fetched again: one credit per feed per day. */
+const SERVICE_FRESH_MS = 20 * 60 * 60 * 1000;
 
 /**
  * The daily paid collection of the feeds that block our server.
@@ -162,51 +168,87 @@ export interface ServiceFeedResult {
  *   local papers are the least important use of a credit, so when fewer than
  *   SERVICE_CREDIT_FLOOR remain they are skipped, keeping what is left for מעריב
  *   נדל״ן (a scored feed) and the ask box's web search.
- * - Time. The service allows two requests in flight, ~5s each; a hard 40s budget
- *   means a slow day stores what it got instead of timing out and storing nothing.
+ * - Time. Measured on the first run, 2026-09-28: ~10s per fetch with two in
+ *   flight, so 13 feeds do not fit one 60-second function (8 did, 5 were cut).
+ *   The run therefore fetches only feeds NOT collected in the last 20 hours,
+ *   oldest first, inside a 40s budget, and it runs twice each morning (05:10 and
+ *   05:25): the second pass takes whatever the first had no time for. Still one
+ *   credit per feed per day.
+ *
+ * `previous` is the last stored result; `previousAt` its timestamp, used for
+ * records written before per-feed times existed.
  */
 export async function fetchServiceFeeds(
-  creditsLeft: number | null
-): Promise<{ articles: FeedArticle[]; perFeed: ServiceFeedResult[]; skippedForCredits: boolean }> {
+  creditsLeft: number | null,
+  previous: ServiceFeedResult[] = [],
+  previousAt: string | null = null
+): Promise<{ articles: FeedArticle[]; perFeed: ServiceFeedResult[]; skippedForCredits: boolean; fetched: number }> {
   const feeds = feedsForRun("service");
-  if (creditsLeft !== null && creditsLeft < SERVICE_CREDIT_FLOOR) {
-    return {
-      articles: [],
-      perFeed: feeds.map((f) => ({ name: f.name, ok: false, items: 0, newestAgeDays: null, error: `דולג: נשארו ${creditsLeft} יחידות, מתחת לרצפה ${SERVICE_CREDIT_FLOOR}` })),
-      skippedForCredits: true,
-    };
-  }
-  const t0 = Date.now();
-  const cutoff = new Date(Date.now() - INGEST_WINDOW_HOURS * 60 * 60 * 1000);
-  const perFeed: ServiceFeedResult[] = [];
-  const results = await mapPool(feeds, 2, async (feed) => {
-    if (Date.now() - t0 > 40_000) {
-      perFeed.push({ name: feed.name, ok: false, items: 0, newestAgeDays: null, error: "דולג: נגמר זמן הריצה" });
-      return [];
-    }
-    try {
-      const raw = await firecrawlFetchRaw(fetchUrlFor(feed));
-      if (!raw) throw new Error("השירות החזיר תשובה ריקה");
-      const parsed = await parserFor(feed.userAgent).parseString(raw);
-      const all = parsed.items || [];
-      let newest = -Infinity;
-      for (const it of all) {
-        const t = Date.parse(it.isoDate || it.pubDate || "");
-        if (Number.isFinite(t) && t > newest) newest = t;
+  const now = Date.now();
+  const prevBy = new Map(previous.map((p) => [p.name, p]));
+  const okAtOf = (name: string): string | null => {
+    const p = prevBy.get(name);
+    return p?.okAt ?? (p?.ok && previousAt ? previousAt : null);
+  };
+  const fresh = (name: string) => {
+    const t = Date.parse(okAtOf(name) || "");
+    return Number.isFinite(t) && now - t < SERVICE_FRESH_MS;
+  };
+  const due = feeds
+    .filter((f) => !fresh(f.name))
+    .sort((a, b) => (Date.parse(okAtOf(a.name) || "") || 0) - (Date.parse(okAtOf(b.name) || "") || 0));
+
+  const results = new Map<string, ServiceFeedResult>();
+  const carry = (name: string, error?: string): ServiceFeedResult => {
+    const p = prevBy.get(name);
+    return { name, ok: !error && !!p?.ok, items: p?.items ?? 0, newestAgeDays: p?.newestAgeDays ?? null, at: p?.at ?? previousAt, okAt: okAtOf(name), ...(error ? { error } : {}) };
+  };
+
+  let articles: FeedArticle[] = [];
+  let skippedForCredits = false;
+  let fetched = 0;
+  if (due.length && creditsLeft !== null && creditsLeft < SERVICE_CREDIT_FLOOR) {
+    skippedForCredits = true;
+    for (const f of due) results.set(f.name, carry(f.name, `דולג: נשארו ${creditsLeft} יחידות, מתחת לרצפה ${SERVICE_CREDIT_FLOOR}`));
+  } else if (due.length) {
+    const t0 = Date.now();
+    const cutoff = new Date(Date.now() - INGEST_WINDOW_HOURS * 60 * 60 * 1000);
+    const lists = await mapPool(due, 2, async (feed) => {
+      if (Date.now() - t0 > 40_000) {
+        results.set(feed.name, carry(feed.name, "דולג: נגמר זמן הריצה, ייאסף בריצה הבאה"));
+        return [];
       }
-      perFeed.push({
-        name: feed.name,
-        ok: all.length > 0,
-        items: all.length,
-        newestAgeDays: Number.isFinite(newest) ? Math.round(((Date.now() - newest) / 86_400_000) * 10) / 10 : null,
-      });
-      return toArticles(feed, all, cutoff);
-    } catch (err) {
-      perFeed.push({ name: feed.name, ok: false, items: 0, newestAgeDays: null, error: (err instanceof Error ? err.message : String(err)).slice(0, 120) });
-      return [];
-    }
-  });
-  return { articles: results.flat(), perFeed, skippedForCredits: false };
+      const at = new Date().toISOString();
+      fetched++;
+      try {
+        const raw = await firecrawlFetchRaw(fetchUrlFor(feed));
+        if (!raw) throw new Error("השירות החזיר תשובה ריקה");
+        const parsed = await parserFor(feed.userAgent).parseString(raw);
+        const all = parsed.items || [];
+        let newest = -Infinity;
+        for (const it of all) {
+          const t = Date.parse(it.isoDate || it.pubDate || "");
+          if (Number.isFinite(t) && t > newest) newest = t;
+        }
+        results.set(feed.name, {
+          name: feed.name,
+          ok: all.length > 0,
+          items: all.length,
+          newestAgeDays: Number.isFinite(newest) ? Math.round(((Date.now() - newest) / 86_400_000) * 10) / 10 : null,
+          at,
+          okAt: all.length > 0 ? at : okAtOf(feed.name),
+        });
+        return toArticles(feed, all, cutoff);
+      } catch (err) {
+        results.set(feed.name, { ...carry(feed.name, (err instanceof Error ? err.message : String(err)).slice(0, 120)), at });
+        return [];
+      }
+    });
+    articles = lists.flat();
+  }
+  // Every service feed appears in the record, collected now or carried over.
+  const perFeed = feeds.map((f) => results.get(f.name) ?? carry(f.name));
+  return { articles, perFeed, skippedForCredits, fetched };
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

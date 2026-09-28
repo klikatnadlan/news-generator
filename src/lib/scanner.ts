@@ -97,8 +97,18 @@ export async function runScan(opts: { mode?: ScanMode } = {}): Promise<ScanResul
   let articles: FeedArticle[];
   let service: { perFeed: ServiceFeedResult[]; creditsLeft: number | null } | null = null;
   if (mode === "service") {
+    // The last result says which feeds were already collected today, so the
+    // morning's second pass fetches only what the first had no time for.
+    let previous: ServiceFeedResult[] = [];
+    let previousAt: string | null = null;
+    try {
+      const { data } = await supabase.from("narrative_cache").select("narratives, created_at").eq("cache_key", SERVICE_RESULT_KEY).maybeSingle();
+      previous = ((data?.narratives as { perFeed?: ServiceFeedResult[] } | null)?.perFeed) || [];
+      previousAt = (data?.created_at as string) || null;
+    } catch { /* first run */ }
     const creditsLeft = await firecrawlCreditsRemaining();
-    const r = await fetchServiceFeeds(creditsLeft);
+    const r = await fetchServiceFeeds(creditsLeft, previous, previousAt);
+    console.log(`[scan:service] ${r.fetched} paid fetches this pass, ${creditsLeft ?? "?"} credits left before it`);
     articles = r.articles;
     service = { perFeed: r.perFeed, creditsLeft };
   } else {

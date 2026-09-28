@@ -161,9 +161,11 @@ async function checkOne(feed: (typeof RSS_FEEDS)[number]): Promise<FeedHealth> {
  * The paid feeds, judged from their own daily run instead of re-fetched: a
  * re-fetch here would cost a credit per feed per check. A run older than two
  * days is itself a failure — the run stopped, or stood down for low credits.
+ * Judged per feed by its last SUCCESSFUL collection, so a feed the first
+ * morning pass had no time for, and the second pass collected, reads healthy.
  */
 async function serviceFeedsFromLastRun(): Promise<FeedHealth[]> {
-  type LastRun = { perFeed?: { name: string; ok: boolean; items: number; newestAgeDays: number | null; error?: string }[] };
+  type LastRun = { perFeed?: { name: string; ok: boolean; items: number; newestAgeDays: number | null; error?: string; okAt?: string | null }[] };
   const feeds = RSS_FEEDS.filter((f) => f.serviceOnly);
   let last: LastRun | null = null;
   let ranAt: string | null = null;
@@ -172,14 +174,16 @@ async function serviceFeedsFromLastRun(): Promise<FeedHealth[]> {
     last = (data?.narratives as LastRun) || null;
     ranAt = (data?.created_at as string) || null;
   } catch { /* no record yet */ }
-  const ageDays = ranAt ? (Date.now() - Date.parse(ranAt)) / 86_400_000 : Infinity;
   return feeds.map((f) => {
     const r = last?.perFeed?.find((p) => p.name === f.name);
+    const okAt = r?.okAt ?? (r?.ok ? ranAt : null);
+    const okAgeDays = okAt ? (Date.now() - Date.parse(okAt)) / 86_400_000 : Infinity;
     const stale = r?.newestAgeDays != null && r.newestAgeDays > INGEST_ONLY_STALE_AFTER_DAYS;
-    const error = ageDays > 2
-      ? ranAt ? `ריצת השירות האחרונה לפני ${Math.round(ageDays)} ימים` : "ריצת השירות עוד לא רצה"
-      : !r ? "לא הופיע בריצת השירות האחרונה"
-      : r.error || (stale ? `פיד תקוע — החדש בן ${Math.round(r.newestAgeDays!)} ימים` : r.items === 0 ? "פיד ריק" : undefined);
+    const error = !okAt
+      ? r?.error || "עוד לא נאסף דרך השירות"
+      : okAgeDays > 2
+        ? `נאסף לאחרונה לפני ${Math.round(okAgeDays)} ימים${r?.error ? ` (${r.error})` : ""}`
+        : stale ? `פיד תקוע — החדש בן ${Math.round(r!.newestAgeDays!)} ימים` : undefined;
     return {
       name: f.name,
       url: f.url,

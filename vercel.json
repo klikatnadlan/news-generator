@@ -18,7 +18,7 @@
     },
     {
       "path": "/api/cron/service-feeds",
-      "schedule": "10 5 * * *"
+      "schedule": "10,25 5 * * *"
     },
     {
       "path": "/api/cron/city-facts",
