@@ -1,4 +1,5 @@
-import { fetchAllFeeds } from "./rss";
+import { fetchAllFeeds, fetchServiceFeeds, type FeedArticle, type ServiceFeedResult } from "./rss";
+import { firecrawlCreditsRemaining } from "./websearch";
 import { scoreNews } from "./anthropic";
 import { supabase } from "./supabase";
 import { isRealEstate } from "./classify";
@@ -26,9 +27,21 @@ export interface ScanResult {
   leftUnscored?: number;
   /** Stories whose tone went into מד אמון השוק this run. */
   toned?: number;
+  /** "service" run: what each paid fetch returned, and the credits it saw. */
+  serviceFeeds?: ServiceFeedResult[];
+  creditsLeft?: number | null;
 }
 
-export type ScanMode = "full" | "catchup";
+/**
+ * full    — the 04:00 scan: every directly fetchable feed, then scoring.
+ * catchup — 04:20: the 8 scored feeds only, scoring up to the day's cap.
+ * service — 05:10: only the feeds that block our server, through the paid
+ *           collection service. Ingest-only, so nothing to score.
+ */
+export type ScanMode = "full" | "catchup" | "service";
+
+/** Where the service run leaves its per-feed result, for feed-health to report. */
+export const SERVICE_RESULT_KEY = "service_feeds_last";
 
 /**
  * The most a cron day spends on scoring. It was already the ceiling of a normal
@@ -43,6 +56,22 @@ const DAILY_SCORE_CAP = 75;
  * scan — including one with nothing to score — so the stored day always matches
  * the current method. Never allowed to fail the scan.
  */
+/**
+ * Leave the service run's per-feed result where feed-health can read it. The
+ * health check does not re-fetch these feeds (each fetch costs a credit), so this
+ * record is how a failing paid feed still shows up in the daily report.
+ */
+async function recordServiceResult(perFeed: ServiceFeedResult[], creditsLeft: number | null): Promise<void> {
+  try {
+    await supabase.from("narrative_cache").upsert(
+      { cache_key: SERVICE_RESULT_KEY, narratives: { perFeed, creditsLeft }, count: perFeed.length, created_at: new Date().toISOString() },
+      { onConflict: "cache_key" }
+    );
+  } catch (e) {
+    console.error("[scan:service] could not record the run's result:", e instanceof Error ? e.message : e);
+  }
+}
+
 async function refreshDailyIndex(today: string, mode: ScanMode): Promise<void> {
   try {
     await persistDailyIndex(supabase, today, await computeMarketTone(supabase, today));
@@ -63,11 +92,22 @@ export async function runScan(opts: { mode?: ScanMode } = {}): Promise<ScanResul
 
   // Step 1: Fetch the feeds. The catch-up run fetches only the ~8 scored feeds:
   // the ~95 ingest-only local feeds are what used the main run's time up, and
-  // the catch-up needs every second of its own for scoring.
-  const articles = await fetchAllFeeds({ scorableOnly: mode === "catchup" });
+  // the catch-up needs every second of its own for scoring. The service run
+  // fetches only the feeds that block our server, through the paid service.
+  let articles: FeedArticle[];
+  let service: { perFeed: ServiceFeedResult[]; creditsLeft: number | null } | null = null;
+  if (mode === "service") {
+    const creditsLeft = await firecrawlCreditsRemaining();
+    const r = await fetchServiceFeeds(creditsLeft);
+    articles = r.articles;
+    service = { perFeed: r.perFeed, creditsLeft };
+  } else {
+    articles = await fetchAllFeeds({ scorableOnly: mode === "catchup" });
+  }
   console.log(`[scan:${mode}] fetched ${articles.length} articles @${since()}`);
   if (articles.length === 0) {
-    return { scanned: 0, scored: 0, top3: [], mode };
+    if (service) await recordServiceResult(service.perFeed, service.creditsLeft);
+    return { scanned: 0, scored: 0, top3: [], mode, ...(service ? { serviceFeeds: service.perFeed, creditsLeft: service.creditsLeft } : {}) };
   }
 
   // Step 2: Store raw news items (upsert to handle dedup)
@@ -124,6 +164,12 @@ export async function runScan(opts: { mode?: ScanMode } = {}): Promise<ScanResul
   console.log(`[scan] upserted ${newsInserts.length} rows (${ingestFailedChunks} bad chunks) @${since()}`);
   const today = new Date().toISOString().split("T")[0];
 
+  // The service run is ingest-only: its feeds are local papers, never scored.
+  if (service) {
+    await recordServiceResult(service.perFeed, service.creditsLeft);
+    return { scanned: articles.length, scored: 0, top3: [], ingestFailedRows, mode, serviceFeeds: service.perFeed, creditsLeft: service.creditsLeft };
+  }
+
   // Step 3: Score with Claude — every SCORABLE item in this feed that has NO
   // score yet. Critically this is NOT limited to the freshly-inserted rows: an
   // article published DURING the day is ingested by a later fetch, and if that
@@ -138,6 +184,12 @@ export async function runScan(opts: { mode?: ScanMode } = {}): Promise<ScanResul
   for (let i = 0; i < scorableLinks.length; i += 50) linkChunks.push(scorableLinks.slice(i, i + 50));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const unscored: any[] = [];
+  // One entry per item. The same article can sit in two scored feeds at once
+  // (measured 2026-09-28: a ynet economy link in both ynet feeds), and when the
+  // two copies land in different 50-link chunks the same row comes back twice.
+  // Scored twice, it put two rows for one item into a single insert — and on
+  // 2026-09-27 not one of the day's scores was stored.
+  const seenIds = new Set<string>();
   for (const part of linkChunks) {
     const { data } = await supabase
       .from("news_items")
@@ -145,6 +197,8 @@ export async function runScan(opts: { mode?: ScanMode } = {}): Promise<ScanResul
       .in("source_url", part);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const it of (data || []) as any[]) {
+      if (seenIds.has(it.id)) continue;
+      seenIds.add(it.id);
       if (!it.news_scores || it.news_scores.length === 0) unscored.push(it);
     }
   }
@@ -226,10 +280,12 @@ export async function runScan(opts: { mode?: ScanMode } = {}): Promise<ScanResul
   }
 
   // Step 4: Match scores to news items and store
+  const seenScored = new Set<string>();
   const scoreInserts = scores
     .map((s) => {
       const newsItem = toScoreItems[s.index];
-      if (!newsItem) return null;
+      if (!newsItem || seenScored.has(newsItem.id)) return null;
+      seenScored.add(newsItem.id);
       return {
         news_item_id: newsItem.id,
         score: s.score,
@@ -237,13 +293,25 @@ export async function runScan(opts: { mode?: ScanMode } = {}): Promise<ScanResul
         scan_date: today,
       };
     })
-    .filter(Boolean);
+    .filter((r): r is NonNullable<typeof r> => r !== null);
 
+  // One insert for the wave, and if it fails, row by row. These scores are
+  // already paid for; a single bad row must not throw the other 74 away — which
+  // is exactly what happened on 2026-09-27 (scored, charged, nothing stored).
+  const storedIds = new Set<string>();
   if (scoreInserts.length > 0) {
-    const { error: scoreError } = await supabase
-      .from("news_scores")
-      .insert(scoreInserts);
-    if (scoreError) console.error("Error inserting scores:", scoreError);
+    const { error: scoreError } = await supabase.from("news_scores").insert(scoreInserts);
+    if (!scoreError) {
+      for (const r of scoreInserts) storedIds.add(r.news_item_id);
+    } else {
+      console.error(`[scan:${mode}] batch score insert failed, retrying row by row:`, scoreError.message);
+      for (const r of scoreInserts) {
+        const { error } = await supabase.from("news_scores").insert(r);
+        if (error) console.error(`[scan:${mode}] score for ${r.news_item_id} not stored:`, error.message);
+        else storedIds.add(r.news_item_id);
+      }
+    }
+    console.log(`[scan:${mode}] stored ${storedIds.size}/${scoreInserts.length} scores @${since()}`);
   }
 
   // Step 4b: מד אמון השוק. The tone came back on the same call as the score;
@@ -255,7 +323,9 @@ export async function runScan(opts: { mode?: ScanMode } = {}): Promise<ScanResul
     const toneEntries: ToneEntry[] = [];
     for (const s of scores) {
       const item = toScoreItems[s.index];
-      if (!item || s.tone === undefined || s.score < 30) continue;
+      // Only stories whose score actually landed: on 2026-09-27 the tone of 12
+      // stories was counted while none of their scores was stored.
+      if (!item || !storedIds.has(item.id) || s.tone === undefined || s.score < 30) continue;
       if (!isRealEstate(item.title || "", item.summary || "", item.source, s.score)) continue;
       const entry: ToneEntry = { id: item.id, tone: s.tone, score: s.score, title: item.title, url: item.source_url, source: item.source };
       if (isOwnPublication(entry)) continue; // on the feed, but not a vote — see market-tone
@@ -285,13 +355,13 @@ export async function runScan(opts: { mode?: ScanMode } = {}): Promise<ScanResul
 
   return {
     scanned: articles.length,
-    scored: scores.length,
+    // What was STORED, not what the model returned: a score that did not land
+    // does not exist for the feed, and this number must not say it does.
+    scored: storedIds.size,
     top3: top3Mapped,
     ingestFailedRows,
     ...runStats,
-    // Counted from what actually came back: a failed chunk leaves its items
-    // unscored, and this number must say so.
-    leftUnscored: queue.length - scores.length,
+    leftUnscored: queue.length - storedIds.size,
     toned,
   };
 }

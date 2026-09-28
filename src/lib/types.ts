@@ -75,4 +75,11 @@ export interface RSSFeedConfig {
   // and the same URL with any fresh parameter returned the live feed. One
   // request a day either way — this only changes which copy we are handed.
   cacheBust?: boolean;
+  // Blocks our server outright, so fetch it ONLY through the paid collection
+  // service, and only in its own daily run (/api/cron/service-feeds), never in
+  // the main scan: 13 paid fetches in the scan's 60 seconds would eat the time
+  // the scan needs for scoring. Measured 2026-09-23: 13 local papers answer 403
+  // (or time out) to our server while serving an Israeli connection normally.
+  // Costs one service credit per feed per day. Ingest-only feeds only.
+  serviceOnly?: boolean;
 }

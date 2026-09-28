@@ -132,6 +132,98 @@ export function fetchUrlFor(feed: { url: string; cacheBust?: boolean }): string 
 }
 
 /**
+ * Which feeds a run fetches. The main scan never touches a `serviceOnly` feed:
+ * those only answer through the paid service, and they have their own run so
+ * their paid fetches cannot eat the seconds the scan needs for scoring.
+ */
+export function feedsForRun(run: "full" | "catchup" | "service"): (typeof RSS_FEEDS)[number][] {
+  if (run === "service") return RSS_FEEDS.filter((f) => f.serviceOnly);
+  const direct = RSS_FEEDS.filter((f) => !f.serviceOnly);
+  return run === "catchup" ? direct.filter((f) => !f.ingestOnly) : direct;
+}
+
+/** Below this many credits left, the service run stands down (see fetchServiceFeeds). */
+export const SERVICE_CREDIT_FLOOR = 300;
+
+export interface ServiceFeedResult {
+  name: string;
+  ok: boolean;
+  items: number;
+  newestAgeDays: number | null;
+  error?: string;
+}
+
+/**
+ * The daily paid collection of the feeds that block our server.
+ *
+ * One service credit per feed. Two guards, both measured before they were set:
+ * - Credit floor. The service account is shared with other projects, and on
+ *   2026-09-28 it had spent ~880 credits in five days, none of it here. These
+ *   local papers are the least important use of a credit, so when fewer than
+ *   SERVICE_CREDIT_FLOOR remain they are skipped, keeping what is left for מעריב
+ *   נדל״ן (a scored feed) and the ask box's web search.
+ * - Time. The service allows two requests in flight, ~5s each; a hard 40s budget
+ *   means a slow day stores what it got instead of timing out and storing nothing.
+ */
+export async function fetchServiceFeeds(
+  creditsLeft: number | null
+): Promise<{ articles: FeedArticle[]; perFeed: ServiceFeedResult[]; skippedForCredits: boolean }> {
+  const feeds = feedsForRun("service");
+  if (creditsLeft !== null && creditsLeft < SERVICE_CREDIT_FLOOR) {
+    return {
+      articles: [],
+      perFeed: feeds.map((f) => ({ name: f.name, ok: false, items: 0, newestAgeDays: null, error: `דולג: נשארו ${creditsLeft} יחידות, מתחת לרצפה ${SERVICE_CREDIT_FLOOR}` })),
+      skippedForCredits: true,
+    };
+  }
+  const t0 = Date.now();
+  const cutoff = new Date(Date.now() - INGEST_WINDOW_HOURS * 60 * 60 * 1000);
+  const perFeed: ServiceFeedResult[] = [];
+  const results = await mapPool(feeds, 2, async (feed) => {
+    if (Date.now() - t0 > 40_000) {
+      perFeed.push({ name: feed.name, ok: false, items: 0, newestAgeDays: null, error: "דולג: נגמר זמן הריצה" });
+      return [];
+    }
+    try {
+      const raw = await firecrawlFetchRaw(fetchUrlFor(feed));
+      if (!raw) throw new Error("השירות החזיר תשובה ריקה");
+      const parsed = await parserFor(feed.userAgent).parseString(raw);
+      const all = parsed.items || [];
+      let newest = -Infinity;
+      for (const it of all) {
+        const t = Date.parse(it.isoDate || it.pubDate || "");
+        if (Number.isFinite(t) && t > newest) newest = t;
+      }
+      perFeed.push({
+        name: feed.name,
+        ok: all.length > 0,
+        items: all.length,
+        newestAgeDays: Number.isFinite(newest) ? Math.round(((Date.now() - newest) / 86_400_000) * 10) / 10 : null,
+      });
+      return toArticles(feed, all, cutoff);
+    } catch (err) {
+      perFeed.push({ name: feed.name, ok: false, items: 0, newestAgeDays: null, error: (err instanceof Error ? err.message : String(err)).slice(0, 120) });
+      return [];
+    }
+  });
+  return { articles: results.flat(), perFeed, skippedForCredits: false };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toArticles(feed: (typeof RSS_FEEDS)[number], items: any[], cutoff: Date): FeedArticle[] {
+  return items
+    .filter((item) => !item.pubDate || new Date(item.pubDate) >= cutoff)
+    .map((item) => ({
+      title: item.title || "ללא כותרת",
+      link: item.link || "",
+      pubDate: item.pubDate,
+      contentSnippet: item.contentSnippet?.slice(0, 500),
+      source: detectSourceFromUrl(item.link || "") || feed.name,
+      ingestOnly: !!feed.ingestOnly,
+    }));
+}
+
+/**
  * @param opts.scorableOnly fetch only the feeds that get scored. The morning
  *   catch-up run uses this: it needs the scored feeds' current links to find
  *   what the main run had no time to score, not another pass over the ~95
@@ -140,7 +232,7 @@ export function fetchUrlFor(feed: { url: string; cacheBust?: boolean }): string 
 export async function fetchAllFeeds(opts: { scorableOnly?: boolean } = {}): Promise<FeedArticle[]> {
   const articles: FeedArticle[] = [];
   const cutoff = new Date(Date.now() - INGEST_WINDOW_HOURS * 60 * 60 * 1000);
-  const feeds = opts.scorableOnly ? RSS_FEEDS.filter((f) => !f.ingestOnly) : RSS_FEEDS;
+  const feeds = feedsForRun(opts.scorableOnly ? "catchup" : "full");
 
   const results = await mapPool(feeds, FEED_CONCURRENCY, async (feed) => {
     try {
@@ -160,19 +252,7 @@ export async function fetchAllFeeds(opts: { scorableOnly?: boolean } = {}): Prom
         parsed = await parserFor(feed.userAgent).parseString(raw);
         console.log(`[rss] ${feed.name}: direct fetch blocked, recovered ${parsed.items?.length ?? 0} items via Firecrawl`);
       }
-      return (parsed.items || [])
-        .filter((item) => {
-          if (!item.pubDate) return true;
-          return new Date(item.pubDate) >= cutoff;
-        })
-        .map((item) => ({
-          title: item.title || "ללא כותרת",
-          link: item.link || "",
-          pubDate: item.pubDate,
-          contentSnippet: item.contentSnippet?.slice(0, 500),
-          source: detectSourceFromUrl(item.link || "") || feed.name,
-          ingestOnly: !!feed.ingestOnly,
-        }));
+      return toArticles(feed, parsed.items || [], cutoff);
     } catch (err) {
       console.error(`Failed to fetch ${feed.name}:`, err);
       return [];

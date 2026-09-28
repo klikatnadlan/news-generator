@@ -106,16 +106,16 @@ export const RSS_FEEDS: RSSFeedConfig[] = [
   // search / city research only; they never reach the curated home/headlines.
   { name: "ynet בארץ", url: "https://www.ynet.co.il/Integration/StoryRss2.xml", category: "כללי", ingestOnly: true },
   { name: "וואלה חדשות", url: "https://rss.walla.co.il/feed/1", category: "כללי", ingestOnly: true },
-  { name: "מעריב חדשות", url: "https://www.maariv.co.il/Rss/RssChadashot", category: "כללי", ingestOnly: true },
+  { name: "מעריב חדשות", url: "https://www.maariv.co.il/Rss/RssChadashot", category: "כללי", ingestOnly: true, serviceOnly: true },
   { name: "גלובס חדשות", url: "https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederNode?iID=1725", category: "כללי", ingestOnly: true },
-  { name: "דבר", url: "https://www.davar1.co.il/feed/", category: "כללי", ingestOnly: true },
+  { name: "דבר", url: "https://www.davar1.co.il/feed/", category: "כללי", ingestOnly: true, serviceOnly: true },
 
   // ─── Local news + regional מקומונים (ingest-only, NOT scored — 0 tokens) ───
   // 90 validated feeds across all regions: fills civic/area coverage for small
   // cities + neighborhoods so city research / dossier / internal search get rich.
   { name: "בית שמש חדשות", url: "https://www.bsnews.co.il/rss.xml", category: "מקומי", ingestOnly: true },
   { name: "נטו העמקים והגליל / עפולה נאו", url: "https://www.afulanow.com/rss.xml", category: "מקומי", ingestOnly: true },
-  { name: "ניוז חיפה והקריות", url: "https://newshaifakrayot.net/?feed=rss2", category: "מקומי", ingestOnly: true },
+  { name: "ניוז חיפה והקריות", url: "https://newshaifakrayot.net/?feed=rss2", category: "מקומי", ingestOnly: true, serviceOnly: true },
   { name: "NWS — חדשות חיפה והסביבה", url: "https://nws.report/feed/", category: "מקומי", ingestOnly: true },
   { name: "כל רגע", url: "https://www.kore.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "HKN — חדשות חיפה והקריות", url: "https://hkn.co.il/feed/", category: "מקומי", ingestOnly: true },
@@ -124,16 +124,16 @@ export const RSS_FEEDS: RSSFeedConfig[] = [
   { name: "מגזין נטו", url: "https://www.netobatyam.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "חדשות באר שבע", url: "https://beer7news.com/feed/", category: "מקומי", ingestOnly: true },
   { name: "חדש בגליל", url: "https://g-news.co.il/feed/", category: "מקומי", ingestOnly: true },
-  { name: "גו אייטם", url: "https://goitem.co.il/feed/", category: "מקומי", ingestOnly: true },
+  { name: "גו אייטם", url: "https://goitem.co.il/feed/", category: "מקומי", ingestOnly: true, serviceOnly: true },
   { name: "מכל מקום", url: "https://mikolmakom.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "גל גפן", url: "https://gal-gefen.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "נתניה און ליין", url: "https://www.ksn.co.il/feed/", category: "מקומי", ingestOnly: true },
-  { name: "מגדלור ניוז", url: "https://www.migdalor-news.co.il/feed/", category: "מקומי", ingestOnly: true },
+  { name: "מגדלור ניוז", url: "https://www.migdalor-news.co.il/feed/", category: "מקומי", ingestOnly: true, serviceOnly: true },
   { name: "כוכב הצפון (Star10) - מקומון טבריה וסובב", url: "https://www.star10.co.il/blog-feed.xml", category: "מקומי", ingestOnly: true },
-  { name: "כלבו חיפה והקריות", url: "https://www.colbonews.co.il/feed/", category: "מקומי", ingestOnly: true },
-  { name: "צומת השרון כפר סבא", url: "https://www.tzomet-kfs.co.il/feed", category: "מקומי", ingestOnly: true },
-  { name: "צומת השרון הרצליה", url: "https://www.tzomet-hrz.co.il/feed", category: "מקומי", ingestOnly: true },
-  { name: "צומת השרון רעננה", url: "https://www.tzomet-ran.co.il/feed", category: "מקומי", ingestOnly: true },
+  { name: "כלבו חיפה והקריות", url: "https://www.colbonews.co.il/feed/", category: "מקומי", ingestOnly: true, serviceOnly: true },
+  { name: "צומת השרון כפר סבא", url: "https://www.tzomet-kfs.co.il/feed", category: "מקומי", ingestOnly: true, serviceOnly: true },
+  { name: "צומת השרון הרצליה", url: "https://www.tzomet-hrz.co.il/feed", category: "מקומי", ingestOnly: true, serviceOnly: true },
+  { name: "צומת השרון רעננה", url: "https://www.tzomet-ran.co.il/feed", category: "מקומי", ingestOnly: true, serviceOnly: true },
   { name: "כאן דרום - אשדוד", url: "https://www.kan-ashdod.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "כאן דרום - אשקלון", url: "https://www.kan-ashkelon.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "חדשות אפס שמונה 08", url: "https://www.news08.net/feed/", category: "מקומי", ingestOnly: true },
@@ -141,17 +141,17 @@ export const RSS_FEEDS: RSSFeedConfig[] = [
   // 2026-09-23: /rss/news now answers 404 (500 from our server). The live feed,
   // found from the site's own page, is /rss.xml: 50 items, newest under a day.
   { name: "אשקלון ניוז", url: "https://ashkelon.news/rss.xml", category: "מקומי", ingestOnly: true },
-  { name: "רחובות ניוז", url: "https://rehovot.news/feed/", category: "מקומי", ingestOnly: true },
+  { name: "רחובות ניוז", url: "https://rehovot.news/feed/", category: "מקומי", ingestOnly: true, serviceOnly: true },
   { name: "בראש החדשות — טירת כרמל", url: "https://www.tcnews.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "מיטב - חדשות בית שמש", url: "https://rbs-news.com/feed/", category: "מקומי", ingestOnly: true },
   { name: "בלינקר", url: "https://blinker.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "צפון-1 כרמיאל / גליל מערבי", url: "https://blinker.co.il/category/%D7%92%D7%9C%D7%99%D7%9C-%D7%9E%D7%A2%D7%A8%D7%91%D7%99/feed/", category: "מקומי", ingestOnly: true },
   { name: "קול הגליל", url: "https://kol-hagalil.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "קול מעלות", url: "https://kol-maalot.co.il/feed/", category: "מקומי", ingestOnly: true },
-  { name: "חי פֹּה — תאגיד החדשות של חיפה והסביבה", url: "https://haipo.co.il/feed/", category: "מקומי", ingestOnly: true },
+  { name: "חי פֹּה — תאגיד החדשות של חיפה והסביבה", url: "https://haipo.co.il/feed/", category: "מקומי", ingestOnly: true, serviceOnly: true },
   { name: "מקומונט חיפה והקריות", url: "https://www.haifa-city.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "קול החוף", url: "https://hoff.co.il/feed/", category: "מקומי", ingestOnly: true },
-  { name: "העיר NEWS — חדרה, פרדס חנה-כרכור, זכרון ", url: "https://citynews.co.il/feed/", category: "מקומי", ingestOnly: true },
+  { name: "העיר NEWS — חדרה, פרדס חנה-כרכור, זכרון ", url: "https://citynews.co.il/feed/", category: "מקומי", ingestOnly: true, serviceOnly: true },
   { name: "גפן — מגזין המושבות", url: "https://www.gfn.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "חדשות עפולה", url: "https://www.afulanews.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "עמקניוז", url: "https://emeknews.co.il/feed/", category: "מקומי", ingestOnly: true },
@@ -161,9 +161,9 @@ export const RSS_FEEDS: RSSFeedConfig[] = [
   // 2026-09-23: from an Israeli connection it times out for the bot UA and
   // answers a browser UA at once, so it got the browser UA. From our server it
   // STILL times out with it: it also blocks servers outside Israel, like the 12
-  // local papers that answer 403 there. The UA stays (harmless, and right for
-  // any fetch from inside Israel); fixing it for the server would cost money.
-  { name: "בית שאן - ארץ המעיינות", url: "https://bet-shean.org.il/feed/", category: "מקומי", ingestOnly: true, userAgent: BROWSER_UA },
+  // local papers that answer 403 there. From 2026-09-28 all 13 are collected
+  // through the paid service in their own daily run (serviceOnly, Ori's call).
+  { name: "בית שאן - ארץ המעיינות", url: "https://bet-shean.org.il/feed/", category: "מקומי", ingestOnly: true, userAgent: BROWSER_UA, serviceOnly: true },
   { name: "מקומונט השרון", url: "https://inhasharon.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "שרון אונליין", url: "https://sharonline.co.il/feed/", category: "מקומי", ingestOnly: true },
   { name: "קול כפר סבא", url: "https://kfarsabanews.com/feed", category: "מקומי", ingestOnly: true },

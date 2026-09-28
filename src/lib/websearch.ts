@@ -166,3 +166,27 @@ export async function firecrawlFetchRaw(url: string): Promise<string | null> {
   const raw = d?.data?.rawHtml;
   return typeof raw === "string" && raw.length > 0 ? raw : null;
 }
+
+/**
+ * Credits left on the collection service account. Free to call.
+ *
+ * The account (and its single key) is shared with other projects, so what is
+ * left is not ours to assume. Returns null when the number cannot be read, and
+ * callers must treat null as "unknown", not as "plenty".
+ */
+export async function firecrawlCreditsRemaining(): Promise<number | null> {
+  const key = process.env.FIRECRAWL_API_KEY;
+  if (!key) return null;
+  try {
+    const res = await fetch("https://api.firecrawl.dev/v2/team/credit-usage", {
+      headers: { Authorization: `Bearer ${key}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) return null;
+    const d = await res.json();
+    const n = Number(d?.data?.remainingCredits);
+    return Number.isFinite(n) ? n : null;
+  } catch {
+    return null;
+  }
+}

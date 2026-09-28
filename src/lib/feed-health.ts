@@ -1,6 +1,7 @@
 import { RSS_FEEDS } from "./sources";
 import { parserFor, mapPool, FEED_CONCURRENCY, fetchUrlFor } from "./rss";
 import { firecrawlFetchRaw } from "./websearch";
+import { getSupabase } from "./supabase";
 
 /**
  * Feed health monitor.
@@ -29,6 +30,8 @@ export interface FeedHealth {
   error?: string;
   /** Age in days of the newest item the feed carries; null when it has no dates. */
   newestAgeDays?: number | null;
+  /** Collected through the paid service; judged from that run's last result, not re-fetched. */
+  viaService?: boolean;
 }
 
 /**
@@ -154,12 +157,49 @@ async function checkOne(feed: (typeof RSS_FEEDS)[number]): Promise<FeedHealth> {
  * Fetch every configured feed and report which ones return nothing.
  * Zero AI tokens — plain HTTP.
  */
+/**
+ * The paid feeds, judged from their own daily run instead of re-fetched: a
+ * re-fetch here would cost a credit per feed per check. A run older than two
+ * days is itself a failure — the run stopped, or stood down for low credits.
+ */
+async function serviceFeedsFromLastRun(): Promise<FeedHealth[]> {
+  type LastRun = { perFeed?: { name: string; ok: boolean; items: number; newestAgeDays: number | null; error?: string }[] };
+  const feeds = RSS_FEEDS.filter((f) => f.serviceOnly);
+  let last: LastRun | null = null;
+  let ranAt: string | null = null;
+  try {
+    const { data } = await getSupabase().from("narrative_cache").select("narratives, created_at").eq("cache_key", "service_feeds_last").maybeSingle();
+    last = (data?.narratives as LastRun) || null;
+    ranAt = (data?.created_at as string) || null;
+  } catch { /* no record yet */ }
+  const ageDays = ranAt ? (Date.now() - Date.parse(ranAt)) / 86_400_000 : Infinity;
+  return feeds.map((f) => {
+    const r = last?.perFeed?.find((p) => p.name === f.name);
+    const stale = r?.newestAgeDays != null && r.newestAgeDays > INGEST_ONLY_STALE_AFTER_DAYS;
+    const error = ageDays > 2
+      ? ranAt ? `ריצת השירות האחרונה לפני ${Math.round(ageDays)} ימים` : "ריצת השירות עוד לא רצה"
+      : !r ? "לא הופיע בריצת השירות האחרונה"
+      : r.error || (stale ? `פיד תקוע — החדש בן ${Math.round(r.newestAgeDays!)} ימים` : r.items === 0 ? "פיד ריק" : undefined);
+    return {
+      name: f.name,
+      url: f.url,
+      ok: !error,
+      items: r?.items ?? 0,
+      scorable: false,
+      newestAgeDays: r?.newestAgeDays ?? null,
+      viaService: true,
+      error,
+    };
+  });
+}
+
 export async function checkFeeds(): Promise<FeedHealthReport> {
   // Bounded concurrency is not an optimisation here, it is correctness: fetching
   // all 103 feeds at once made 68 healthy feeds report "Request timed out" (they
   // answer in <2s when not competing). An unbounded check would page Ben with
   // false alarms every morning.
-  const feeds = await mapPool(RSS_FEEDS, FEED_CONCURRENCY, checkOne);
+  const probed = await mapPool(RSS_FEEDS.filter((f) => !f.serviceOnly), FEED_CONCURRENCY, checkOne);
+  const feeds = [...probed, ...(await serviceFeedsFromLastRun())];
 
   const deadScorable = feeds.filter((f) => !f.ok && f.scorable);
   const deadIngestOnly = feeds.filter((f) => !f.ok && !f.scorable);
