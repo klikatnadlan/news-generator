@@ -114,7 +114,7 @@ export default function CitiesPage() {
   const [researchTopics, setResearchTopics] = useState<Set<string>>(new Set());
   const [customCubes, setCustomCubes] = useState<string[]>([]);
   const [researchFrom, setResearchFrom] = useState<string>(""); // "" = all time
-  const [research, setResearch] = useState<{ topic: string; count: number; webCount?: number; items: { id: string; title: string; summary?: string; source: string; url: string; date: string | null; web?: boolean; national?: boolean }[] }[] | null>(null);
+  const [research, setResearch] = useState<{ topic: string; count: number; webCount?: number; items: { id: string; title: string; summary?: string; source: string; url: string; date: string | null; web?: boolean; national?: boolean; alsoCount?: number; alsoSources?: string[] }[] }[] | null>(null);
   const [researchLoading, setResearchLoading] = useState(false);
   const [openResearchTopic, setOpenResearchTopic] = useState<string | null>(null);
   // "קרא באז" inside research results — opens the full content cube (NewsCard)
@@ -526,7 +526,8 @@ export default function CitiesPage() {
                                     <span className="font-bold" style={{ color: "#0369a1" }}>{i + 1}.</span> {it.title}
                                     {it.web && <span className="text-[9px] font-bold mr-1 px-1 py-0.5 rounded align-middle" style={{ background: "#ecfeff", color: "#0e7490", border: "1px solid #a5f3fc" }}>🌐 מהרשת</span>}
                                     {it.national && <span title="לא נמצא אזכור של העיר בפריט הזה — מוצג כרקע ארצי" className="text-[9px] font-bold mr-1 px-1 py-0.5 rounded align-middle" style={{ background: "#f3f4f6", color: "#6b7280", border: "1px solid #e5e7eb" }}>רקע ארצי</span>}
-                                    <span className="text-[10px] mr-1" style={{ color: "#9ca3af" }}> ({it.source}{it.date ? ` · ${it.date}` : ""})</span>
+                                    {/* alsoCount: other outlets reporting the same deal (REIT cube groups them). */}
+                                    <span className="text-[10px] mr-1" style={{ color: "#9ca3af" }} title={it.alsoSources?.length ? `דווח גם ב: ${it.alsoSources.join(", ")}` : undefined}> ({it.source}{it.date ? ` · ${it.date}` : ""}{it.alsoCount ? (it.alsoCount === 1 ? " · ועוד מקור אחד" : ` · ועוד ${it.alsoCount} מקורות`) : ""})</span>
                                     <button onClick={() => toggleBuzz(it.id)}
                                       className="text-[10px] font-bold mr-1.5 px-1.5 py-0.5 rounded border align-middle"
                                       style={{ borderColor: "#0ea5e9", color: "#0369a1", background: buzzOpen ? "#e0f2fe" : "#fff" }}>
