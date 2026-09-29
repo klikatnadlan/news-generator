@@ -31,6 +31,44 @@ describe("REIT research cube — what counts as a REIT story", () => {
     expect(isReitRelated("מניבים רכשה עוד 25% ממתחם סנטרו ברחובות")).toBe(true);
   });
 
+  // Every context of "מניבים" found on 2026-09-29 in our archive and the cached REIT web results
+  // (written without "ריט" or another fund's full name, so each line tests the מניבים rule alone).
+  it("counts מניבים as the fund only where it is the fund (real contexts, 29.9)", () => {
+    const fund = [
+      "הקשיים בשוק המשרדים דוחפים את סלע ומניבים לחשיפה לתחומים אחרים",
+      "החברה יקדם אותה, ומניבים התמקדה ברכישת מבנים",
+      "בכפר סבא, ואצל מניבים באמצעות רכישת זכויות",
+      "כאשר מניית מניבים ירדה מתחילת השנה",
+      "תחום הנדל\"ן המניב. מניבים, במקביל לה, דיווחה",
+      "ב־2025. אצל מניבים מדובר בזכויות",
+      "השוכרת הקודמת.\n\nמניבים התייחסה בדו\"ח",
+      "בשל חשיפתה של מניבים לתחום המשרדים",
+      "הירידה בסלע. אולם, מניבים מחזיקה בחשיפה",
+      "[מניבים](https://y) השלימה את הרכישה",
+      "הקרן מניבים רכשה תמורת 97 מיליון שקל",
+      "באלקטרה סיטי. מניבים: המהלך נועד לחזק",
+      "בעלת השליטה במניבים מכרה מניות",
+      // the headline ends without a full stop; the snippet opens with the fund (the route joins them with a line break)
+      "עסקה חדשה בחולון\nמניבים רכשה בניין משרדים",
+    ];
+    const notFund = [
+      "החברה מחזיקה בנכסים מניבים, מציעה לרכוש",
+      "טראמפ אינם מניבים מידע חדש",
+      "עלייה בהכנסות מנכסים מניבים, עלייה ברווח",
+      "נכסי תעשייה ולוגיסטיקה מניבים. השוק, לפחות",
+      "ובתוצאות שהם מניבים עבור שני הצדדים",
+      "ערוצי תוכן מניבים וחנויות אונליין",
+      "הוועדה תדון בתוכנית שמקדמות גבאי מניבים ופרימה מלונות",
+      "נתנאל מניבים קיבלה אישור לתוכנית",
+      "טכנולוגיה חדשנית במגדלי מניבים מציגה פתרון",
+      "הכנסות מהנכסים המניבים שלה ב-2025",
+      "כרמים בגליל העליון המניבים ענבים איכותיים",
+      "בצפון הארץ, שמניבים כ-85,000 טונות",
+    ];
+    for (const t of fund) expect([t, isReitRelated(t)]).toEqual([t, true]);
+    for (const t of notFund) expect([t, isReitRelated(t)]).toEqual([t, false]);
+  });
+
   it("ranks the funds that buy apartments first (Ori's correction, 28.9)", () => {
     expect(reitTier("מגוריט רכשה בניין דירות")).toBe(0);
     expect(reitTier("רנט איט קונה 52 דירות")).toBe(0);
