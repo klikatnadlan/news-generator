@@ -245,7 +245,9 @@ export async function GET(request: NextRequest) {
         // web result, so it should not sit below everything else by default.
         if (topic === REIT_TOPIC) {
           type Row = { title: string; summary?: string; date: string | null };
-          const textOf = (x: Row) => `${x.title} ${x.summary || ""}`;
+          // A line break, not a space: a snippet that opens with "מניבים רכשה" must
+          // read as a new sentence, not as the last word of the headline + מניבים.
+          const textOf = (x: Row) => `${x.title}\n${x.summary || ""}`;
           const relevant = <T extends Row>(xs: T[]) => xs.filter((x) => isReitRelated(textOf(x)));
           const byTierThenDate = (a: Row, b: Row) => reitTier(textOf(a)) - reitTier(textOf(b)) || byDateDesc(a, b);
           const localWeb = relevant(local);

@@ -162,15 +162,33 @@ export const REIT_OTHER_FUNDS = ["ריט 1", "סלע קפיטל", "סלע נדל
 // "ריט" as a word (with a one-letter prefix and/or ה), never inside another
 // word: matches "קרן הריט", "ריט 1"; not "תפריט", "חריטה", "ריטריט", "בריטניה".
 const REIT_WORD = /(^|[^א-ת])[הובכלמש]?ה?ריט(?![א-ת])|\bREITs?\b/i;
-// מניבים is also plain Hebrew for "income-producing" (נכסים מניבים), and part of
-// other companies' names ("תורג'מן מניבים" — a bond raise that surfaced under
-// חדרה on 2026-09-29): count it as the fund only when it is neither.
-const MENIVIM = /(^|[^א-ת])ו?מניבים(?![א-ת])/g;
+// מניבים is also plain Hebrew for "income-producing" ("נכסים מניבים", "ערוצי תוכן
+// מניבים", "שהם מניבים") and the tail of other companies' names ("תורג'מן מניבים"
+// under חדרה, "גבאי מניבים" under ירושלים, "נתנאל מניבים"). A list of words that
+// must NOT precede it kept missing the next one: on 2026-09-29 it let through 6 of
+// the 19 contexts found in our archive and the cached REIT web results. So the rule
+// is the other way round: it is the fund only when nothing ties it to the word
+// before: it opens a sentence or clause, follows a word like "של" / "אצל" / "מניית"
+// / "הקרן", carries a preposition (במניבים), or follows a fund name ("סלע
+// ומניבים"). ("מניבים ריט" needs no rule here: REIT_WORD already takes it.)
+const MENIVIM = /(^|[^א-ת])(ו?[לבמ]?)מניבים(?![א-ת])/g;
+const MENIVIM_AFTER_WORD = new Set([
+  "של", "את", "אצל", "עם", "גם", "כמו", "לצד", "מול", "בין", "לבין", "ידי",
+  "מניית", "מניות", "קרן", "הקרן", "הריט", "ריט", "חברת", "אך", "אבל", "אולם", "ואילו",
+]);
+// The last word of each fund's name, for "סלע ומניבים", "ריט 1 ומניבים".
+const FUND_NAME_TAILS = new Set(["סלע", "1", "מגוריט", "איט", "ליווינג", "LIVING", "פמילי", "קפיטל", 'נדל"ן', "נדל״ן"]);
 function mentionsMenivimFund(t: string): boolean {
   for (const m of t.matchAll(MENIVIM)) {
-    const before = t.slice(Math.max(0, (m.index ?? 0) - 12), (m.index ?? 0) + m[1].length);
-    // תורג'מן / תורגמ'ן / תורגמן: the same article spelled it two ways.
-    if (!/(נכסים|נכסי|נדל["״]ן|תורג['׳]?מ['׳]?ן)\s*$/.test(before)) return true;
+    const start = (m.index ?? 0) + m[1].length;
+    const prefix = m[2];
+    if (/[לבמ]/.test(prefix)) return true;
+    const gap = /\s*$/.exec(t.slice(0, start))![0];
+    const before = t.slice(0, start - gap.length);
+    if (!before || gap.includes("\n") || /[.,:;!?()[\]{}"'״”“–-]$/.test(before)) return true;
+    const prev = before.split(/\s+/).pop()!;
+    if (MENIVIM_AFTER_WORD.has(prev) || MENIVIM_AFTER_WORD.has(prev.replace(/^ו/, ""))) return true;
+    if (prefix === "ו" && FUND_NAME_TAILS.has(prev)) return true;
   }
   return false;
 }
