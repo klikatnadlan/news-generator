@@ -239,24 +239,35 @@ export async function GET(request: NextRequest) {
         const byDateDesc = (a: { date: string | null }, b: { date: string | null }) =>
           (b.date || "").localeCompare(a.date || "");
 
-        // קרנות ריט: only items that actually concern a REIT, the funds that buy
-        // apartments first (Ori, 28.9), then newest. Internal and web are merged:
-        // an internal hit is a named fund next to the city name, as good as any
-        // web result, so it should not sit below everything else by default.
+        // Every cube is ONE list, newest first, undated last (Ben, 29.9: "מסודר לפי
+        // סדר כרונולוגי", for presenting to a developer). Bands used to break it: in
+        // רמת השרון the REIT cube read 2025-09, 2020-12, 2020-12, 2025-12, 2021-05,
+        // because the national background sat after every local line. Background
+        // lines stay labelled and capped; they just take their place by date.
+
+        // קרנות ריט: only items that actually concern a REIT. Ori's order (the funds
+        // that buy apartments first, 28.9) now breaks ties inside the same month
+        // only: he approved date first on 29.9.
         if (topic === REIT_TOPIC) {
           type Row = { title: string; summary?: string; date: string | null };
           // A line break, not a space: a snippet that opens with "מניבים רכשה" must
           // read as a new sentence, not as the last word of the headline + מניבים.
           const textOf = (x: Row) => `${x.title}\n${x.summary || ""}`;
           const relevant = <T extends Row>(xs: T[]) => xs.filter((x) => isReitRelated(textOf(x)));
-          const byTierThenDate = (a: Row, b: Row) => reitTier(textOf(a)) - reitTier(textOf(b)) || byDateDesc(a, b);
+          const byMonthThenTier = (a: Row, b: Row) =>
+            (b.date || "").slice(0, 7).localeCompare((a.date || "").slice(0, 7))
+            || reitTier(textOf(a)) - reitTier(textOf(b))
+            || byDateDesc(a, b);
           const localWeb = relevant(local);
-          const localSorted = [...relevant(internalItems), ...localWeb].sort(byTierThenDate);
-          const natSorted = relevant(national).sort(byTierThenDate).map((w) => ({ ...w, national: true }));
+          const sorted = [
+            ...relevant(internalItems),
+            ...localWeb,
+            ...relevant(national).map((w) => ({ ...w, national: true })),
+          ].sort(byMonthThenTier);
           // One line per deal (lib/reit-group). A national copy of a local deal
           // folds into it; the national background that remains is still capped.
           let natShown = 0;
-          const reitItems = groupReitDeals([...localSorted, ...natSorted])
+          const reitItems = groupReitDeals(sorted)
             .filter((x) => !(x as { national?: boolean }).national || natShown++ < MAX_NATIONAL);
           const webShown = reitItems.filter((x) => x.web).length;
           return { topic, count: reitItems.length, items: reitItems, webCount: webShown, localWebCount: localWeb.length };
@@ -268,14 +279,14 @@ export async function GET(request: NextRequest) {
         // like it researched the city when it did not; labelling them keeps the
         // context useful and the claim honest.
         const rankedWeb = [
-          ...local.sort(byDateDesc),
+          ...local,
           ...national.sort(byDateDesc).slice(0, MAX_NATIONAL).map((w) => ({ ...w, national: true })),
         ];
 
-        // Civic/custom topics: web is the targeted research → show it first
-        // (internal civic matches are often loose). RE topics: internal first.
-        const webFirst = !RE_TOPICS.has(topic);
-        const items = webFirst ? [...rankedWeb, ...internalItems] : [...internalItems, ...rankedWeb];
+        // Internal and web used to be two bands (web first for civic topics,
+        // internal first for real-estate ones). Now one list by date; a stable
+        // sort keeps internal before web on the same date.
+        const items = [...internalItems, ...rankedWeb].sort(byDateDesc);
         // Badge count = everything visible when web was added; else internal total.
         const count = rankedWeb.length > 0 ? items.length : internalCount;
         return { topic, count, items, webCount: rankedWeb.length, localWebCount: local.length };

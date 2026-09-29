@@ -47,3 +47,23 @@ export function normNewsDate(d: string | null | undefined, now: number = Date.no
   if (Number.isNaN(t)) return null;
   return new Date(t).toISOString().slice(0, 10);
 }
+
+const HE_MONTHS = ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"];
+
+/**
+ * A normalized date for a Hebrew line, in words: "28 בספטמבר 2026", "דצמבר 2025", "2026".
+ *
+ * Why. "2025-12" inside a Hebrew line "(כלכליסט · 2025-12)" wraps at the hyphen on a
+ * phone, and the two halves are then laid out right to left: Ben's screenshot of
+ * 2026-09-29 showed "(כלכליסט · -2025" on one line and "(12" on the next. Month
+ * names cannot flip, and a line may break between words without garbling them.
+ * Precision is kept: a month-only date never gains a day.
+ */
+export function hebrewDateLabel(d: string | null | undefined): string {
+  const s = (d || "").trim();
+  let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if (m && HE_MONTHS[Number(m[2]) - 1]) return `${Number(m[3])} ב${HE_MONTHS[Number(m[2]) - 1]} ${m[1]}`;
+  m = /^(\d{4})-(\d{2})$/.exec(s);
+  if (m && HE_MONTHS[Number(m[2]) - 1]) return `${HE_MONTHS[Number(m[2]) - 1]} ${m[1]}`;
+  return s;
+}

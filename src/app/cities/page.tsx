@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { SiteNav } from "@/components/site-nav";
 import { NewsCard } from "@/components/news-card";
 import { CITIES } from "@/lib/cities";
+import { hebrewDateLabel } from "@/lib/news-date";
 import type { ScoredNews } from "@/lib/types";
 
 interface Overview {
@@ -486,7 +487,7 @@ export default function CitiesPage() {
                         {dossier.sources.map((s, i) => (
                           <div key={i} className="text-[11px] leading-[1.5]" style={{ color: "#4b5563" }} dir="rtl">
                             <span style={{ color: "#9ca3af" }}>{i + 1}.</span> {s.title}
-                            <span className="text-[10px] mr-1" style={{ color: "#9ca3af" }}> ({s.source}{s.date ? ` · ${s.date}` : ""})</span>
+                            <span className="text-[10px] mr-1" style={{ color: "#9ca3af" }}> ({s.source}{s.date ? ` · ${hebrewDateLabel(s.date)}` : ""})</span>
                             {s.url && <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-[10px] font-semibold mr-1" style={{ color: "#0071e3" }}>קישור ←</a>}
                           </div>
                         ))}
@@ -527,7 +528,7 @@ export default function CitiesPage() {
                                     {it.web && <span className="text-[9px] font-bold mr-1 px-1 py-0.5 rounded align-middle" style={{ background: "#ecfeff", color: "#0e7490", border: "1px solid #a5f3fc" }}>🌐 מהרשת</span>}
                                     {it.national && <span title="לא נמצא אזכור של העיר בפריט הזה — מוצג כרקע ארצי" className="text-[9px] font-bold mr-1 px-1 py-0.5 rounded align-middle" style={{ background: "#f3f4f6", color: "#6b7280", border: "1px solid #e5e7eb" }}>רקע ארצי</span>}
                                     {/* alsoCount: other outlets reporting the same deal (REIT cube groups them). */}
-                                    <span className="text-[10px] mr-1" style={{ color: "#9ca3af" }} title={it.alsoSources?.length ? `דווח גם ב: ${it.alsoSources.join(", ")}` : undefined}> ({it.source}{it.date ? ` · ${it.date}` : ""}{it.alsoCount ? (it.alsoCount === 1 ? " · ועוד מקור אחד" : ` · ועוד ${it.alsoCount} מקורות`) : ""})</span>
+                                    <span className="text-[10px] mr-1" style={{ color: "#9ca3af" }} title={it.alsoSources?.length ? `דווח גם ב: ${it.alsoSources.join(", ")}` : undefined}> ({it.source}{it.date ? ` · ${hebrewDateLabel(it.date)}` : ""}{it.alsoCount ?(it.alsoCount === 1 ? " · ועוד מקור אחד" : ` · ועוד ${it.alsoCount} מקורות`) : ""})</span>
                                     <button onClick={() => toggleBuzz(it.id)}
                                       className="text-[10px] font-bold mr-1.5 px-1.5 py-0.5 rounded border align-middle"
                                       style={{ borderColor: "#0ea5e9", color: "#0369a1", background: buzzOpen ? "#e0f2fe" : "#fff" }}>
@@ -592,7 +593,7 @@ export default function CitiesPage() {
                                       {it.title}
                                       {it.web && <span className="text-[9px] font-bold mr-1 px-1 py-0.5 rounded align-middle" style={{ background: "#ecfeff", color: "#0e7490", border: "1px solid #a5f3fc" }}>🌐</span>}
                                       {it.conf === "approx" && <span className="text-[9px] mr-1" title="שנה משוערת" style={{ color: "#d97706" }}>≈</span>}
-                                      <span className="text-[10px] mr-1" style={{ color: "#9ca3af" }}> ({it.source}{it.date ? ` · ${it.date}` : ""})</span>
+                                      <span className="text-[10px] mr-1" style={{ color: "#9ca3af" }}> ({it.source}{it.date ? ` · ${hebrewDateLabel(it.date)}` : ""})</span>
                                       <button onClick={() => toggleBuzz(it.id)}
                                         className="text-[10px] font-bold mr-1.5 px-1.5 py-0.5 rounded border align-middle"
                                         style={{ borderColor: "#f59e0b", color: "#b45309", background: buzzOpen ? "#fef3c7" : "#fff" }}>
