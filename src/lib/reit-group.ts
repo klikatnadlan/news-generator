@@ -11,8 +11,11 @@
  * apartments, or a price within 3% (108 vs 108.5 מיליון) — no number disagrees,
  * and no two different funds are named. Numbers alone are not enough when
  * neither article names a fund: two unrelated "50 דירות" stories must stay apart
- * unless the price agrees too. The first item of a group (the list arrives
- * already ranked) stays the visible line; the rest become "עוד N מקורות".
+ * unless the price agrees too. A group keeps the place of its first item (the
+ * list arrives already ranked). Its visible line is the article whose HEADLINE
+ * tells the deal best (fund, apartments, price): in רחובות the first article was
+ * "אלמוגים סותמת חורים ממשבר הנדל"ן" while another said "אלמוגים תמכור למגוריט
+ * 54 דירות ברחובות ב-117 מיליון שקל". The rest become "עוד N מקורות".
  */
 
 export interface DealSignature {
@@ -72,20 +75,28 @@ export interface GroupedFields {
   alsoSources?: string[];
 }
 
+// How much of the deal a headline alone tells: fund, apartments, price.
+function headlineFacts(title: string): number {
+  const s = dealSignature(title);
+  return (s.fund ? 1 : 0) + (s.units != null ? 1 : 0) + (s.priceM != null ? 1 : 0);
+}
+
 /**
- * Collapse articles about the same deal. Keeps the incoming order (the first
- * member of each group is its visible line). An item flagged `national` that
- * joins a group led by a local item simply disappears into it.
+ * Collapse articles about the same deal. Keeps the incoming order: each group
+ * sits where its first member was. The visible line is the member whose
+ * headline tells the most (ties → the earlier one). A group that holds any
+ * local article shows a local one, so an item flagged `national` that joins a
+ * local deal simply disappears into it.
  */
 export function groupReitDeals<T extends { title: string; summary?: string; source?: string }>(
   items: T[]
 ): (T & GroupedFields)[] {
-  const groups: { lead: T & GroupedFields; sig: DealSignature; sources: string[] }[] = [];
+  const groups: { members: T[]; sig: DealSignature }[] = [];
   for (const it of items) {
     const sig = dealSignature(`${it.title} ${it.summary || ""}`);
     const g = groups.find((x) => sameDeal(x.sig, sig));
     if (!g) {
-      groups.push({ lead: { ...it }, sig, sources: [] });
+      groups.push({ members: [it], sig });
       continue;
     }
     // Fill what the group's signature was missing, so a later article can
@@ -95,8 +106,18 @@ export function groupReitDeals<T extends { title: string; summary?: string; sour
       units: g.sig.units ?? sig.units,
       priceM: g.sig.priceM ?? sig.priceM,
     };
-    if (it.source && !g.sources.includes(it.source) && it.source !== g.lead.source) g.sources.push(it.source);
-    g.lead.alsoCount = (g.lead.alsoCount || 0) + 1;
+    g.members.push(it);
   }
-  return groups.map((g) => (g.sources.length ? { ...g.lead, alsoSources: g.sources } : g.lead));
+  const isNational = (m: T) => !!(m as { national?: boolean }).national;
+  return groups.map(({ members }) => {
+    if (members.length === 1) return { ...members[0] };
+    const pool = members.some((m) => !isNational(m)) ? members.filter((m) => !isNational(m)) : members;
+    let shown = pool[0];
+    for (const m of pool) if (headlineFacts(m.title) > headlineFacts(shown.title)) shown = m;
+    const sources: string[] = [];
+    for (const m of members) {
+      if (m !== shown && m.source && m.source !== shown.source && !sources.includes(m.source)) sources.push(m.source);
+    }
+    return { ...shown, alsoCount: members.length - 1, ...(sources.length ? { alsoSources: sources } : {}) };
+  });
 }

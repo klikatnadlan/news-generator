@@ -50,6 +50,28 @@ describe("grouping articles about the same REIT deal", () => {
     expect(sameDeal(dealSignature("הקשיים בשוק המשרדים דוחפים את סלע ומניבים"), dealSignature("סלע נדל\"ן: ה-NOI עלה"))).toBe(false);
   });
 
+  it("shows the headline that tells the deal, in the place of the first article (רחובות, 29.9)", () => {
+    const out = groupReitDeals([
+      { title: 'אלמוגים סותמת חורים ממשבר הנדל"ן; מוכרת דירות במחירי הפסד למגוריט', summary: "54 דירות ברחובות ב-117 מיליון שקל", source: "כלכליסט" },
+      { title: "אבו פמילי מגורים השלימה שתי עסקאות", source: "גלובס" },
+      { title: "אלמוגים תמכור למגוריט 54 דירות ברחובות ב-117 מיליון שקל", source: "ביזפורטל" },
+    ]);
+    expect(out.map((x) => x.source)).toEqual(["ביזפורטל", "גלובס"]);
+    expect(out[0].alsoCount).toBe(1);
+    expect(out[0].alsoSources).toEqual(["כלכליסט"]);
+  });
+
+  it("never lets a national article stand for a local deal", () => {
+    const out = groupReitDeals([
+      { title: "רנט איט רוכשת 30 דירות מבית ירושלמי", summary: "תמורת 63 מיליון שקל", source: "מגדילים" },
+      { title: "רנט איט רוכשת 30 דירות ב-63 מיליון שקל בהנחה של 20%", source: "כלכליסט", national: true },
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0].source).toBe("מגדילים");
+    expect(out[0].national).toBeUndefined();
+    expect(out[0].alsoSources).toEqual(["כלכליסט"]);
+  });
+
   it("treats a price within 3% as the same deal, and further apart as different", () => {
     expect(sameDeal(dealSignature("מגוריט: 44 דירות ב-143 מיליון"), dealSignature("מגוריט רכשה 44 דירות ב-142.5 מיליון"))).toBe(true);
     expect(sameDeal(dealSignature("מגוריט רכשה בניין ב-75 מיליון"), dealSignature("מגוריט רכשה בניין ב-117 מיליון"))).toBe(false);
