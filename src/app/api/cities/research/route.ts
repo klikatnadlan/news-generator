@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { findCity, RESEARCH_TOPIC_KEYWORDS, RESEARCH_TOPIC_WEB_QUERY } from "@/lib/cities";
+import {
+  findCity, RESEARCH_TOPIC_KEYWORDS, RESEARCH_TOPIC_WEB_QUERY, RESEARCH_TOPIC_WEB_QUERIES,
+  REIT_TOPIC, isReitRelated, reitTier,
+} from "@/lib/cities";
 import { firecrawlSearch, firecrawlSearchV2, hostLabel, type WebResult } from "@/lib/websearch";
 import { mapPool } from "@/lib/rss";
+import { normNewsDate } from "@/lib/news-date";
 
 export const maxDuration = 45;
 
@@ -36,7 +40,10 @@ async function getWebResults(cityName: string, topic: string): Promise<WebResult
   // query, news mode with real dates). Without bumping this, every city+topic
   // already in the cache would keep serving the OLD dateless, non-city results
   // for 24h and the fix would look like it did nothing.
-  const cacheKey = `webresearch|v3|${cityName}|${topic}`;
+  // A topic with its own query set gets its own key, so a free-text cube typed
+  // earlier with the same word can never hand its cached results to it.
+  const multi = RESEARCH_TOPIC_WEB_QUERIES[topic];
+  const cacheKey = `webresearch|v3|${cityName}|${topic}${multi ? "|multi1" : ""}`;
   try {
     const { data: cached } = await supabase
       .from("narrative_cache")
@@ -68,13 +75,30 @@ async function getWebResults(cityName: string, topic: string): Promise<WebResult
   // So the news attempt uses a BARE city plus the first topic word only. The
   // quoted, fuller query is still what the organic fallback uses, where quotes
   // genuinely help precision.
-  const topicHint = (RESEARCH_TOPIC_WEB_QUERY[topic] || topic).split(/\s+/)[0];
-  let web = await firecrawlSearchV2(`${cityName} ${topicHint}`, { limit: 6, news: true });
-  // Second news attempt with the full topic hint, still unquoted.
-  if (web.length === 0) {
-    web = await firecrawlSearchV2(`${cityName} ${RESEARCH_TOPIC_WEB_QUERY[topic] || topic}`, { limit: 6, news: true });
+  let web: WebResult[] = [];
+  if (multi) {
+    // One news search per query, merged in order, deduped by URL. No organic
+    // fallback: on a town with no such news an empty section is the true
+    // answer, and the fallback would spend credits to return undated pages.
+    const seen = new Set<string>();
+    for (const q of multi) {
+      for (const w of await firecrawlSearchV2(`${cityName} ${q}`, { limit: 6, news: true })) {
+        const key = normUrl(w.url);
+        if (key && !seen.has(key)) {
+          seen.add(key);
+          web.push(w);
+        }
+      }
+    }
+  } else {
+    const topicHint = (RESEARCH_TOPIC_WEB_QUERY[topic] || topic).split(/\s+/)[0];
+    web = await firecrawlSearchV2(`${cityName} ${topicHint}`, { limit: 6, news: true });
+    // Second news attempt with the full topic hint, still unquoted.
+    if (web.length === 0) {
+      web = await firecrawlSearchV2(`${cityName} ${RESEARCH_TOPIC_WEB_QUERY[topic] || topic}`, { limit: 6, news: true });
+    }
+    if (web.length === 0) web = await firecrawlSearch(query, 6);
   }
-  if (web.length === 0) web = await firecrawlSearch(query, 6);
   if (web.length) {
     try {
       await supabase.from("narrative_cache").upsert(
@@ -104,16 +128,10 @@ function detectSourceFromUrl(url: string): string | null {
 }
 const clean = (s: string) => (s || "").replace(/<[^>]*>/g, "").trim();
 
-// Firecrawl news dates arrive human-formatted ("Feb 16, 2025"); internal rows are
-// ISO. Normalise so the UI shows one consistent "נכון ל…" format either way.
-function normDate(d?: string | null): string | null {
-  if (!d) return null;
-  const s = String(d).trim();
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-  const t = Date.parse(s);
-  if (Number.isNaN(t)) return null;
-  return new Date(t).toISOString().slice(0, 10);
-}
+// Firecrawl news dates arrive human-formatted ("Feb 16, 2025") or RELATIVE
+// ("3 weeks ago"); internal rows are ISO. The relative ones used to become null
+// here, so most web items showed no date at all — see lib/news-date.
+const normDate = (d?: string | null): string | null => normNewsDate(d);
 
 // Does this result actually talk about THIS city?
 //
@@ -218,6 +236,21 @@ export async function GET(request: NextRequest) {
         // 2026 one reads as a stale tool even when both are on-topic.
         const byDateDesc = (a: { date: string | null }, b: { date: string | null }) =>
           (b.date || "").localeCompare(a.date || "");
+
+        // קרנות ריט: only items that actually concern a REIT, the funds that buy
+        // apartments first (Ori, 28.9), then newest. Internal and web are merged:
+        // an internal hit is a named fund next to the city name, as good as any
+        // web result, so it should not sit below everything else by default.
+        if (topic === REIT_TOPIC) {
+          type Row = { title: string; summary?: string; date: string | null };
+          const textOf = (x: Row) => `${x.title} ${x.summary || ""}`;
+          const relevant = <T extends Row>(xs: T[]) => xs.filter((x) => isReitRelated(textOf(x)));
+          const byTierThenDate = (a: Row, b: Row) => reitTier(textOf(a)) - reitTier(textOf(b)) || byDateDesc(a, b);
+          const localWeb = relevant(local);
+          const nat = relevant(national).sort(byTierThenDate).slice(0, MAX_NATIONAL).map((w) => ({ ...w, national: true }));
+          const reitItems = [...[...relevant(internalItems), ...localWeb].sort(byTierThenDate), ...nat];
+          return { topic, count: reitItems.length, items: reitItems, webCount: localWeb.length + nat.length, localWebCount: localWeb.length };
+        }
         // Background items are FLAGGED, not disguised. On an ambiguous or small
         // town the web still returns national coverage (שלומי is also a common
         // first name — "עו״ד שלומי שרון" matched; a Tel Aviv price story once

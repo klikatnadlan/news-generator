@@ -46,7 +46,10 @@ export const CITIES: City[] = [
   { name: "ראשון לציון", district: "מרכז" },
   { name: "נתניה", district: "מרכז" },
   { name: "רחובות", district: "מרכז", commonWord: true },
-  { name: "כפר סבא", district: "מרכז" },
+  // כפ"ס: how headlines abbreviate it. Found 2026-09-29 — the מגוריט ענב 360
+  // deal ran as "כפ"ס: 44 דירות ב-143 מיליון שקל", and without the alias the
+  // research labelled it "רקע ארצי" under its own city.
+  { name: "כפר סבא", district: "מרכז", aliases: ["כפ\"ס", "כפ״ס"] },
   { name: "הרצליה", district: "מרכז" },
   { name: "רעננה", district: "מרכז" },
   { name: "הוד השרון", district: "מרכז" },
@@ -130,6 +133,73 @@ export const RESEARCH_TOPIC_KEYWORDS: Record<string, string[]> = {
   "ספורט": ["מרוץ", "ריצה", "אצטדיון", "היכל ספורט", "כדורגל", "כדורסל", "קבוצה עירונית", "ליגה", "אירוע ספורט", "אולם ספורט", "טורניר", "אליפות"],
   "תרבות": ["הופעה", "הופעות", "מופע", "מופעים", "תיאטרון", "קונצרט", "מוזיקה", "פסטיבל", "אירוע תרבות", "אירועי תרבות", "היכל התרבות", "מרכז תרבות"],
   "אירועים": ["אירוע עירוני", "אירועים", "חגיגה", "חגיגות", "יריד", "כנס", "אירוע המוני", "יום העצמאות", "אירוע קהילתי", "טקס"],
+  // קרנות ריט (Ben 28.9: "שלא נפספס שום עסקה"). Names only — NEVER the bare
+  // word: city_news matches substrings, and "ריט" alone matched 1,440 corpus
+  // rows ("תפריט", "חריטה", "ריטריט", "בריטניה"); on כפר סבא all 3 hits were
+  // junk. Every row here still passes isReitRelated() before it is shown.
+  "ריט": [
+    "מגוריט", "רנט איט", "רנט-איט", "אזורים ליווינג", "אזורים LIVING", "אבו פמילי",
+    "קרן ריט", "קרנות ריט", "קרן הריט", "קרנות הריט", "חברת ריט", "חברות ריט", "חברת הריט", "חברות הריט",
+    "ריט 1", "סלע קפיטל", "מניבים",
+  ],
+};
+
+// ─── קרנות ריט ──────────────────────────────────────────────────────────────
+// The cube's term. Its web search, relevance gate and ordering live here so the
+// research route stays topic-agnostic apart from one branch.
+export const REIT_TOPIC = "ריט";
+
+// The funds that buy APARTMENTS — first, by Ori's correction to the plan (28.9):
+// "קודם הקרנות שקונות דירות". Names as verified in Projektor against the funds'
+// MAYA reports (tenders-app/src/lib/reit-deals.ts). אבו פמילי is a residential
+// buyer there too ("צחי אבו" is how headlines name its deals).
+export const REIT_HOUSING_FUNDS = ["מגוריט", "רנט איט", "רנט-איט", "אזורים ליווינג", "אזורים LIVING", "אבו פמילי", "צחי אבו"];
+// Offices / retail REITs: still searched, ranked after the housing funds.
+export const REIT_OTHER_FUNDS = ["ריט 1", "סלע קפיטל", "סלע נדל\"ן", "סלע נדל״ן"];
+
+// "ריט" as a word (with a one-letter prefix and/or ה), never inside another
+// word: matches "קרן הריט", "ריט 1"; not "תפריט", "חריטה", "ריטריט", "בריטניה".
+const REIT_WORD = /(^|[^א-ת])[הובכלמש]?ה?ריט(?![א-ת])|\bREITs?\b/i;
+// מניבים is also plain Hebrew for "income-producing" (נכסים מניבים): count it
+// as the fund only when it is not that phrase.
+const MENIVIM = /(^|[^א-ת])ו?מניבים(?![א-ת])/g;
+function mentionsMenivimFund(t: string): boolean {
+  for (const m of t.matchAll(MENIVIM)) {
+    const before = t.slice(Math.max(0, (m.index ?? 0) - 10), (m.index ?? 0) + m[1].length);
+    if (!/(נכסים|נכסי|נדל["״]ן)\s*$/.test(before)) return true;
+  }
+  return false;
+}
+
+/** Does this headline + snippet actually concern a REIT? The gate every REIT-cube item passes. */
+export function isReitRelated(text: string): boolean {
+  const t = text || "";
+  return REIT_WORD.test(t)
+    || REIT_HOUSING_FUNDS.some((n) => t.includes(n))
+    || REIT_OTHER_FUNDS.some((n) => t.includes(n))
+    || mentionsMenivimFund(t);
+}
+
+/** 0 = a fund that buys apartments is named; 1 = any other REIT. Lower shows first. */
+export function reitTier(text: string): 0 | 1 {
+  const t = text || "";
+  return REIT_HOUSING_FUNDS.some((n) => t.includes(n)) ? 0 : 1;
+}
+
+// Topics whose web research is a SET of precise news queries instead of one
+// short hint (city name prepended to each). Measured 2026-09-29:
+//   "כפר סבא ריט"  (the single-hint shape)  → 0/6 relevant: restaurants, health.
+//   "כפר סבא מגוריט"                        → the מגוריט ענב 360 deal.
+//   "חדרה \"רנט איט\""                      → 6/6 the רנט איט deal.
+//   "<city> (מגוריט OR …)"                 → רחובות 6/6, ירושלים 5/6 REIT deals.
+// OR works in news mode; two queries so the housing funds get their own results
+// rather than competing with malls and offices. 2 credits each, on click only,
+// cached 24h per city.
+export const RESEARCH_TOPIC_WEB_QUERIES: Record<string, string[]> = {
+  [REIT_TOPIC]: [
+    '(מגוריט OR "רנט איט" OR "אזורים ליווינג" OR "אבו פמילי")',
+    '("ריט 1" OR "סלע קפיטל" OR מניבים OR "קרן ריט" OR "קרן הריט")',
+  ],
 };
 
 // Natural-language web-search query per topic (city name is prepended). Used by
@@ -165,6 +235,8 @@ export const RESEARCH_TOPIC_WEB_QUERY: Record<string, string> = {
   "ספורט": "ספורט אצטדיון מרוץ",
   "תרבות": "תרבות הופעות פסטיבל",
   "אירועים": "אירוע עירוני פסטיבל",
+  // Only a fallback label: the REIT cube searches with RESEARCH_TOPIC_WEB_QUERIES.
+  "ריט": "קרן ריט",
 };
 
 // Search terms for a city's news feed (name + aliases).

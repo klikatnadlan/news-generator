@@ -20,6 +20,11 @@ interface NewsCardProps {
 
 function formatNewsDate(iso?: string | null): string {
   if (!iso) return "";
+  // A month or a year only (from "3 weeks ago" / "2 years ago"): show exactly
+  // that. new Date("2026-05") is 1 May, which would print a day nobody reported.
+  const ym = /^(\d{4})-(\d{2})$/.exec(iso);
+  if (ym) return `${Number(ym[2])}.${ym[1].slice(2)}`;
+  if (/^\d{4}$/.test(iso)) return iso;
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
   return d.toLocaleDateString("he-IL", { day: "numeric", month: "numeric", year: "2-digit", timeZone: "Asia/Jerusalem" });

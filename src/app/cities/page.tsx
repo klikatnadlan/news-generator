@@ -41,6 +41,7 @@ const RESEARCH_TOPICS = [
   { emoji: "📈", label: "מחירים", term: "מחירים" },
   { emoji: "🏘️", label: "מחיר למשתכן", term: "מחיר למשתכן" },
   { emoji: "🪧", label: "מכרזי קרקע", term: "מכרז" },
+  { emoji: "🏢", label: "עסקאות קרנות ריט", term: "ריט" },
   { emoji: "🎓", label: "חינוך", term: "חינוך" },
   { emoji: "🚨", label: "אלימות ופשיעה", term: "אלימות" },
   { emoji: "💼", label: "תעסוקה", term: "תעסוקה" },
