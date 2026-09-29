@@ -548,8 +548,9 @@ export default function HeadlinesPage() {
                 const isThisTrigger = triggerForId === item.id;
                 return (
                   <div key={item.id}>
+                    {/* showDate: Ben, 29.9 — "עדיף לשים שם תאריך", to judge relevance without opening the link. */}
                     <HeadlineRow item={item} selected={selected.has(item.id)} onToggle={toggleSelect} onCopy={copySingle} getColor={getColor} accentColor={tabConfig.color}
-                      onTrigger={() => triggerSingleAI(item)} triggerLoading={triggerLoading && isThisTrigger}
+                      onTrigger={() => triggerSingleAI(item)} triggerLoading={triggerLoading && isThisTrigger} showDate
                       onMoveUp={() => moveItem(item.id, -1)} onMoveDown={() => moveItem(item.id, 1)} onHide={() => hideItem(item.id)}
                       isFirst={arrangedNews[0]?.id === item.id} isLast={arrangedNews[arrangedNews.length - 1]?.id === item.id} />
                     {/* Trigger result appears RIGHT BELOW this headline */}
