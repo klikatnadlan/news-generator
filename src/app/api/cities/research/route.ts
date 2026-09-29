@@ -43,7 +43,8 @@ async function getWebResults(cityName: string, topic: string): Promise<WebResult
   // A topic with its own query set gets its own key, so a free-text cube typed
   // earlier with the same word can never hand its cached results to it.
   const multi = RESEARCH_TOPIC_WEB_QUERIES[topic];
-  const cacheKey = `webresearch|v3|${cityName}|${topic}${multi ? "|multi1" : ""}`;
+  // Bump the multi tag whenever the query set changes (multi2: + "ריט אזורים").
+  const cacheKey = `webresearch|v3|${cityName}|${topic}${multi ? "|multi2" : ""}`;
   try {
     const { data: cached } = await supabase
       .from("narrative_cache")

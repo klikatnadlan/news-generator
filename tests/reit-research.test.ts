@@ -31,6 +31,8 @@ describe("REIT research cube — what counts as a REIT story", () => {
     expect(reitTier("מגוריט רכשה בניין דירות")).toBe(0);
     expect(reitTier("רנט איט קונה 52 דירות")).toBe(0);
     expect(reitTier("אזורים ליווינג רוכשת")).toBe(0);
+    // how most headlines shorten it (its Jerusalem deal ranked 7th without this)
+    expect(reitTier("ריט אזורים רוכשת 50 דירות באשדוד")).toBe(0);
     expect(reitTier("סלע קפיטל רוכשת קניון")).toBe(1);
     expect(reitTier("ריט 1 רכשה משרדים")).toBe(1);
   });

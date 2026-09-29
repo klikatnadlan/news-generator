@@ -138,7 +138,7 @@ export const RESEARCH_TOPIC_KEYWORDS: Record<string, string[]> = {
   // rows ("תפריט", "חריטה", "ריטריט", "בריטניה"); on כפר סבא all 3 hits were
   // junk. Every row here still passes isReitRelated() before it is shown.
   "ריט": [
-    "מגוריט", "רנט איט", "רנט-איט", "אזורים ליווינג", "אזורים LIVING", "אבו פמילי",
+    "מגוריט", "רנט איט", "רנט-איט", "אזורים ליווינג", "אזורים LIVING", "ריט אזורים", "אבו פמילי",
     "קרן ריט", "קרנות ריט", "קרן הריט", "קרנות הריט", "חברת ריט", "חברות ריט", "חברת הריט", "חברות הריט",
     "ריט 1", "סלע קפיטל", "מניבים",
   ],
@@ -153,7 +153,9 @@ export const REIT_TOPIC = "ריט";
 // "קודם הקרנות שקונות דירות". Names as verified in Projektor against the funds'
 // MAYA reports (tenders-app/src/lib/reit-deals.ts). אבו פמילי is a residential
 // buyer there too ("צחי אבו" is how headlines name its deals).
-export const REIT_HOUSING_FUNDS = ["מגוריט", "רנט איט", "רנט-איט", "אזורים ליווינג", "אזורים LIVING", "אבו פמילי", "צחי אבו"];
+// "ריט אזורים" is how most headlines shorten אזורים ליווינג: on 2026-09-29 its
+// Jerusalem deal (26 דירות, ₪76.5M) ranked 7th under the other REITs for lack of it.
+export const REIT_HOUSING_FUNDS = ["מגוריט", "רנט איט", "רנט-איט", "אזורים ליווינג", "אזורים LIVING", "ריט אזורים", "אבו פמילי", "צחי אבו"];
 // Offices / retail REITs: still searched, ranked after the housing funds.
 export const REIT_OTHER_FUNDS = ["ריט 1", "סלע קפיטל", "סלע נדל\"ן", "סלע נדל״ן"];
 
@@ -192,12 +194,13 @@ export function reitTier(text: string): 0 | 1 {
 //   "כפר סבא מגוריט"                        → the מגוריט ענב 360 deal.
 //   "חדרה \"רנט איט\""                      → 6/6 the רנט איט deal.
 //   "<city> (מגוריט OR …)"                 → רחובות 6/6, ירושלים 5/6 REIT deals.
+//   5 names incl. "ריט אזורים", on אשדוד    → 6/6, three distinct housing deals.
 // OR works in news mode; two queries so the housing funds get their own results
 // rather than competing with malls and offices. 2 credits each, on click only,
 // cached 24h per city.
 export const RESEARCH_TOPIC_WEB_QUERIES: Record<string, string[]> = {
   [REIT_TOPIC]: [
-    '(מגוריט OR "רנט איט" OR "אזורים ליווינג" OR "אבו פמילי")',
+    '(מגוריט OR "רנט איט" OR "אזורים ליווינג" OR "ריט אזורים" OR "אבו פמילי")',
     '("ריט 1" OR "סלע קפיטל" OR מניבים OR "קרן ריט" OR "קרן הריט")',
   ],
 };
