@@ -162,13 +162,15 @@ export const REIT_OTHER_FUNDS = ["ריט 1", "סלע קפיטל", "סלע נדל
 // "ריט" as a word (with a one-letter prefix and/or ה), never inside another
 // word: matches "קרן הריט", "ריט 1"; not "תפריט", "חריטה", "ריטריט", "בריטניה".
 const REIT_WORD = /(^|[^א-ת])[הובכלמש]?ה?ריט(?![א-ת])|\bREITs?\b/i;
-// מניבים is also plain Hebrew for "income-producing" (נכסים מניבים): count it
-// as the fund only when it is not that phrase.
+// מניבים is also plain Hebrew for "income-producing" (נכסים מניבים), and part of
+// other companies' names ("תורג'מן מניבים" — a bond raise that surfaced under
+// חדרה on 2026-09-29): count it as the fund only when it is neither.
 const MENIVIM = /(^|[^א-ת])ו?מניבים(?![א-ת])/g;
 function mentionsMenivimFund(t: string): boolean {
   for (const m of t.matchAll(MENIVIM)) {
-    const before = t.slice(Math.max(0, (m.index ?? 0) - 10), (m.index ?? 0) + m[1].length);
-    if (!/(נכסים|נכסי|נדל["״]ן)\s*$/.test(before)) return true;
+    const before = t.slice(Math.max(0, (m.index ?? 0) - 12), (m.index ?? 0) + m[1].length);
+    // תורג'מן / תורגמ'ן / תורגמן: the same article spelled it two ways.
+    if (!/(נכסים|נכסי|נדל["״]ן|תורג['׳]?מ['׳]?ן)\s*$/.test(before)) return true;
   }
   return false;
 }

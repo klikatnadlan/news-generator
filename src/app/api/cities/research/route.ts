@@ -7,6 +7,7 @@ import {
 import { firecrawlSearch, firecrawlSearchV2, hostLabel, type WebResult } from "@/lib/websearch";
 import { mapPool } from "@/lib/rss";
 import { normNewsDate } from "@/lib/news-date";
+import { groupReitDeals } from "@/lib/reit-group";
 
 export const maxDuration = 45;
 
@@ -248,9 +249,15 @@ export async function GET(request: NextRequest) {
           const relevant = <T extends Row>(xs: T[]) => xs.filter((x) => isReitRelated(textOf(x)));
           const byTierThenDate = (a: Row, b: Row) => reitTier(textOf(a)) - reitTier(textOf(b)) || byDateDesc(a, b);
           const localWeb = relevant(local);
-          const nat = relevant(national).sort(byTierThenDate).slice(0, MAX_NATIONAL).map((w) => ({ ...w, national: true }));
-          const reitItems = [...[...relevant(internalItems), ...localWeb].sort(byTierThenDate), ...nat];
-          return { topic, count: reitItems.length, items: reitItems, webCount: localWeb.length + nat.length, localWebCount: localWeb.length };
+          const localSorted = [...relevant(internalItems), ...localWeb].sort(byTierThenDate);
+          const natSorted = relevant(national).sort(byTierThenDate).map((w) => ({ ...w, national: true }));
+          // One line per deal (lib/reit-group). A national copy of a local deal
+          // folds into it; the national background that remains is still capped.
+          let natShown = 0;
+          const reitItems = groupReitDeals([...localSorted, ...natSorted])
+            .filter((x) => !(x as { national?: boolean }).national || natShown++ < MAX_NATIONAL);
+          const webShown = reitItems.filter((x) => x.web).length;
+          return { topic, count: reitItems.length, items: reitItems, webCount: webShown, localWebCount: localWeb.length };
         }
         // Background items are FLAGGED, not disguised. On an ambiguous or small
         // town the web still returns national coverage (שלומי is also a common

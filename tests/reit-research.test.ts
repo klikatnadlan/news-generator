@@ -24,6 +24,10 @@ describe("REIT research cube — what counts as a REIT story", () => {
 
   it("does not take \"נכסים מניבים\" for the fund מניבים", () => {
     expect(isReitRelated("השקעה בנכסים מניבים בפתח תקווה")).toBe(false);
+    // another company's name, seen under חדרה on 29.9
+    expect(isReitRelated("תורג'מן מניבים גייסה 120 מיליון שקל באג\"ח")).toBe(false);
+    // ...and the snippet of the same article spelled it תורגמ'ן
+    expect(isReitRelated("החברה האחרונה שנכנסת לבורסה: תורגמ'ן מניבים גייסה 120 מיליון")).toBe(false);
     expect(isReitRelated("מניבים רכשה עוד 25% ממתחם סנטרו ברחובות")).toBe(true);
   });
 
